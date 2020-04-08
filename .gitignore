@@ -1,0 +1,6 @@
+.vs/
+build/
+build-msvc/
+build-linux/
+sdkconfig
+sdkconfig.old

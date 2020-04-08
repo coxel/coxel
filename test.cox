@@ -1,0 +1,697 @@
+print("Test suite");
+print("Basic language checking...");
+
+let testname = "";
+let checkid = 0;
+let test = function(name, func) {
+  testname = name;
+  checkid = 0;
+  func();
+};
+let check = function(actual, expect) {
+  if (expect != actual) {
+    print(testname + "-" + checkid + " failed. " + actual + "!=" + expect);
+  }
+  checkid = checkid + 1;
+};
+let checks = function(actual, expect) {
+  check(actual + "", expect + "");
+};
+
+test("Num-parsing", function() {
+  checks(0, "0");
+  checks(1, "1");
+  checks(+1, "1");
+  checks(-1, "-1");
+  checks(32767, "32767");
+  checks(-32767, "-32767");
+  checks(-32768, "-32768");
+  checks(32768, "-32768");
+  checks(32767.99995, "32767.9999");
+  checks(32767.99996, "32768");
+  checks(0.0000000, "0");
+  checks(0.01, "0.01");
+  checks(-0.00, "0");
+  checks(0.00001, "0");
+  checks(0.0001, "0.0001");
+  checks(-0.0001, "-0.0001");
+  checks(0.25, "0.25");
+  checks(-0.25, "-0.25");
+  checks(0.10004123, "0.1");
+});
+
+test("Base-parsing", function() {
+  check(0x7FFF, 32767);
+  check(0xFFFF, -1);
+  check(0x0.FFFF, 0.9999999);
+  check(0x7FFF.FFFF, 32767.9999999);
+  check(0x7FFF.FFFFFFF, 32767.9999999);
+  check(0b1000000000000000, -32768);
+  check(0b.1, 0.5);
+  check(0777, 511);
+});
+
+test("Arithmetic", function() {
+  check(1 + 1, 2);
+  check(-2 + -3, -5);
+  check(1 - 1, 0);
+  check(1 * 1, 1);
+  check(-0.5 * 2.875, -1.4375);
+  check(-1 * -2, 2);
+  check(1 / 1, 1);
+  check(1 / 16, 0.0625);
+  check(-1 / 0.0625, -16);
+  check(1 / -0.01, -100.05495);
+  check(-16 / -2, 8);
+  check(3 / 4, 0.75);
+  check(1 % 1, 0);
+  check(1 % 2, 1);
+  check(1 % 0.75, 0.25);
+  check(1 % 0.3, 0.10005);
+  check(-1 % -3, -1);
+  check(2 % -5, 2);
+});
+
+test("Logic", function() {
+  check(true && false, false);
+  check(true && true, true);
+  check(false && false, false);
+  check(false && true, false);
+  check(true || true, true);
+  check(true || false, true);
+  check(false || true, true);
+  check(false || false, false);
+  check(!true, false);
+  check(!false, true);
+});
+
+test("Bitwise", function() {
+  check(3.1 & 5.2, 1);
+  check(-2 & 3, 2);
+  check(3.3 | 5.1, 7);
+  check(-2 | 3, -1);
+  check(-0.123 << 2, 0);
+  check(-1.1 << 2.22, -4);
+  check(100 << 17, 200);
+  check(100 << -15, 200);
+  check(-32768 >> 1, -16384);
+  check(-32768 >>> 1, 16384);
+});
+
+test("Short-circuit", function() {
+  let called;
+  let probe = function() { called = true; };
+  called = false;
+  check(3 || probe(), 3);
+  check(called, false);
+
+  called = false;
+  check(false || probe(), undefined);
+  check(called, true);
+
+  called = false;
+  check(0 && probe(), 0);
+  check(called, false);
+
+  called = false;
+  check(3 && probe(), undefined);
+  check(called, true);
+});
+
+test("Comparison", function() {
+  check(0.01 > 0.001, true);
+  check(0.01 < 0.001, false);
+  check(0.01 >= 0.01, true);
+  check(0.01 > 0.01, false);
+  check(0.01 <= 0.01, true);
+  check(0.01 < 0.01, false);
+  check(-0.01 > 0.001, false);
+  check(-0.01 < 0.001, true);
+  check(-0.01 > -0.001, false);
+  check(-0.01 < -0.001, true);
+});
+
+test("Equality", function() {
+  check(3 == 3, true);
+  check(3 != 3, false);
+  check(3 == "3", false);
+  check(3 != "3", true);
+  check("3" == "3", true);
+  check("3" != "3", false);
+});
+
+test("Inc-dec", function() {
+  let a = 0, b = 0;
+  check(a++ + b++, 0);
+  check(a++ + a++ + a++ + a++ + a++, 15);
+  check(++a == a++, true);
+  check(a, 8);
+  check(--b + b--, 0);
+  check(--b + ++b, -3);
+  check(b, -1);
+});
+
+test("Ternary", function() {
+  let a = 10;
+  check(a > 5? "t" : "f", "t");
+  check(a > 5? a < 7 ? "a" : "b" : "c", "b");
+  check(a > 5? a > 7 ? "a" : "b" : "c", "a");
+  check(a < 5? a < 7 ? "a" : "b" : "c", "c");
+  check(a < 5? a > 7 ? "a" : "b" : "c", "c");
+});
+
+test("Assignment", function() {
+  let a = 0;
+  check(a += 10, 10);
+  check(a -= 20, -10);
+  check(a *= 2, -20);
+  check(a /= -2, 10);
+  check(a %= -6, 4);
+  check(a **= 0.5, 2);
+  check(a <<= 14, -32768);
+  check(a >>= 3, -4096);
+  check(a >>>= 1, 28672);
+});
+
+test("Coercion", function() {
+  check(+10, 10);
+  check(+"10", 10);
+  check(+"0", 0);
+  check(-"10", -10);
+  check(3 * "-1.5", -4.5);
+  check(-1.5 / "3", -0.5);
+  check(!10, false);
+  check(!!10, true);
+  check(!!0, false);
+  check(!!"0", true);
+  check(3 + "0", "30");
+  check(3 - "0", 3);
+  check(3 > "2", true);
+  check(2 < "-3", false);
+});
+
+test("Precedence", function() {
+  let a = 0, b = 0, c = 0, d = 0, e = 0, f = 0, g = 0;
+  a = b = 3;
+  check(a, 3);
+  check(b, 3);
+  check(3 + 2 * 5, 13);
+});
+
+test("Let", function() {
+  let a;
+  check(a, undefined);
+  let b, c = 10;
+  check(b, undefined);
+  check(c, 10);
+  let d = 10, e;
+  check(d, 10);
+  check(e, undefined);
+  let f = 1, g = f;
+  check(f, 1);
+  check(g, 1);
+});
+
+test("Live-range", function() {
+  let a = 10;
+  check(a, 10);
+  {
+    let a = 20, b = 10, c = 30;
+    check(a, 20);
+    a = 30;
+    check(a, 30);
+    check(b, 10);
+    b = "a";
+    check(b, "a");
+    check(c, 30);
+    c = "d";
+    check(c, "d");
+  }
+  let c = "q";
+  check(a, 10);
+  check(b, undefined);
+  check(c, "q");
+});
+
+test("Upvalue", function() {
+  let t;
+  let a = "a";
+  {
+    let a = 10;
+    let f = function() {
+      let g = function() {
+        return a;
+      };
+      return g;
+    };
+    t = f();
+    check(t(), 10);
+    a = 20;
+    check(t(), 20);
+  }
+  check(t(), 20);
+});
+
+test("Upvalue-bug1", function() {
+  let t;
+  let f = function (str) {
+    let a;
+    t = function() {
+      a;
+      return str;
+    };
+  };
+  f("x");
+  check(t(), "x");
+});
+
+test("Upvalue-bug2", function() {
+  let str = "str";
+  let f = function() {
+    let a = 0;
+    let b = 0;
+    let g = function() {
+      let c = b;
+      str = str.substr(0, 1);
+    };
+    g();
+  };
+  f();
+  check(str, "s");
+});
+
+test("If", function() {
+  let reached;
+  if (3 > 2) {
+    reached = "reached";
+  }
+  else {
+    unreachable();
+  }
+  check(reached, "reached");
+  reached = undefined;
+  if (3 > 2)
+    if (2 > 3)
+      unreachable();
+    else
+      reached = "reached";
+  check(reached, "reached");
+});
+
+test("For", function() {
+  let i, sum = 0;
+  for (i = 1; i <= 100; i++)
+    sum += i;
+  check(sum, 5050);
+  check(i, 101);
+  sum = 0;
+  for (let i = -1; i >= -100; --i)
+    sum += i;
+  check(sum, -5050);
+  check(i, 101);
+  sum = 0;
+  for (let i = 100; i > 0; i -= 0.5) {
+    let i = 10;
+    sum += i;
+  }
+  check(sum, 2000);
+});
+
+test("For-Continue", function() {
+  let sum = 0;
+  for (let i = 0; i < 100; i++) {
+    if (i % 2 == 0)
+      continue;
+    sum += i;
+  }
+  check(sum, 2500);
+});
+
+test("For-Break", function() {
+  let sum = 0;
+  for (let i = 0; i < 100; i++) {
+    if (i == 50)
+      break;
+    sum += i;
+  }
+  check(sum, 1225);
+});
+
+test("For-missing", function() {
+  let x = 0;
+  for (; x < 10;) {
+    x += 1;
+  }
+  check(x, 10);
+  let sum = 0;
+  for (; ; x--) {
+    sum += x;
+    if (x == 0)
+      break;
+  }
+  check(x, 0);
+  check(sum, 55);
+});
+
+test("For-forever", function() {
+  let x = 0;
+  for (;;) {
+    if (x == 0)
+      break;
+    else
+      continue;
+  }
+  check(x, 0);
+});
+
+test("For-upvalue", function() {
+  let funcs = [];
+  for (let i = 0; i < 5; i++) {
+    funcs.push(function() { return i; });
+  }
+  check(funcs[0](), 0);
+  check(funcs[1](), 1);
+  check(funcs[2](), 2);
+  check(funcs[3](), 3);
+  check(funcs[4](), 4);
+  let i = -1;
+  funcs = [];
+  for (i = 0; i < 5; i++) {
+    funcs.push(function() { return i; });
+  }
+  check(funcs[0](), 5);
+  check(funcs[1](), 5);
+  check(funcs[2](), 5);
+  check(funcs[3](), 5);
+  check(funcs[4](), 5);
+});
+
+test("While", function() {
+  let i = 0, sum = 0;
+  while (i <= 100) {
+    sum += i;
+    i++;
+  }
+  check(sum, 5050);
+});
+
+test("While-Continue", function() {
+  let i = 0, sum = 0;
+  while (i <= 100) {
+    if (i % 2 == 0) {
+      i++;
+      continue;
+    }
+    sum += i;
+    i++;
+  }
+  check(sum, 2500);
+});
+
+test("While-Break", function() {
+  let i = 0, sum = 0;
+  while (i <= 100) {
+    if (i == 50)
+      break;
+    sum += i;
+    i++;
+  }
+  check(sum, 1225);
+});
+
+test("Do-While", function() {
+  let i = 0, sum = 0;
+  do {
+    sum += i;
+    i++;
+  } while (i <= 100);
+  check(sum, 5050);
+});
+
+test("Do-While-Continue", function() {
+  let i = 0, sum = 0;
+  do {
+    if (i % 2 == 0) {
+      i++;
+      continue;
+    }
+    sum += i;
+    i++;
+  } while (i <= 100);
+  check(sum, 2500);
+});
+
+test("Do-While-Break", function() {
+  let i = 0, sum = 0;
+  do {
+    if (i == 50)
+      break;
+    sum += i;
+    i++;
+  } while (i <= 100);
+  check(sum, 1225);
+});
+
+test("Switch", function() {
+  let num_conv = function(val) {
+    switch (val) {
+      case 0: return "zero";
+      case 1: return "one";
+      case 2: return "two";
+      case 3: return "three";
+      case 4: return "four";
+    }
+    return "unknown";
+  };
+  check(num_conv(0), "zero");
+  check(num_conv(1), "one");
+  check(num_conv(2), "two");
+  check(num_conv(3), "three");
+  check(num_conv(4), "four");
+  check(num_conv(5), "unknown");
+  check(num_conv(6), "unknown");
+  check(num_conv(-1), "unknown");
+  check(num_conv("0"), "unknown");
+  check(num_conv(undefined), "unknown");
+  check(num_conv([]), "unknown");
+});
+
+test("Switch-passthrough", function() {
+  let sum = 0;
+  let sums = [];
+  for (let i = 0; i < 10; i++) {
+    switch (i) {
+      case 0: sum += 1; break;
+      case 1: sum += 2; break;
+      case 2: sum += 1;
+      case 3: sum += 1;
+      case 4: sum += 1;
+      case 5: sum += 1;
+      case 6: sum += 1; break;
+      case 7: continue;
+      case "8": sum += 1;
+      case 9: sum += 1; break;
+      default: sum -= 10;
+    }
+    sums.push(sum);
+  }
+  check(sums[0], 1);
+  check(sums[1], 3);
+  check(sums[2], 8);
+  check(sums[3], 12);
+  check(sums[4], 15);
+  check(sums[5], 17);
+  check(sums[6], 18);
+  check(sums[7], 8);
+  check(sums[8], 9);
+});
+
+test("Switch-casedefault", function() {
+  let sum = 0;
+  let sums = [];
+  for (let i = 0; i < 5; i++) {
+    switch (i) {
+      case 0:
+      case 1:
+      case 2:
+        sum += i;
+        break;
+      case 3: sum += 3; break;
+      default: sum += 1;
+    }
+    sums.push(sum);
+  }
+  check(sums[0], 0);
+  check(sums[1], 1);
+  check(sums[2], 3);
+  check(sums[3], 6);
+  check(sums[4], 7);
+  check(sum, 7);
+});
+
+test("String", function() {
+  check("abcde"[0], "a");
+  check("abc" + 456, "abc456");
+  check("" + "", "");
+  check("" + "a", "a");
+  check('a' + '', "a");
+  check("'" + '"', "\'\"");
+});
+
+test("String-indexOf", function() {
+  check("abcda".indexOf("da"), 3);
+  check("abcda".indexOf("abcdb"), -1);
+  check("abcda".indexOf("adcba"), -1);
+  check("abcda".indexOf("a"), 0);
+  check("abcda".indexOf("A"), -1);
+  check("abcda".indexOf("d"), 3);
+  check("abcda".indexOf("a", 0), 0);
+  check("abcda".indexOf("a", 1), 4);
+  check("abcda".indexOf("a", 6), -1);
+  check("abcda".indexOf(""), 0);
+  check("abcda".indexOf("", -1), -1);
+  check("abcda".indexOf("", 1), 1);
+  check("abcda".indexOf("", 4), 4);
+  check("abcda".indexOf("", 5), 5);
+  check("abcda".indexOf("", 6), 5);
+});
+
+test("String-lastIndexOf", function() {
+  check("abcda".lastIndexOf("abc"), 0);
+  check("abcda".lastIndexOf("da"), 3);
+  check("abcda".lastIndexOf("abcdb"), -1);
+  check("abcda".lastIndexOf("adcba"), -1);
+  check("abcda".lastIndexOf("a"), 4);
+  check("abcda".lastIndexOf("da"), 3);
+  check("abcda".lastIndexOf("da", 5), 3);
+  check("abcda".lastIndexOf("da", 3), 3);
+  check("abcda".lastIndexOf("da", 2), -1);
+  check("abcda".lastIndexOf(""), 5);
+  check("abcda".lastIndexOf("", -1), -1);
+  check("abcda".lastIndexOf("", 1), 1);
+  check("abcda".lastIndexOf("", 4), 4);
+  check("abcda".lastIndexOf("", 5), 5);
+  check("abcda".lastIndexOf("", 6), 5);
+});
+
+test("String-substr", function() {
+  check("abcdef".substr(0, 0), "");
+  check("abcdef".substr(0, -1), "abcdef");
+  check("abcdef".substr(4, 1), "e");
+  check("abcdef".substr(1), "bcdef");
+  check("abcdef".substr(8), "");
+});
+
+test("Array", function() {
+  let arr = [1, 2, 3];
+  check(arr[-1], undefined);
+  check(arr[0], 1);
+  check(arr[1], 2);
+  check(arr[2], 3);
+  check(arr[3], undefined);
+  check(arr.length, 3);
+  arr.push("4");
+  check(arr[-1], undefined);
+  check(arr[0], 1);
+  check(arr[1], 2);
+  check(arr[2], 3);
+  check(arr[3], "4");
+  check(arr[4], undefined);
+  check(arr.length, 4);
+  check(arr.pop(), "4");
+  check(arr[3], undefined);
+  check(arr.length, 3);
+});
+
+test("Object", function() {
+  let obj = { a: "a", "b": "b", "10": "c" };
+  check(obj.a, "a");
+  check(obj["a"], "a");
+  check(obj.b, "b");
+  check(obj["b"], "b");
+  check(obj.c, undefined);
+  check(obj["c"], undefined);
+  check(obj[10], "c");
+
+  check("a" in obj, true);
+  obj.a = undefined;
+  check(obj.a, undefined);
+  check("a" in obj, true);
+
+  obj.d = "t";
+  check(obj.d, "t");
+  obj.e = obj;
+  check(obj.e, obj);
+  check(obj.e.e.e, obj);
+});
+
+test("Recursive", function() {
+  let frac = function f(n) {
+    if (n == 0)
+      return 1;
+    else
+      return n * f(n - 1);
+  };
+  check(frac(0), 1);
+  check(frac(1), 1);
+  check(frac(2), 2);
+  check(frac(3), 6);
+  check(frac(4), 24);
+  check(frac(5), 120);
+  check(frac(6), 720);
+  check(frac(7), 5040);
+
+  let fib = function f(n) {
+    if (n == 0)
+      return 0;
+    else if (n == 1)
+      return 1;
+    else
+      return f(n - 1) + f(n - 2);
+  };
+  check(fib(0), 0);
+  check(fib(1), 1);
+  check(fib(2), 1);
+  check(fib(3), 2);
+  check(fib(4), 3);
+  check(fib(5), 5);
+  check(fib(6), 8);
+  check(fib(7), 13);
+  check(fib(8), 21);
+  check(fib(9), 34);
+  check(fib(10), 55);
+  check(fib(11), 89);
+  check(fib(12), 144);
+});
+
+test("This", function() {
+  let f = function() {
+    return this.text;
+  };
+  let obj = { f: f, text: "text" };
+  check(obj.f(), "text");
+});
+check(this, global);
+check(this.global, global);
+check(global.global, global);
+
+test("Function-args", function() {
+  let f = function(x, y) {
+    return x;
+  };
+  let g = function(x, y) {
+    return y;
+  };
+  check(f(), undefined);
+  check(f(1), 1);
+  check(f(1, 2), 1);
+  check(f(1, 2, 3), 1);
+  check(g(), undefined);
+  check(g(1), undefined);
+  check(g(1, 2), 2);
+  check(g(1, 2, 3), 2);
+});
+
+print("DONE");
+
+print(" !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~");

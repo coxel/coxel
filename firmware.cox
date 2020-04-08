@@ -1,0 +1,630 @@
+let code = "";
+
+function addChMap(map, list, val) {
+  for (let i = 0; i < list.length; i++)
+    map[list[i]] = val;
+}
+
+function makeChMap(list, val) {
+  let map = {};
+  addChMap(map, list, val);
+  return map;
+}
+
+let kws = [
+  "break",
+  "case",
+  "continue",
+  "default",
+  "do",
+  "else",
+  "false",
+  "for",
+  "function",
+  "if",
+  "in",
+  "let",
+  "null",
+  "return",
+  "switch",
+  "this",
+  "true",
+  "undefined",
+  "while",
+];
+let kwSet = makeChMap(kws, true);
+
+let tokEnd, tokColor;
+function initParse(pr) {
+  if (pr.token == "comment")
+    tokColor = 5;
+  else if (pr.token == "string")
+    tokColor = 3;
+  else
+    tokColor = 14;
+  tokEnd = pr.tokenEnd;
+}
+let abet = "abcdefghijklmnopqrstuvwxyz";
+abet += "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+let nums = "0123456789";
+let symbs = "!%&()*+,-.:;<=>?[]^{|}~";
+let tokFuncs = {};
+let identSet = makeChMap(
+  "_$" + abet + nums, true);
+let numSet = makeChMap(nums, true);
+let baseSet = {
+  "b": makeChMap("01", true),
+  "o": makeChMap("01234567", true),
+  "x": makeChMap(
+    "0123456789abcdefABCDEF", true)
+};
+let escSet = makeChMap("n'\"\\", true);
+let tokIdent = function(c) {
+  let t = c + 1;
+  for (; identSet[code[t]]; t++);
+  if (kwSet[code.substr(c, t-c)])
+    tokColor = 6;
+  else
+    tokColor = 14;
+  tokEnd = t;
+};
+addChMap(tokFuncs, abet, tokIdent);
+addChMap(tokFuncs, "_$", tokIdent);
+let tokNumber = function (c) {
+  let t = c + 1;
+  let digitSet = numSet;
+  if (code[c] == "0") {
+    digitSet = baseSet[code[t]];
+    if (digitSet)
+      t++;
+    else
+      digitSet = baseSet.o;
+  }
+  for (; digitSet[code[t]]; t++);
+  tokColor = 10;
+  tokEnd = t;
+};
+addChMap(tokFuncs, nums, tokNumber);
+let tokSymbol = function (c) {
+  tokColor = 15;
+  tokEnd = c + 1;
+};
+addChMap(tokFuncs, symbs, tokSymbol);
+let tokString = function (c) {
+  let q = code[c++];
+  while (true) {
+    if (code[c] == "\\") {
+      if (escSet[code[c + 1]])
+        c += 2;
+      else
+        break;
+    }
+    else if (code[c] == q
+      || code[c] == "\n"
+      || code[c] == undefined) {
+      c++;
+      break;
+    }
+    else
+      c++;
+  }
+  tokColor = 5;
+  tokEnd = c;
+};
+addChMap(tokFuncs, "'\"", tokString);
+let tokComment = function (c) {
+  c++;
+  if (code[c] == "/") {
+    for (c++;;c++) {
+      let ch = code[c];
+      if (ch == "\n" || ch == undefined)
+        break;
+    }
+    tokColor = 4;
+    tokEnd = c;
+  }
+  else if (code[c] == "*") {
+    tokColor = 4;
+    for (c++;;c++) {
+      let ch = code[c];
+      if (ch == undefined) {
+        tokEnd = c;
+        break;
+      }
+      if (code[c]=="*"&&code[c+1]=="/"){
+        tokEnd = c + 2;
+        break;
+      }
+    }
+  }
+  else {
+    tokColor = 15;
+    tokEnd = c;
+  }
+};
+addChMap(tokFuncs, "/", tokComment);
+
+function nextTok(c) {
+  let ch = code[c];
+  let func = tokFuncs[ch];
+  if (func)
+    func(c);
+  else {
+    tokColor = 14;
+    tokEnd = c + 1;
+  }
+};
+
+// Selection begin/end
+let cbeg = 0, cend = 0;
+// Effective X position
+let ex = 0;
+// View X/Y position
+let vx = 0, vy = 0;
+
+let blinkTimer = 0;
+
+function umin(a, b) {
+  return min(a, b);
+}
+
+function umax(a, b) {
+  return max(a, b);
+}
+
+function updateX(tx) {
+  let l = code.lastIndexOf("\n", cend - 1);
+  let rx = l == -1 ? cend : cend - l - 1;
+  if (tx == undefined)
+    ex = rx;
+  else
+    ex = tx;
+  vx = umin(vx, rx);
+  vx = umax(vx, rx - 39); /* TODO: u */
+  return rx;
+}
+
+function updateY() {
+  let c = cend;
+  let y = -1;
+  while (c != -1) {
+    c = code.lastIndexOf("\n", c - 1);
+    ++y;
+  }
+  vy = umin(vy, y);
+  vy = umax(vy, y - 17); /* TODO: u */
+  return y;
+}
+
+function redo() {
+}
+
+function undo() {
+}
+
+function findLine(line) {
+  return dev_fastParse(code, line)
+    .lineStart;
+}
+
+function drawCode() {
+  let pr = dev_fastParse(code, vy);
+  let c = pr.lineStart;
+  initParse(pr);
+  let beg = umin(cbeg, cend);
+  let end = umax(cbeg, cend);
+  let cx = 1, cy = 9;
+  let x = 0;
+  fillRect(0, 8, 160, 128, 8);
+  camera(vx * 4, 0);
+  for (;; c++) {
+    let insel = beg <= c && c < end;
+    if (insel)
+      fillRect(cx-1,cy-1,4,7);
+    if (c == cend) {
+      if (blinkTimer < 30)
+        line(cx-1,cy-1,cx-1,cy+5);
+      else
+        line(cx-1,cy-1,cx-1,cy+5,8);
+    }
+    if (c == code.length)
+      break;
+    if (c >= tokEnd)
+      nextTok(c);
+    let ch = code[c];
+    if (ch == "\n") {
+      cy += 7;
+      cx = 1;
+      x = 0;
+      if (cy >= 144)
+        break;
+    }
+    else {
+      print(ch,cx,cy,insel?0:tokColor);
+      cx += 4;
+    }
+  }
+  camera();
+}
+
+function statPos(x, y) {
+  stat((y + 1) + "," + (x + 1));
+}
+
+function insert(text) {
+  let beg = umin(cbeg, cend);
+  let end = umax(cbeg, cend);
+  code = code.substr(0, beg)
+    + text
+    + code.substr(end);
+  cbeg = cend = beg + text.length;
+  let x = updateX();
+  let y = updateY();
+  blinkTimer = 0;
+  statPos(x, y);
+}
+
+function move(c, tx) {
+  c = umin(c, code.length);
+  c = umax(c, 0);
+  if (dev_key("shift"))
+    cend = c;
+  else
+    cbeg = cend = c;
+  let x = updateX(tx);
+  let y = updateY();
+  blinkTimer = 0;
+  statPos(x, y);
+}
+
+function upRows(rows) {
+  rows++;
+  let p = cend;
+  for (; p != -1 && rows != 0; --rows)
+    p = code.lastIndexOf("\n", p - 1);
+  ++p;
+  let np = code.indexOf("\n", p);
+  if (np == -1)
+    np = code.length;
+  move(p + umin(np - p, ex), ex);
+}
+
+function downRows(rows) {
+  if (code.length == 0)
+    return;
+  let p = code.lastIndexOf("\n", cend - 1) + 1;
+  for (; rows != 0; --rows) {
+    let t = code.indexOf("\n", p);
+    if (t == -1)
+      break;
+    else
+      p = t + 1;
+  }
+  let np = code.indexOf("\n", p);
+  if (np == -1)
+    np = code.length;
+  move(p + umin(np - p, ex), ex);
+}
+
+let findText = "";
+function find() {
+  statInput("Find:", function(text) {
+    if (text == undefined)
+      return;
+    findText = text;
+    if (text == "")
+      return;
+    let p = code.indexOf(text, cend);
+    if (p != -1) {
+      move(p + text.length);
+      cbeg = p;
+    }
+  }, findText);
+}
+
+function onframe_codeEditor() {
+  cls();
+  let input = dev_input();
+  if (input)
+    insert(input);
+  else if (dev_keyp("tab")) {
+    if (dev_key("ctrl"))
+      onframe = onframe_spriteEditor;
+    else
+      insert("  ");
+  }
+  else if (dev_keyp("return"))
+    insert("\n");
+  else if (dev_keyp("backspace")) {
+    if (cbeg == cend && cbeg != 0)
+      cbeg--;
+    insert("");
+  }
+  else if (dev_keyp("delete")) {
+    if (cbeg == cend && cend != code.length)
+      cend++;
+    insert("");
+  }
+  else if (dev_keyp("left"))
+    move(cend - 1);
+  else if (dev_keyp("right"))
+    move(cend + 1);
+  else if (dev_keyp("up"))
+    upRows(1);
+  else if (dev_keyp("down"))
+    downRows(1);
+  else if (dev_keyp("pgup"))
+    upRows(18);
+  else if (dev_keyp("pgdn"))
+    downRows(18);
+  else if (dev_keyp("home")) {
+    let p = code.lastIndexOf("\n", cend - 1);
+    move(p == -1 ? 0 : p + 1);
+  }
+  else if (dev_keyp("end")) {
+    let p = code.indexOf("\n", cend);
+    move(p == -1 ? code.length : p);
+  }
+  else if (dev_key("ctrl")) {
+    // Ctrl- shortcuts
+    if (dev_keyp("a"))
+      cbeg = 0, cend = code.length;
+    else if (dev_keyp("c")
+        || dev_keyp("x")) {
+      let beg = umin(cbeg, cend);
+      let end = umax(cbeg, cend);
+      let sel = code.substr(beg, end - beg);
+      dev_copy(sel);
+      if (dev_keyp("x"))
+        insert("");
+    }
+    else if (dev_keyp("v")) {
+      let p = dev_paste();
+      if (p == undefined)
+        showWarning("Text too long.");
+      insert(p);
+    }
+    else if (dev_keyp("f"))
+      find();
+    else if (dev_keyp("y"))
+      redo();
+    else if (dev_keyp("z")) {
+      if (dev_key("shift"))
+        redo();
+      else
+        undo();
+    }
+  }
+  blinkTimer = (blinkTimer + 1) % 60;
+
+//  print("ex:"+ex, 100, 100);
+//  print("vx:"+vx, 100, 107);
+//  print("vy:"+vy, 100, 114);
+//  print("cbeg:"+cbeg, 100, 121);
+//  print("cend:"+cend, 100, 128);
+  drawCode();
+  drawToolbar();
+}
+
+let sprite = dev_newbuf(8192);
+let sprId = 0;
+let sprSize = 8;
+let color = 0;
+
+function onframe_spriteEditor() {
+  let mpos = dev_mpos();
+  if (dev_key("ctrl") && dev_keyp("tab"))
+    onframe = onframe_codeEditor;
+
+  cls();
+  fillRect(0, 8, 160, 128, 8);
+  drawToolbar();
+
+  // Draw sprite sheet picker
+  let p = 0;
+  for (let i = 0; i < 128; i++) {
+    for (let j = 0; j < 64; j += 2) {
+      pset(j,8+i,sprite[p]&15);
+      pset(j+1,8+i,sprite[p]>>4);
+      p++;
+    }
+  }
+  if (dev_mwheel() != 0) {
+    let wheel = dev_mwheel();
+    if (wheel > 0) {
+      wheel = min(wheel,4);
+      sprSize=min(64,sprSize<<wheel);
+    }
+    else {
+      wheel = min(-wheel,4);
+      sprSize=max(8,sprSize>>wheel);
+    }
+  }
+  if (dev_key("mleft")
+    && mpos.x>=0 && mpos.x<64
+    && mpos.y>=8 && mpos.y<136) {
+    let id = floor(mpos.x/8)
+      + 8*floor((mpos.y-8)/8);
+    sprId = id;
+  }
+  sprId = (sprId & -8)
+    + min(sprId % 8, (64-sprSize)/8);
+  let row = floor(sprId / 8);
+  let col = sprId % 8;
+  // First pixel position in buffer
+  let firstp = (row*512+col*8)>>1;
+  rect(col*8,8+row*8,sprSize,sprSize,15);
+
+  // Draw canvas
+  let ps = 64 / sprSize;
+  rect(79,17,66,66,0);
+  for (let i = 0; i < 64; i++) {
+    let p = firstp + floor(i/ps)*32;
+    for (let j = 0; j < 64; j+=2*ps) {
+      let lo = sprite[p]&15;
+      let hi = sprite[p]>>4;
+      for (let k = 0; k < ps; k++)
+        pset(80+j+k,18+i,lo);
+      for (let k = 0; k < ps; k++)
+        pset(80+j+k+ps,18+i,hi);
+      p++;
+    }
+  }
+  if (dev_key("mleft")
+    && mpos.x>=80 && mpos.x<144
+    && mpos.y>=18 && mpos.y<82) {
+    let x = floor((mpos.x - 80) / ps);
+    let y = floor((mpos.y - 18) / ps);
+    let p = firstp+floor(y*32+floor(x/2));
+    if (x % 2 == 0)
+      sprite[p]=(sprite[p]&0xF0)+color;
+    else
+      sprite[p]=(sprite[p]&0xF)+color*16;
+    //print(color, 30, 30);
+    //print(p, 30, 40);
+    //print(sprite[p], 30, 50);
+  }
+
+  // Draw color picker
+  rect(119, 95, 34, 34, 0);
+  for (let i = 0; i < 4; i++) {
+    for (let j = 0; j < 4; j++) {
+      fillRect(120+j*8,96+i*8,8,8,i*4+j);
+      if (dev_keyp("mleft")
+        && mpos.x >= 120+j*8
+        && mpos.y >= 96+i*8
+        && mpos.x < 128+j*8
+        && mpos.y < 104+i*8)
+        color = i*4+j;
+    }
+  }
+  rect(120+(color%4)*8,
+    96+floor(color/4)*8,8,8,0);
+  rect(119+(color%4)*8,
+    95+floor(color/4)*8,10,10,15);
+
+//  rect(mpos.x, mpos.y, 1, 1, 5);
+}
+
+function getCart() {
+  return {
+    code: code,
+    sprite: sprite,
+  };
+}
+
+let filename;
+let statMsg = "";
+let statColor = 0;
+function drawToolbar() {
+  if (dev_key("ctrl") && dev_keyp("r")
+    || dev_keyp("f5")) {
+    let cart = getCart();
+    let res = dev_run(cart);
+    statRes(res);
+  }
+  else if (dev_key("ctrl") && dev_keyp("s")) {
+    if (filename) {
+      let res=dev_save(filename, getCart());
+      if (res.err)
+        statRes(res);
+      else
+        stat("File saved.");
+    }
+    else {
+      statInput("Filename:",
+        function(fn) {
+          if (fn) {
+            let res=dev_save(fn,getCart());
+            if (res.err)
+              statRes(res);
+            else {
+              filename = fn;
+              stat("File saved.");
+            }
+          }
+          else
+            stat("Cancelled.");
+        }
+      );
+    }
+  }
+  else if (dev_key("ctrl") && dev_keyp("l")) {
+    statInput("Filename:",
+      function(fn) {
+        if (fn) {
+          let res = dev_load(fn);
+          if (res.err)
+            statRes(res);
+          else {
+            filename = fn;
+            code = res.code;
+            cbeg=cend=ex=vx=vy=0;
+            if (res.sprite)
+              sprite = res.sprite;
+            else
+              sprite = dev_newbuf(8192);
+          }
+        }
+      }
+    );
+  }
+  fillRect(0, 0, 160, 8, 15);
+  fillRect(0, 136, 160, 8, 15);
+  if (statMsg)
+    print(statMsg,1,138,statColor);
+}
+
+function stat(msg, c) {
+  statMsg = msg;
+  statColor = c ? c : 0;
+}
+
+function statRes(res) {
+  if (res.err) {
+    if (res.line != -1) {
+      onframe = onframe_codeEditor;
+      move(findLine(res.line));
+      cbeg = cend;
+    }
+    stat(res.err, 2);
+  }
+}
+
+function statInput(prompt, f, text) {
+  if (text == undefined)
+    text = "";
+  let old = onframe;
+  let blinkTimer = 0;
+  onframe = function() {
+    fillRect(0, 136, 160, 8, 15);
+    print(prompt, 1, 138, 2);
+    let x = 1 + prompt.length * 4;
+    print(text, x, 138, 9);
+    x += text.length * 4;
+    if (blinkTimer < 30)
+      line(x, 137, x, 143, 9);
+    blinkTimer = (blinkTimer + 1) % 60;
+
+    let input = dev_input();
+    if (input) {
+      text += input;
+      blinkTimer = 0;
+    }
+    else if (dev_keyp("backspace")) {
+      if (text)
+        text = text.substr(0,
+          text.length - 1);
+    }
+    else if (dev_key("esc")) {
+      f();
+      onframe = old;
+    }
+    else if (dev_key("return")) {
+      f(text);
+      onframe = old;
+    }
+  };
+}
+
+onframe = onframe_codeEditor;
