@@ -35,13 +35,13 @@ set(SRCS
 
 if(MSVC)
 	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /arch:IA32")
-	add_executable(console WIN32 ${SRCS};platforms/win32.c)
-	set_target_properties(console PROPERTIES
+	add_executable(coxel WIN32 ${SRCS};platforms/win32.c)
+	set_target_properties(coxel PROPERTIES
 		MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 elseif(UNIX)
 	find_package(X11 REQUIRED)
-	add_executable(console ${SRCS};platforms/unix.c)
-	target_link_libraries(console ${X11_LIBRARIES})
+	add_executable(coxel ${SRCS};platforms/unix.c)
+	target_link_libraries(coxel ${X11_LIBRARIES})
 elseif(ESP_PLATFORM)
 	set(SRCS
 		${SRCS}
