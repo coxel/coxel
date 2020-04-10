@@ -88,15 +88,15 @@
 	X(mmiddle, _, _) \
 	X(_end, _, _)
 
-#define modbutton_begin	key_ctrl
-#define modbutton_end	key_shift
-#define mbutton_begin	key_mleft
-#define mbutton_end		key_mmiddle
+#define modbutton_begin	kc_ctrl
+#define modbutton_end	kc_shift
+#define mbutton_begin	kc_mleft
+#define mbutton_end		kc_mmiddle
 
-#define X(a, b, c) key_##a,
+#define X(a, b, c) kc_##a,
 enum key {
 	KEYDEF(X)
-	key_cnt = key__end + BTN_CNT * PLAYER_CNT
+	kc_cnt = kc__end + BTN_CNT * PLAYER_CNT
 };
 #undef X
 

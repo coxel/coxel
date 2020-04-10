@@ -247,7 +247,7 @@ static void devlib_paste(struct cpu* cpu, int sp, int nargs) {
 	if (nargs != 0)
 		argument_error(cpu);
 	struct io* io = console_getio();
-	int avail = io->keys[key_ctrl] && io->keys[key_v];
+	int avail = io->keys[kc_ctrl] && io->keys[kc_v];
 	if (!avail) {
 		RET = value_str(cpu->_lit_EMPTY);
 		return;

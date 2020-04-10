@@ -180,7 +180,7 @@ struct run_result console_run(const struct cart* cart) {
 void console_update() {
 	key_preupdate(&g_io);
 	g_cur_cpu = g_next_cpu;
-	if (key_is_pressed(key_esc) && g_cur_cpu != 0) {
+	if (key_is_pressed(kc_esc) && g_cur_cpu != 0) {
 		int parent = g_cpus[g_cur_cpu]->parent;
 		cpu_destroy(g_cpus[g_cur_cpu]);
 		g_cpus[g_cur_cpu] = NULL;

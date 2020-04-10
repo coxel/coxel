@@ -35,23 +35,23 @@ static const char* btn_name[] = {
 };
 
 static enum key default_keymap[] = {
-	key_left,
-	key_right,
-	key_up,
-	key_down,
-	key_z,
-	key_x,
-	key_a,
-	key_s,
-	key_none,
+	kc_left,
+	kc_right,
+	kc_up,
+	kc_down,
+	kc_z,
+	kc_x,
+	kc_a,
+	kc_s,
+	kc_none,
 };
 
 void key_init(struct io* io) {
-	for (int i = 0; i < key_cnt; i++) {
+	for (int i = 0; i < kc_cnt; i++) {
 		io->prev_keys[i] = 0;
 		io->keys[i] = 0;
 	}
-	io->last_key = key_none;
+	io->last_key = kc_none;
 	io->last_key_repeat = 0;
 	io->mousex = 0;
 	io->mousey = 0;
@@ -67,7 +67,7 @@ void key_preupdate(struct io* io) {
 }
 
 void key_postupdate(struct io* io) {
-	for (int i = 0; i < key_cnt; i++)
+	for (int i = 0; i < kc_cnt; i++)
 		io->prev_keys[i] = io->keys[i];
 	io->input_size = 0;
 	io->mousewheel = 0;
@@ -104,12 +104,12 @@ void key_input(char ch) {
 
 enum key key_translate(struct cpu* cpu, struct strobj* key) {
 	if (key->len == 1) {
-		for (int i = 0; i < key_cnt; i++)
+		for (int i = 0; i < kc_cnt; i++)
 			if (key_char[i] == key->data[0])
 				return i;
 	}
 	else {
-		for (int i = 0; i < key_cnt; i++) {
+		for (int i = 0; i < kc_cnt; i++) {
 			int len = strlen(key_name[i]);
 			if (str_equal(key->data, key->len, key_name[i], len))
 				return i;
@@ -130,19 +130,19 @@ int btn_translate(struct cpu* cpu, struct strobj* key) {
 void btn_standard_update() {
 	struct io* io = console_getio();
 	int player = 0;
-	for (int i = 0; default_keymap[i] != key_none; i += BTN_CNT) {
+	for (int i = 0; default_keymap[i] != kc_none; i += BTN_CNT) {
 		for (int j = 0; j < BTN_CNT; j++)
-			io->keys[key__end + player * BTN_CNT + j] = key_is_down(default_keymap[i + j]);
+			io->keys[kc__end + player * BTN_CNT + j] = key_is_down(default_keymap[i + j]);
 		++player;
 	}
 }
 
 int btn_is_down(int btn, int player) {
-	return key_is_down(key__end + player * BTN_CNT + btn);
+	return key_is_down(kc__end + player * BTN_CNT + btn);
 }
 
 int btn_is_pressed(int btn, int player) {
-	return key_is_pressed(key__end + player * BTN_CNT + btn);
+	return key_is_pressed(kc__end + player * BTN_CNT + btn);
 }
 
 int key_is_down(enum key key) {
@@ -157,9 +157,9 @@ int key_is_pressed(enum key key) {
 
 char key_get_standard_input(enum key key) {
 	struct io* io = console_getio();
-	if (io->keys[key_ctrl] || io->keys[key_alt])
+	if (io->keys[kc_ctrl] || io->keys[kc_alt])
 		return 0;
-	if (io->keys[key_shift])
+	if (io->keys[kc_shift])
 		return key_shift_char[key];
 	else
 		return key_char[key];

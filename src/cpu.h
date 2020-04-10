@@ -358,8 +358,8 @@ struct cpu {
 #define MAX_INPUT	16
 struct io {
 	/* mouse/key */
-	uint8_t prev_keys[key_cnt];
-	uint8_t keys[key_cnt];
+	uint8_t prev_keys[kc_cnt];
+	uint8_t keys[kc_cnt];
 	char input[MAX_INPUT];
 	int input_size;
 	enum key last_key;

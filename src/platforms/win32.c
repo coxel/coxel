@@ -17,83 +17,83 @@
 #endif
 
 static enum key keymap[256] = {
-	[VK_UP] = key_up,
-	[VK_DOWN] = key_down,
-	[VK_LEFT] = key_left,
-	[VK_RIGHT] = key_right,
-	['A'] = key_a,
-	['B'] = key_b,
-	['C'] = key_c,
-	['D'] = key_d,
-	['E'] = key_e,
-	['F'] = key_f,
-	['G'] = key_g,
-	['H'] = key_h,
-	['I'] = key_i,
-	['J'] = key_j,
-	['K'] = key_k,
-	['L'] = key_l,
-	['M'] = key_m,
-	['N'] = key_n,
-	['O'] = key_o,
-	['P'] = key_p,
-	['Q'] = key_q,
-	['R'] = key_r,
-	['S'] = key_s,
-	['T'] = key_t,
-	['U'] = key_u,
-	['V'] = key_v,
-	['W'] = key_w,
-	['X'] = key_x,
-	['Y'] = key_y,
-	['Z'] = key_z,
-	['1'] = key_1,
-	['2'] = key_2,
-	['3'] = key_3,
-	['4'] = key_4,
-	['5'] = key_5,
-	['6'] = key_6,
-	['7'] = key_7,
-	['8'] = key_8,
-	['9'] = key_9,
-	['0'] = key_0,
-	[VK_ESCAPE] = key_esc,
-	[VK_RETURN] = key_return,
-	[VK_OEM_3] = key_backtick,
-	[VK_OEM_MINUS] = key_dash,
-	[VK_OEM_PLUS] = key_equal,
-	[VK_TAB] = key_tab,
-	[VK_BACK] = key_backspace,
-	[VK_SPACE] = key_space,
-	[VK_OEM_4] = key_lbracket,
-	[VK_OEM_6] = key_rbracket,
-	[VK_OEM_2] = key_lslash,
-	[VK_OEM_5] = key_rslash,
-	[VK_OEM_1] = key_semicolon,
-	[VK_OEM_7] = key_quote,
-	[VK_OEM_COMMA] = key_comma,
-	[VK_OEM_PERIOD] = key_period,
-	[VK_F1] = key_f1,
-	[VK_F2] = key_f2,
-	[VK_F3] = key_f3,
-	[VK_F4] = key_f4,
-	[VK_F5] = key_f5,
-	[VK_F6] = key_f6,
-	[VK_F7] = key_f7,
-	[VK_F8] = key_f8,
-	[VK_F9] = key_f9,
-	[VK_F10] = key_f10,
-	[VK_F11] = key_f11,
-	[VK_F12] = key_f12,
-	[VK_INSERT] = key_insert,
-	[VK_DELETE] = key_delete,
-	[VK_HOME] = key_home,
-	[VK_END] = key_end,
-	[VK_PRIOR] = key_pgup,
-	[VK_NEXT] = key_pgdn,
-	[VK_CONTROL] = key_ctrl,
-	[VK_MENU] = key_alt,
-	[VK_SHIFT] = key_shift,
+	[VK_UP] = kc_up,
+	[VK_DOWN] = kc_down,
+	[VK_LEFT] = kc_left,
+	[VK_RIGHT] = kc_right,
+	['A'] = kc_a,
+	['B'] = kc_b,
+	['C'] = kc_c,
+	['D'] = kc_d,
+	['E'] = kc_e,
+	['F'] = kc_f,
+	['G'] = kc_g,
+	['H'] = kc_h,
+	['I'] = kc_i,
+	['J'] = kc_j,
+	['K'] = kc_k,
+	['L'] = kc_l,
+	['M'] = kc_m,
+	['N'] = kc_n,
+	['O'] = kc_o,
+	['P'] = kc_p,
+	['Q'] = kc_q,
+	['R'] = kc_r,
+	['S'] = kc_s,
+	['T'] = kc_t,
+	['U'] = kc_u,
+	['V'] = kc_v,
+	['W'] = kc_w,
+	['X'] = kc_x,
+	['Y'] = kc_y,
+	['Z'] = kc_z,
+	['1'] = kc_1,
+	['2'] = kc_2,
+	['3'] = kc_3,
+	['4'] = kc_4,
+	['5'] = kc_5,
+	['6'] = kc_6,
+	['7'] = kc_7,
+	['8'] = kc_8,
+	['9'] = kc_9,
+	['0'] = kc_0,
+	[VK_ESCAPE] = kc_esc,
+	[VK_RETURN] = kc_return,
+	[VK_OEM_3] = kc_backtick,
+	[VK_OEM_MINUS] = kc_dash,
+	[VK_OEM_PLUS] = kc_equal,
+	[VK_TAB] = kc_tab,
+	[VK_BACK] = kc_backspace,
+	[VK_SPACE] = kc_space,
+	[VK_OEM_4] = kc_lbracket,
+	[VK_OEM_6] = kc_rbracket,
+	[VK_OEM_2] = kc_lslash,
+	[VK_OEM_5] = kc_rslash,
+	[VK_OEM_1] = kc_semicolon,
+	[VK_OEM_7] = kc_quote,
+	[VK_OEM_COMMA] = kc_comma,
+	[VK_OEM_PERIOD] = kc_period,
+	[VK_F1] = kc_f1,
+	[VK_F2] = kc_f2,
+	[VK_F3] = kc_f3,
+	[VK_F4] = kc_f4,
+	[VK_F5] = kc_f5,
+	[VK_F6] = kc_f6,
+	[VK_F7] = kc_f7,
+	[VK_F8] = kc_f8,
+	[VK_F9] = kc_f9,
+	[VK_F10] = kc_f10,
+	[VK_F11] = kc_f11,
+	[VK_F12] = kc_f12,
+	[VK_INSERT] = kc_insert,
+	[VK_DELETE] = kc_delete,
+	[VK_HOME] = kc_home,
+	[VK_END] = kc_end,
+	[VK_PRIOR] = kc_pgup,
+	[VK_NEXT] = kc_pgdn,
+	[VK_CONTROL] = kc_ctrl,
+	[VK_MENU] = kc_alt,
+	[VK_SHIFT] = kc_shift,
 };
 
 static HWND g_hwnd;
@@ -271,42 +271,42 @@ static LRESULT CALLBACK window_proc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM l
 			captured_button = cb_left;
 			SetCapture(g_hwnd);
 		}
-		key_press(key_mleft);
+		key_press(kc_mleft);
 		break;
 	case WM_LBUTTONUP:
 		if (captured_button == cb_left) {
 			captured_button = cb_none;
 			ReleaseCapture();
 		}
-		key_release(key_mleft);
+		key_release(kc_mleft);
 		break;
 	case WM_RBUTTONDOWN:
 		if (captured_button == cb_none) {
 			captured_button = cb_right;
 			SetCapture(g_hwnd);
 		}
-		key_press(key_mright);
+		key_press(kc_mright);
 		break;
 	case WM_RBUTTONUP:
 		if (captured_button == cb_right) {
 			captured_button = cb_none;
 			ReleaseCapture();
 		}
-		key_release(key_mright);
+		key_release(kc_mright);
 		break;
 	case WM_MBUTTONDOWN:
 		if (captured_button == cb_none) {
 			captured_button = cb_middle;
 			SetCapture(g_hwnd);
 		}
-		key_press(key_mmiddle);
+		key_press(kc_mmiddle);
 		break;
 	case WM_MBUTTONUP:
 		if (captured_button == cb_middle) {
 			captured_button = cb_none;
 			ReleaseCapture();
 		}
-		key_release(key_mmiddle);
+		key_release(kc_mmiddle);
 		break;
 	case WM_MOUSEMOVE: {
 		int x = GET_X_LPARAM(lparam);
@@ -336,9 +336,9 @@ static LRESULT CALLBACK window_proc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM l
 }
 
 static void modifier_update() {
-	key_setstate(key_ctrl, GetKeyState(VK_CONTROL) & 0x8000);
-	key_setstate(key_shift, GetKeyState(VK_SHIFT) & 0x8000);
-	key_setstate(key_alt, GetKeyState(VK_MENU) & 0x8000);
+	key_setstate(kc_ctrl, GetKeyState(VK_CONTROL) & 0x8000);
+	key_setstate(kc_shift, GetKeyState(VK_SHIFT) & 0x8000);
+	key_setstate(kc_alt, GetKeyState(VK_MENU) & 0x8000);
 }
 
 void main() {
