@@ -113,15 +113,38 @@ struct run_result console_save(const char* filename, const struct cart* cart) {
 	return ret;
 }
 
-void console_init() {
+static void console_init_internal(int factory_firmware) {
 	key_init(&g_io);
 	struct cart cart;
-	struct run_result res = console_load("firmware.cox", &cart);
+	struct run_result res;
+	if (factory_firmware)
+		res = console_load(NULL, &cart);
+	else {
+		res = console_load("_firm/firmware.cox", &cart);
+		if (res.err != NULL)
+			res = console_load(NULL, &cart);
+	}
 	if (res.err != NULL)
 		critical_error("Firmware load error:\n%s", res.err);
 	res = console_run(&cart);
 	if (res.err != NULL)
 		critical_error("Firmware compilation error:\nLine %d: %s", res.linenum + 1, res.err);
+}
+
+void console_init() {
+	console_init_internal(0);
+}
+
+void console_factory_init() {
+	console_init_internal(1);
+}
+
+void console_destroy() {
+	// Destroy all CPUs
+	for (int i = 0; i < MAX_CPUS; i++) {
+		if (g_cpus[i] == NULL)
+			cpu_destroy(g_cpus[i]);
+	}
 }
 
 struct run_result console_run(const struct cart* cart) {

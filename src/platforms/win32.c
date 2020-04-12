@@ -6,6 +6,7 @@
 #include <Windows.h>
 #include <windowsx.h>
 #include <NTSecAPI.h>
+#include <ShlObj.h>
 
 #pragma comment(linker,"/entry:main")
 #pragma comment(lib,"imm32")
@@ -169,7 +170,35 @@ uint32_t platform_seed() {
 }
 
 void* platform_open(const char* filename, uint32_t *filesize) {
-	HANDLE handle = CreateFileA(filename, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+	HANDLE handle;
+	if (filename == NULL) {
+		/* Set current dir to exe path/data */
+		WCHAR* path = platform_malloc(65536 + 64);
+		DWORD size = GetModuleFileNameW(NULL, path, 32768);
+		if (size == 0 || GetLastError() != ERROR_SUCCESS)
+			platform_error("GetModuleFileNameW() failed.");
+		/* Remove executable name */
+		while (path[size] != '/' && path[size] != '\\')
+			size--;
+		if (path[size] != '/')
+			path[size++] = '/';
+		path[size++] = L'f';
+		path[size++] = L'i';
+		path[size++] = L'r';
+		path[size++] = L'm';
+		path[size++] = L'w';
+		path[size++] = L'a';
+		path[size++] = L'r';
+		path[size++] = L'e';
+		path[size++] = L'.';
+		path[size++] = L'c';
+		path[size++] = L'o';
+		path[size++] = L'x';
+		path[size] = 0;
+		handle = CreateFileW(path, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+	}
+	else
+		handle = CreateFileA(filename, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
 	if (handle == INVALID_HANDLE_VALUE)
 		return NULL;
 	DWORD size_high;
@@ -342,19 +371,14 @@ static void modifier_update() {
 }
 
 void main() {
-	/* Set current dir to exe path/data */
+	/* Set current dir to My Documents/Coxel */
 	WCHAR* path = platform_malloc(65536);
-	DWORD size = GetModuleFileNameW(NULL, path, 32768);
-	if (size == 0 || GetLastError() != ERROR_SUCCESS)
-		platform_error("GetModuleFileNameW() failed.");
-	/* Remove executable name */
-	while (path[size] != '/' && path[size] != '\\')
-		size--;
-	path[size] = 0;
+	SHGetFolderPathW(NULL, CSIDL_MYDOCUMENTS | CSIDL_FLAG_CREATE, NULL, 0, path);
 	if (!SetCurrentDirectoryW(path))
 		platform_error("SetCurrentDirectoryW() failed.");
-	if (!SetCurrentDirectoryW(L"data"))
-		platform_error("SetCurrentDirectoryW(\"data\") failed.");
+	CreateDirectoryW(L"Coxel", NULL);
+	if (!SetCurrentDirectoryW(L"Coxel"))
+		platform_error("SetCurrentDirectoryW() failed.");
 
 	g_hwnd = NULL;
 	console_init();

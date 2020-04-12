@@ -31,6 +31,8 @@ NORETURN void critical_error(const char* fmt, ...);
 struct run_result console_load(const char* filename, struct cart* cart);
 struct run_result console_save(const char* filename, const struct cart* cart);
 void console_init();
+void console_factory_init();
+void console_destroy();
 struct run_result console_run(const struct cart* cart);
 void console_update();
 struct gfx* console_getgfx();

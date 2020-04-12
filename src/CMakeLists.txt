@@ -46,6 +46,8 @@ if(MSVC)
 	add_executable(coxel WIN32 ${SOURCES};platforms/win32.c)
 	set_target_properties(coxel PROPERTIES
 		MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+	add_custom_command(TARGET coxel POST_BUILD COMMAND
+		${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/../carts/firmware.cox ${CMAKE_CURRENT_BINARY_DIR}/firmware.cox)
 elseif(LINUX)
 	find_package(X11 REQUIRED)
 	add_executable(coxel ${SOURCES};platforms/unix.c)
