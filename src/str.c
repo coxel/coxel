@@ -74,13 +74,13 @@ int str_vsprintf(char* buf, const char* format, va_list args) {
 				break;
 			}
 			case 'c': {
-				char ch = va_arg(args, char);
+				char ch = va_arg(args, int);
 				*p++ = ch;
 				break;
 			}
 			case 's': {
 				const char* str = va_arg(args, const char*);
-				int len = strlen(str);
+				int len = (int)strlen(str);
 				memcpy(p, str, len);
 				p += len;
 				break;

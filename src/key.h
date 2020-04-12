@@ -93,6 +93,7 @@
 #define mbutton_begin	kc_mleft
 #define mbutton_end		kc_mmiddle
 
+#define key_is_modifier(key) ((key) >= modbutton_begin && (key) <= modbutton_end)
 #define X(a, b, c) kc_##a,
 enum key {
 	KEYDEF(X)
@@ -117,6 +118,8 @@ int btn_is_down(int btn, int player);
 int btn_is_pressed(int btn, int player);
 int key_is_down(enum key key);
 int key_is_pressed(enum key key);
+char key_get_char(enum key key);
+char key_get_shift_char(enum key key);
 char key_get_standard_input(enum key key);
 
 #endif

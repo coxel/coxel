@@ -20,7 +20,7 @@ NORETURN void runtime_error(struct cpu* cpu, const char* msg) {
 	gfx->cx = 0;
 	gfx->cy = 0;
 	gfx_print(gfx, "RUNTIME ERROR", 13, -1, -1, 2);
-	gfx_print(gfx, msg, strlen(msg), -1, -1, 2);
+	gfx_print(gfx, msg, (int)strlen(msg), -1, -1, 2);
 	longjmp(g_jmp_buf, 1);
 }
 
@@ -337,7 +337,7 @@ void cpu_execute(struct cpu* cpu, struct funcobj* func) {
 					struct upval* val = cpu->upval_open;
 					while (val) {
 						if (val->val >= frame) {
-							int idx = val->val - frame;
+							int idx = (int)(val->val - frame);
 							if (idx == def->idx) {
 								f->upval[i] = val;
 								break;
@@ -444,7 +444,7 @@ static char* dump_operand(enum operand_type ot, int value, char* buf) {
 	return buf + int_format(value, buf);
 }
 
-#define CHECKSPACE() do { if (cur - buf + 80 > buflen) return cur - buf; } while(0)
+#define CHECKSPACE() do { if (cur - buf + 80 > buflen) return (int)(cur - buf); } while(0)
 static int dump_func(struct cpu* cpu, int func_id, char* buf, int buflen) {
 	struct code* code = &cpu->code[func_id];
 	char* cur = buf;
@@ -495,7 +495,7 @@ static int dump_func(struct cpu* cpu, int func_id, char* buf, int buflen) {
 		cur += int_format(pc++, cur);
 		*cur++ = '\t';
 		const struct opcode_desc* desc = &opcode_desc[ins->opcode];
-		int namelen = strlen(desc->name);
+		int namelen = (int)strlen(desc->name);
 		memcpy(cur, desc->name, namelen);
 		cur += namelen;
 		for (int i = namelen; i < 8; i++)
@@ -557,7 +557,7 @@ static int dump_func(struct cpu* cpu, int func_id, char* buf, int buflen) {
 		}
 		*cur++ = '\n';
 	}
-	return cur - buf;
+	return (int)(cur - buf);
 }
 
 int cpu_dump_code(struct cpu* cpu, char* buf, int buflen) {

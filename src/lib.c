@@ -307,7 +307,7 @@ static const char* get_cart_filename(struct cpu* cpu, struct strobj* str, char* 
 static struct value get_run_result(struct cpu* cpu, struct run_result result) {
 	struct tabobj* ret = tab_new(cpu);
 	if (result.err != NULL) {
-		struct value err_value = value_str(str_intern(cpu, result.err, strlen(result.err)));
+		struct value err_value = value_str(str_intern(cpu, result.err, (int)strlen(result.err)));
 		tab_set(cpu, ret, str_intern(cpu, "err", 3), err_value);
 		struct value line_value = value_num(num_kuint(result.linenum));
 		tab_set(cpu, ret, str_intern(cpu, "line", 4), line_value);
@@ -470,11 +470,11 @@ static const struct libdef devlibdefs[] = {
 
 void lib_init(struct cpu* cpu) {
 	for (int i = 0; libdefs[i].name; i++) {
-		struct strobj* key = str_intern(cpu, libdefs[i].name, strlen(libdefs[i].name));
+		struct strobj* key = str_intern(cpu, libdefs[i].name, (int)strlen(libdefs[i].name));
 		tab_set(cpu, cpu->globals, key, value_cfunc(libdefs[i].func));
 	}
 	for (int i = 0; devlibdefs[i].name; i++) {
-		struct strobj* key = str_intern(cpu, devlibdefs[i].name, strlen(devlibdefs[i].name));
+		struct strobj* key = str_intern(cpu, devlibdefs[i].name, (int)strlen(devlibdefs[i].name));
 		tab_set(cpu, cpu->globals, key, value_cfunc(devlibdefs[i].func));
 	}
 	rand_seed(cpu, platform_seed());

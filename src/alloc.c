@@ -18,7 +18,7 @@
 
 #if BIT64
 #define readptr(aptr)			((void*)((uint8_t*)alloc->base + (aptr)))
-#define writeptr(ptr, aptr)		((ptr) = (uint8_t*)(aptr) - (uint8_t*)alloc->base)
+#define writeptr(ptr, aptr)		((ptr) = (ptr_t)((uint8_t*)(aptr) - (uint8_t*)alloc->base))
 #else
 #define readptr(aptr)			((void*)(aptr))
 #define writeptr(ptr, aptr)		((ptr) = (ptr_t)(aptr))

@@ -178,7 +178,7 @@ int num_format(number num, int frac_digits, char* output) {
 		while (*(outp - 1) == '0')
 			--outp;
 	}
-	return outp - output;
+	return (int)(outp - output);
 }
 
 int int_format(int num, char* output) {

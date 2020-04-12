@@ -110,7 +110,7 @@ enum key key_translate(struct cpu* cpu, struct strobj* key) {
 	}
 	else {
 		for (int i = 0; i < kc_cnt; i++) {
-			int len = strlen(key_name[i]);
+			int len = (int)strlen(key_name[i]);
 			if (str_equal(key->data, key->len, key_name[i], len))
 				return i;
 		}
@@ -120,7 +120,7 @@ enum key key_translate(struct cpu* cpu, struct strobj* key) {
 
 int btn_translate(struct cpu* cpu, struct strobj* key) {
 	for (int i = 0; i < BTN_CNT; i++) {
-		int len = strlen(btn_name[i]);
+		int len = (int)strlen(btn_name[i]);
 		if (str_equal(key->data, key->len, btn_name[i], len))
 			return i;
 	}
@@ -153,6 +153,14 @@ int key_is_down(enum key key) {
 int key_is_pressed(enum key key) {
 	struct io* io = console_getio();
 	return io->keys[key] && !io->prev_keys[key];
+}
+
+char key_get_char(enum key key) {
+	return key_char[key];
+}
+
+char key_get_shift_char(enum key key) {
+	return key_shift_char[key];
 }
 
 char key_get_standard_input(enum key key) {

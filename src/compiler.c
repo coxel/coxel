@@ -712,7 +712,7 @@ static struct sval sval_str(struct context* ctx, struct strobj* str) {
 }
 
 static struct sval sval_tkstr(struct context* ctx) {
-	return sval_str(ctx, str_intern_nogc(ctx->cpu, ctx->token_str_begin, ctx->token_str_end - ctx->token_str_begin));
+	return sval_str(ctx, str_intern_nogc(ctx->cpu, ctx->token_str_begin, (int)(ctx->token_str_end - ctx->token_str_begin)));
 }
 
 static void add_patch(struct context* ctx, enum patch_type type, int pc) {

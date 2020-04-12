@@ -1,4 +1,4 @@
-set(SRCS
+set(SOURCES
 	alloc.c
 	alloc.h
 	arith.c
@@ -33,19 +33,54 @@ set(SRCS
 	tab.h
 )
 
+set(BUILTIN_CARTS
+	${CMAKE_CURRENT_SOURCE_DIR}/../carts/firmware.cox
+)
+
+if("${CMAKE_SIZEOF_VOID_P}" STREQUAL "8")
+	add_definitions(-DBIT64)
+endif()
+
 if(MSVC)
 	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /arch:IA32")
-	add_executable(coxel WIN32 ${SRCS};platforms/win32.c)
+	add_executable(coxel WIN32 ${SOURCES};platforms/win32.c)
 	set_target_properties(coxel PROPERTIES
 		MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
-elseif(UNIX)
+elseif(LINUX)
 	find_package(X11 REQUIRED)
-	add_executable(coxel ${SRCS};platforms/unix.c)
+	add_executable(coxel ${SOURCES};platforms/unix.c)
 	target_link_libraries(coxel ${X11_LIBRARIES})
 elseif(ESP_PLATFORM)
-	set(SRCS
-		${SRCS}
+	set(SOURCES
+		${SOURCES}
 		platforms/esp32.c
 	)
-	idf_component_register(SRCS ${SRCS} INCLUDE_DIRS "" REQUIRES bootloader_support driver fatfs)
+	idf_component_register(SRCS ${SOURCES} INCLUDE_DIRS "" REQUIRES bootloader_support driver fatfs)
+elseif(APPLE)
+	set(IOS_SOURCES
+		platforms/ios/AppDelegate.h
+		platforms/ios/AppDelegate.m
+		platforms/ios/KeyboardView.h
+		platforms/ios/KeyboardView.m
+		platforms/ios/main.m
+		platforms/ios/MainController.h
+		platforms/ios/MainController.m
+		platforms/ios/MainView.h
+		platforms/ios/MainView.m
+	)
+	set(IOS_STORYBOARDS
+		platforms/ios/LaunchScreen.storyboard
+	)
+	add_executable(coxel MACOSX_BUNDLE ${SOURCES} ${IOS_SOURCES} ${IOS_STORYBOARDS} ${BUILTIN_CARTS})
+	target_link_libraries(coxel "-framework CoreGraphics -framework QuartzCore -framework UIKit")
+	set_target_properties(coxel PROPERTIES
+		MACOSX_BUNDLE TRUE
+		MACOSX_BUNDLE_EXECUTABLE_NAME "coxel"
+		MACOSX_BUNDLE_BUNDLE_NAME "Coxel"
+		MACOSX_BUNDLE_GUI_IDENTIFIER "com.coxel.coxel"
+		MACOSX_BUNDLE_BUNDLE_VERSION "0.1"
+		MACOSX_BUNDLE_SHORT_VERSION_STRING "0.1"
+		MACOSX_BUNDLE_INFO_PLIST ${CMAKE_CURRENT_SOURCE_DIR}/platforms/ios/MacOSXBundleInfo.plist.in
+		RESOURCE ${BUILTIN_CARTS}
+	)
 endif()

@@ -4,3 +4,4 @@ build-msvc/
 build-linux/
 sdkconfig
 sdkconfig.old
+.DS_Store
