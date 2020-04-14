@@ -1379,12 +1379,14 @@ static void compile_statement(struct context* ctx) {
 		compile_statement(ctx);
 		if (sym_level_needclose(&ctx->sym_table))
 			emit(ctx, op_close, old_sp, 0, 0);
+		int continue_pc;
 		if (update_pc != -1)
-			emit_rel(ctx, op_j, 0, update_pc);
+			continue_pc = update_pc;
 		else if (cond_pc != -1)
-			emit_rel(ctx, op_j, 0, cond_pc);
+			continue_pc = cond_pc;
 		else
-			emit_rel(ctx, op_j, 0, loop_pc);
+			continue_pc = loop_pc;
+		emit_rel(ctx, op_j, 0, continue_pc);
 		if (cond_false_pc != -1)
 			patch_rel(ctx, cond_false_pc, current_pc(ctx));
 		sym_pop(&ctx->sym_table);
@@ -1392,7 +1394,7 @@ static void compile_statement(struct context* ctx) {
 		ctx->local_sp = old_localsp;
 		ctx->canbreak = old_canbreak;
 		ctx->cancontinue = old_cancontinue;
-		patch_break_continue(ctx, patch_base, current_pc(ctx), update_pc);
+		patch_break_continue(ctx, patch_base, current_pc(ctx), continue_pc);
 		return;
 	}
 	case tk_while: {

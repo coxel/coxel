@@ -353,6 +353,22 @@ test("For-missing", function() {
   check(sum, 55);
 });
 
+test("For-missing-continue", function() {
+  let i;
+  let j = 0;
+  for (i = 0; i < 6;) {
+    let ok = true;
+    if (i > 2)
+      ok = false;
+    j++;
+    i++;
+    if (!ok)
+      continue;
+    i++;
+  }
+  check(j, 4);
+});
+
 test("For-forever", function() {
   let x = 0;
   for (;;) {
