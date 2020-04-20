@@ -33,12 +33,27 @@ int platform_paste(char* ptr, int len) {
 }
 
 uint32_t platform_seed() {
-	return 0;
+	uint32_t ret;
+	int status = SecRandomCopyBytes(kSecRandomDefault, sizeof(ret), &ret);
+	if (status != errSecSuccess)
+		platform_error("SecRandomCopyBytes() failed.");
+	return ret;
 }
 
-void* platform_open(const char* filename, uint32_t *filesize) {
-	NSString *path = [[NSBundle mainBundle] pathForResource:@"firmware" ofType:@"cox"];
+NSString *get_filepath(const char *filename) {
+	NSString *docDir = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES)[0];
+	return [NSString stringWithFormat:@"%@/%@", docDir, [NSString stringWithUTF8String:filename]];
+}
+
+void* platform_open(const char *filename, uint32_t *filesize) {
+	NSString *path;
+	if (filename == NULL)
+		path = [[NSBundle mainBundle] pathForResource:@"firmware" ofType:@"cox"];
+	else
+		path = get_filepath(filename);
 	FILE *file = fopen([path UTF8String], "rb");
+	if (file == NULL)
+		return NULL;
 	struct stat stat;
 	fstat(fileno(file), &stat);
 	if (stat.st_size > UINT32_MAX) {
@@ -50,7 +65,9 @@ void* platform_open(const char* filename, uint32_t *filesize) {
 }
 
 void* platform_create(const char* filename) {
-	return NULL;
+	NSString *path = get_filepath(filename);
+	FILE *file = fopen([path UTF8String], "wb");
+	return file;
 }
 
 int platform_read(void* file, char* data, int len) {

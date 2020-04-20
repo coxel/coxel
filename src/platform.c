@@ -120,7 +120,7 @@ static void console_init_internal(int factory_firmware) {
 	if (factory_firmware)
 		res = console_load(NULL, &cart);
 	else {
-		res = console_load("_firm/firmware.cox", &cart);
+		res = console_load(FIRMWARE_PATH, &cart);
 		if (res.err != NULL)
 			res = console_load(NULL, &cart);
 	}
@@ -142,8 +142,10 @@ void console_factory_init() {
 void console_destroy() {
 	// Destroy all CPUs
 	for (int i = 0; i < MAX_CPUS; i++) {
-		if (g_cpus[i] == NULL)
+		if (g_cpus[i] != NULL) {
 			cpu_destroy(g_cpus[i]);
+			g_cpus[i] = NULL;
+		}
 	}
 }
 

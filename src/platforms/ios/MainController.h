@@ -5,3 +5,5 @@
 -(void)initConsole;
 
 @end
+
+NSString *get_filepath(const char *filename);

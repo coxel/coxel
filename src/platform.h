@@ -3,6 +3,8 @@
 
 #include "config.h"
 
+#define FIRMWARE_PATH "_firm/firmware.cox"
+
 NORETURN void platform_error(const char* msg);
 NORETURN void platform_exit(int code);
 void* platform_malloc(int size);

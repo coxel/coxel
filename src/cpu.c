@@ -42,6 +42,7 @@ struct cpu* cpu_new() {
 		return NULL;
 	struct cpu* cpu = mem_malloc(alloc, sizeof(struct cpu));
 	cpu->alloc = alloc;
+	cpu->gchead = NULL;
 	cpu->parent = -1;
 	cpu->top_executed = 0;
 	cpu->stopped = 0;

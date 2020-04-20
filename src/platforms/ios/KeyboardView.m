@@ -1,3 +1,4 @@
+#import "AppDelegate.h"
 #import "KeyboardView.h"
 #include "../../key.h"
 
@@ -24,7 +25,7 @@ static const enum key mainLayout[] = {
 	kc_q, kc_w, kc_e, kc_r, kc_t, kc_y, kc_u, kc_i, kc_o, kc_p,
 	kc_a, kc_s, kc_d, kc_f, kc_g, kc_h, kc_j, kc_k, kc_l,
 	kc_shift, kc_z, kc_x, kc_c, kc_v, kc_b, kc_n, kc_m, kc_up, kc_backspace,
-	kc_ctrl, kc_symbol, kc_space, kc_left, kc_down, kc_right,
+	kc_symbol, kc_ctrl, kc_space, kc_left, kc_down, kc_right,
 };
 
 static const struct KeyTitle keyTitles[] = {
@@ -38,7 +39,7 @@ static const struct KeyTitle keyTitles[] = {
 	{ kc_backspace, @"⌫" },
 	{ kc_shift, @"⇧" },
 	{ kc_ctrl, @"Ctrl" },
-	{ kc_symbol, @"-+=" },
+	{ kc_symbol, @"#+=" },
 	{ kc_up, @"▲" },
 	{ kc_left, @"◀" },
 	{ kc_down, @"▼" },
@@ -53,7 +54,7 @@ static const char symbolLayout[] = {
 	'`', '~', '-', '_', '=', '+', '[', ']', '{', '}',
 	'|', '\\', '<', '>', '/', ';', ':', '\'', '"',
 	0, ' ', ' ', ' ', ' ', '?', ',', '.', 0, 0,
-	0, 0, 0, 0, 0, 0,
+	0, 0, ' ', 0, 0, 0,
 };
 
 @interface BackgroundTrackingView : UIView
@@ -96,6 +97,8 @@ UIButton *spaceBtn = nil;
 	self.axis = UILayoutConstraintAxisVertical;
 	self.spacing = 6;
 	self.translatesAutoresizingMaskIntoConstraints = NO;
+	self.layoutMargins = UIEdgeInsetsMake(3, 2, 3, 2);
+	[self setLayoutMarginsRelativeArrangement:YES];
 	btnArray = [[NSMutableArray alloc] init];
 	for (int row = 0; row < KB_ROWS; row++) {
 		UIView *rowView = [[UIView alloc] init];
@@ -107,7 +110,6 @@ UIButton *spaceBtn = nil;
 			UIButton *button = [UIButton buttonWithType:UIButtonTypeSystem];
 			if (row == 0)
 				button.titleLabel.font = [UIFont systemFontOfSize:11];
-			button.backgroundColor = [UIColor systemBackgroundColor];
 			button.layer.cornerRadius = 5.0;
 			button.layer.shadowColor = [[UIColor systemGrayColor] CGColor];
 			button.layer.shadowOffset = CGSizeMake(0, 1.5f);
@@ -206,6 +208,13 @@ UIButton *spaceBtn = nil;
 			NSString *title = nil;
 			char ch = 0;
 			enum key key = mainLayout[i];
+			if (symbolLayout[i] != 0
+				|| (key == kc_shift && (shiftHold || shiftToggled))
+				|| (key == kc_ctrl && (ctrlHold || ctrlToggled))
+				|| (key == kc_symbol && (symbolHold || symbolToggled)))
+				button.backgroundColor = [UIColor systemBackgroundColor];
+			else
+				button.backgroundColor = [UIColor systemGray2Color];
 			if (symbolHold || symbolToggled)
 				ch = symbolLayout[i];
 			if (ch == 0 && key < kc_cnt) {
@@ -226,6 +235,8 @@ UIButton *spaceBtn = nil;
 				title = [NSString stringWithFormat:@"%c",ch];
 			if (symbolToggled && key == kc_symbol)
 				title = @"ABC";
+			else if (ctrlToggled && key == kc_return)
+				title = @"Settings";
 			if (title != nil) {
 				[button setTitle:title forState:UIControlStateNormal];
 				[button layoutIfNeeded];
@@ -251,11 +262,21 @@ UIButton *spaceBtn = nil;
 		if (ch != 0) {
 			key_input(ch);
 			symbolToggled = NO;
+			if (symbolHold)
+				keyPressedDuringHold = YES;
 			[self updateButtonTitles];
 			return;
 		}
 	}
 	enum key key = mainLayout[btnId];
+	if (ctrlToggled && key == kc_return) {
+		AppDelegate *delegate = (AppDelegate *)[[UIApplication sharedApplication] delegate];
+		delegate.settingsNavigationController.modalPresentationStyle = UIModalPresentationFullScreen;
+		[delegate.controller presentViewController:delegate.settingsNavigationController animated:YES completion:nil];
+		ctrlToggled = NO;
+		[self updateButtonTitles];
+		return;
+	}
 	if (key < kc_cnt) {
 		key_press(key);
 		key_input(key_get_standard_input(key));
@@ -273,10 +294,12 @@ UIButton *spaceBtn = nil;
 	if (key == kc_ctrl) {
 		ctrlHold = YES;
 		keyPressedDuringHold = NO;
+		[self updateButtonTitles];
 	}
 	else if (ctrlToggled) {
 		key_release(kc_ctrl);
 		ctrlToggled = NO;
+		[self updateButtonTitles];
 	}
 	if (key == kc_symbol) {
 		symbolHold = YES;
@@ -307,7 +330,8 @@ UIButton *spaceBtn = nil;
 		else {
 			shiftToggled = !shiftToggled;
 			[self updateButtonTitles];
-			return;
+			if (shiftToggled)
+				return;
 		}
 	}
 	else if (key == kc_ctrl) {
@@ -319,7 +343,9 @@ UIButton *spaceBtn = nil;
 		}
 		else {
 			ctrlToggled = !ctrlToggled;
-			return;
+			[self updateButtonTitles];
+			if (ctrlToggled)
+				return;
 		}
 	}
 	else if (key == kc_symbol) {

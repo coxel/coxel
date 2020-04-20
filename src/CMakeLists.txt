@@ -69,12 +69,14 @@ elseif(APPLE)
 		platforms/ios/MainController.m
 		platforms/ios/MainView.h
 		platforms/ios/MainView.m
+		platforms/ios/SettingsController.h
+		platforms/ios/SettingsController.m
 	)
 	set(IOS_STORYBOARDS
 		platforms/ios/LaunchScreen.storyboard
 	)
 	add_executable(coxel MACOSX_BUNDLE ${SOURCES} ${IOS_SOURCES} ${IOS_STORYBOARDS} ${BUILTIN_CARTS})
-	target_link_libraries(coxel "-framework CoreGraphics -framework QuartzCore -framework UIKit")
+	target_link_libraries(coxel "-framework CoreGraphics -framework QuartzCore -framework Security -framework UIKit")
 	set_target_properties(coxel PROPERTIES
 		MACOSX_BUNDLE TRUE
 		MACOSX_BUNDLE_EXECUTABLE_NAME "coxel"
