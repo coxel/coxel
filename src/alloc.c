@@ -209,8 +209,13 @@ struct alloc* mem_new(uint32_t size) {
 	writeptr(hdr->prev, hdr);
 	writeptr(hdr->next, hdr);
 	alloc->top = (struct chunk*)((uint8_t*)alloc + sizeof(struct alloc));
+	check((uintptr_t)alloc->top % MIN_CHUNK_SIZE == 0);
 	alloc->topsize = size;
 	return alloc;
+}
+
+void* mem_getbase(struct alloc* alloc) {
+	return alloc->base;
 }
 
 void mem_destroy(struct alloc* alloc) {

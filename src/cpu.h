@@ -8,9 +8,21 @@
 
 #include <stdint.h>
 
+#ifdef RELATIVE_ADDRESSING
+typedef uint32_t ptr_t;
+#define readptr(aptr)		((void*)((uint8_t*)cpu->base + (aptr)))
+#define writeptr(aptr)		((ptr_t)((uint8_t*)(aptr) - (uint8_t*)cpu->base))
+#define ptr(type)			ptr_t
+#else
+typedef void* ptr_t;
+#define readptr(aptr)		(aptr)
+#define writeptr(aptr)		(aptr)
+#define ptr(type)			type*
+#endif
+
 struct cpu;
 
-#define OBJ_HEADER	struct obj* gcnext; enum type type
+#define OBJ_HEADER	ptr(struct obj) gcnext; enum type type
 
 enum type {
 	t_undef,
@@ -44,12 +56,12 @@ struct value {
 	union {
 		int b;
 		number num;
-		struct obj* obj;
-		struct strobj* str;
-		struct bufobj* buf;
-		struct arrobj* arr;
-		struct tabobj* tab;
-		struct funcobj* func;
+		ptr(struct obj*) obj;
+		ptr(struct strobj) str;
+		ptr(struct bufobj) buf;
+		ptr(struct arrobj) arr;
+		ptr(struct tabobj) tab;
+		ptr(struct funcobj) func;
 		cfunc cfunc;
 		struct callinfo1 ci1;
 		struct callinfo2 ci2;
@@ -97,74 +109,6 @@ struct tabobj {
 	int bucket_cnt;
 	uint16_t* bucket;
 };
-
-static inline struct value value_undef() {
-	struct value val;
-	val.type = t_undef;
-	return val;
-}
-
-static inline struct value value_null() {
-	struct value val;
-	val.type = t_null;
-	return val;
-}
-
-static inline struct value value_bool(int b) {
-	struct value val;
-	val.type = t_bool;
-	val.b = b;
-	return val;
-}
-
-static inline struct value value_num(number num) {
-	struct value val;
-	val.type = t_num;
-	val.num = num;
-	return val;
-}
-
-static inline struct value value_str(struct strobj* str) {
-	struct value val;
-	val.type = t_str;
-	val.str = str;
-	return val;
-}
-
-static inline struct value value_buf(struct bufobj* buf) {
-	struct value val;
-	val.type = t_buf;
-	val.buf = buf;
-	return val;
-}
-
-static inline struct value value_arr(struct arrobj* arr) {
-	struct value val;
-	val.type = t_arr;
-	val.arr = arr;
-	return val;
-}
-
-static inline struct value value_tab(struct tabobj* tab) {
-	struct value val;
-	val.type = t_tab;
-	val.tab = tab;
-	return val;
-}
-
-static inline struct value value_func(struct funcobj* func) {
-	struct value val;
-	val.type = t_func;
-	val.func = func;
-	return val;
-}
-
-static inline struct value value_cfunc(cfunc cfunc) {
-	struct value val;
-	val.type = t_cfunc;
-	val.cfunc = cfunc;
-	return val;
-}
 
 #define OPCODE_DEF(X) \
 	X(op_data, "data", _, _, _) \
@@ -312,6 +256,7 @@ struct gfx {
 
 struct cpu {
 	struct alloc* alloc;
+	void* base;
 	/* functions */
 	int code_cnt, code_cap;
 	struct code* code;
@@ -336,7 +281,7 @@ struct cpu {
 	struct tabobj* globals;
 
 	/* garbage collection */
-	struct obj* gchead;
+	ptr(struct obj) gchead;
 
 	/* stack */
 	int sp, stack_cap;
@@ -387,5 +332,73 @@ struct arrobj* to_arr(struct cpu* cpu, struct value val);
 struct tabobj* to_tab(struct cpu* cpu, struct value val);
 void func_destroy(struct cpu* cpu, struct funcobj* func);
 void upval_destroy(struct cpu* cpu, struct upval* upval);
+
+static inline struct value value_undef(struct cpu* cpu) {
+	struct value val;
+	val.type = t_undef;
+	return val;
+}
+
+static inline struct value value_null(struct cpu* cpu) {
+	struct value val;
+	val.type = t_null;
+	return val;
+}
+
+static inline struct value value_bool(struct cpu* cpu, int b) {
+	struct value val;
+	val.type = t_bool;
+	val.b = b;
+	return val;
+}
+
+static inline struct value value_num(struct cpu* cpu, number num) {
+	struct value val;
+	val.type = t_num;
+	val.num = num;
+	return val;
+}
+
+static inline struct value value_str(struct cpu* cpu, struct strobj* str) {
+	struct value val;
+	val.type = t_str;
+	val.str = writeptr(str);
+	return val;
+}
+
+static inline struct value value_buf(struct cpu* cpu, struct bufobj* buf) {
+	struct value val;
+	val.type = t_buf;
+	val.buf = writeptr(buf);
+	return val;
+}
+
+static inline struct value value_arr(struct cpu* cpu, struct arrobj* arr) {
+	struct value val;
+	val.type = t_arr;
+	val.arr = writeptr(arr);
+	return val;
+}
+
+static inline struct value value_tab(struct cpu* cpu, struct tabobj* tab) {
+	struct value val;
+	val.type = t_tab;
+	val.tab = writeptr(tab);
+	return val;
+}
+
+static inline struct value value_func(struct cpu* cpu, struct funcobj* func) {
+	struct value val;
+	val.type = t_func;
+	val.func = writeptr(func);
+	return val;
+}
+
+static inline struct value value_cfunc(struct cpu* cpu, cfunc cfunc) {
+	struct value val;
+	val.type = t_cfunc;
+	val.cfunc = cfunc;
+	return val;
+}
 
 #endif

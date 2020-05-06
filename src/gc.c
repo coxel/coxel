@@ -10,14 +10,14 @@ struct obj* gc_alloc(struct cpu* cpu, enum type type, uint32_t size) {
 	struct obj* obj = (struct obj*)mem_malloc(cpu->alloc, size);
 	obj->gcnext = cpu->gchead;
 	obj->type = type;
-	cpu->gchead = obj;
+	cpu->gchead = writeptr(obj);
 	return obj;
 }
 
-#define gc_mark(obj)	((obj)->gcnext = (void*)((uintptr_t)(obj)->gcnext | 1))
-#define gc_next(obj)	((void*)((uintptr_t)(obj)->gcnext & ~1))
-#define gc_clear(obj)	((obj)->gcnext = gc_next(obj))
-#define gc_getmark(obj)	((uintptr_t)(obj)->gcnext & 1)
+#define gc_mark(obj)	((obj)->gcnext = (ptr_t)((uintptr_t)obj->gcnext | 1))
+#define gc_next(obj)	((ptr_t)(((uintptr_t)readptr((uintptr_t)obj->gcnext & ~1))))
+#define gc_clear(obj)	((obj)->gcnext = (ptr_t)((uintptr_t)(obj)->gcnext & ~1))
+#define gc_getmark(obj)	((uintptr_t)obj->gcnext & 1)
 
 static void gc_traverse_val(struct cpu* cpu, struct value* value);
 
@@ -51,11 +51,34 @@ static void gc_traverse_func(struct cpu* cpu, struct funcobj* func) {
 #define check_mark(obj)	do { if (gc_getmark(obj)) return; gc_mark(obj); } while(0)
 static void gc_traverse_val(struct cpu* cpu, struct value* value) {
 	switch (value->type) {
-	case t_str: gc_mark(value->str); return;
-	case t_buf: gc_mark(value->buf); return;
-	case t_arr: check_mark(value->arr); gc_traverse_arr(cpu, value->arr); return;
-	case t_tab: check_mark(value->tab); gc_traverse_tab(cpu, value->tab); return;
-	case t_func: check_mark(value->func); gc_traverse_func(cpu, value->func); return;
+	case t_str: {
+		struct strobj* str = (struct strobj*)readptr(value->str);
+		gc_mark(str);
+		return;
+	}
+	case t_buf: {
+		struct bufobj* buf = (struct bufobj*)readptr(value->buf);
+		gc_mark(buf);
+		return;
+	}
+	case t_arr: {
+		struct arrobj* arr = (struct arrobj*)readptr(value->arr);
+		check_mark(arr);
+		gc_traverse_arr(cpu, arr);
+		return;
+	}
+	case t_tab: {
+		struct tabobj* tab = (struct tabobj*)readptr(value->tab);
+		check_mark(tab);
+		gc_traverse_tab(cpu, tab);
+		return;
+	}
+	case t_func: {
+		struct funcobj* func = (struct funcobj*)readptr(value->func);
+		check_mark(func);
+		gc_traverse_func(cpu, func);
+		return;
+	}
 	default: return;
 	}
 }
@@ -78,19 +101,19 @@ void gc_collect(struct cpu* cpu) {
 	gc_traverse_tab(cpu, cpu->globals);
 
 	/* Sweep unreachable objects */
-	struct obj** prev = &cpu->gchead;
-	for (struct obj* cur = *prev; cur;) {
+	ptr_t* prev = &cpu->gchead;
+	for (struct obj* cur = readptr(*prev); cur;) {
 		if (gc_getmark(cur)) {
 			/* Clear mark */
-			*prev = cur;
+			*prev = writeptr(cur);
 			prev = &cur->gcnext;
 			cur = gc_next(cur);
 		}
 		else {
-			struct obj* next = cur->gcnext;
+			struct obj* next = readptr(cur->gcnext);
 			gc_free(cpu, cur);
 			cur = next;
 		}
 	}
-	*prev = NULL;
+	*prev = writeptr(NULL);
 }

@@ -221,7 +221,7 @@ void console_update() {
 		else {
 			struct value fval = tab_get(cpu, cpu->globals, cpu->_lit_onframe);
 			if (fval.type == t_func) {
-				struct funcobj* fobj = fval.func;
+				struct funcobj* fobj = readptr(fval.func);
 				cpu_execute(cpu, fobj);
 				cpu->frame++;
 				if (cpu->frame % 60 == 0)

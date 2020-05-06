@@ -65,7 +65,7 @@ static uint16_t tab_find(struct cpu* cpu, struct tabobj* tab, struct strobj* key
 struct value tab_get(struct cpu* cpu, struct tabobj* tab, struct strobj* key) {
 	uint16_t p = tab_find(cpu, tab, key, NULL);
 	if (p == TAB_NULL)
-		return value_undef();
+		return value_undef(cpu);
 	return tab->entry[p].value;
 }
 

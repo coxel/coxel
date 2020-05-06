@@ -15,7 +15,7 @@ static void lib_btn(struct cpu* cpu, int sp, int nargs) {
 	int player = 0;
 	if (nargs == 2)
 		player = num_int(to_number(cpu, ARG(1)));
-	RET = value_bool(btn_is_down(btn, player));
+	RET = value_bool(cpu, btn_is_down(btn, player));
 }
 
 static void lib_btnp(struct cpu* cpu, int sp, int nargs) {
@@ -25,7 +25,7 @@ static void lib_btnp(struct cpu* cpu, int sp, int nargs) {
 	int player = 0;
 	if (nargs == 2)
 		player = num_int(to_number(cpu, ARG(1)));
-	RET = value_bool(btn_is_pressed(btn, player));
+	RET = value_bool(cpu, btn_is_pressed(btn, player));
 }
 
 static void lib_cls(struct cpu* cpu, int sp, int nargs) {
@@ -55,9 +55,9 @@ static void lib_pget(struct cpu* cpu, int sp, int nargs) {
 	int x = num_int(to_number(cpu, ARG(0)));
 	int y = num_int(to_number(cpu, ARG(1)));
 	if (x < 0 || x >= WIDTH || y < 0 || y >= WIDTH)
-		RET = value_undef();
+		RET = value_undef(cpu);
 	else
-		RET = value_num(num_int(gfx_getpixel(console_getgfx(), x, y)));
+		RET = value_num(cpu, num_int(gfx_getpixel(console_getgfx(), x, y)));
 }
 
 static void lib_pset(struct cpu* cpu, int sp, int nargs) {
@@ -133,7 +133,7 @@ static void lib_abs(struct cpu* cpu, int sp, int nargs) {
 	if (nargs != 1)
 		argument_error(cpu);
 	number num = to_number(cpu, ARG(0));
-	RET = value_num(num_abs(num));
+	RET = value_num(cpu, num_abs(num));
 }
 
 static void lib_max(struct cpu* cpu, int sp, int nargs) {
@@ -143,7 +143,7 @@ static void lib_max(struct cpu* cpu, int sp, int nargs) {
 		if ((int32_t)cur > (int32_t)ret)
 			ret = cur;
 	}
-	RET = value_num(ret);
+	RET = value_num(cpu, ret);
 }
 
 static void lib_min(struct cpu* cpu, int sp, int nargs) {
@@ -153,21 +153,21 @@ static void lib_min(struct cpu* cpu, int sp, int nargs) {
 		if ((int32_t)cur < (int32_t)ret)
 			ret = cur;
 	}
-	RET = value_num(ret);
+	RET = value_num(cpu, ret);
 }
 
 static void lib_ceil(struct cpu* cpu, int sp, int nargs) {
 	if (nargs != 1)
 		argument_error(cpu);
 	number value = to_number(cpu, ARG(0));
-	RET = value_num(num_ceil(value));
+	RET = value_num(cpu, num_ceil(value));
 }
 
 static void lib_floor(struct cpu* cpu, int sp, int nargs) {
 	if (nargs != 1)
 		argument_error(cpu);
 	number value = to_number(cpu, ARG(0));
-	RET = value_num(num_floor(value));
+	RET = value_num(cpu, num_floor(value));
 }
 
 static void lib_srand(struct cpu* cpu, int sp, int nargs) {
@@ -179,15 +179,15 @@ static void lib_srand(struct cpu* cpu, int sp, int nargs) {
 
 static void lib_rand(struct cpu* cpu, int sp, int nargs) {
 	if (nargs == 0)
-		RET = value_num(rand_int(cpu, num_kint(1) - 1));
+		RET = value_num(cpu, rand_int(cpu, num_kint(1) - 1));
 	else if (nargs == 1) {
 		uint32_t max = to_number(cpu, ARG(0)) - 1;
-		RET = value_num(rand_int(cpu, max));
+		RET = value_num(cpu, rand_int(cpu, max));
 	}
 	else if (nargs == 2) {
 		number min = to_number(cpu, ARG(0));
 		number max = to_number(cpu, ARG(1));
-		RET = value_num(min + rand_int(cpu, max - min - 1));
+		RET = value_num(cpu, min + rand_int(cpu, max - min - 1));
 	}
 	else
 		argument_error(cpu);
@@ -198,7 +198,7 @@ static void devlib_key(struct cpu* cpu, int sp, int nargs) {
 		argument_error(cpu);
 	struct strobj* key = to_string(cpu, ARG(0));
 	enum key k = key_translate(cpu, key);
-	RET = value_bool(key_is_down(k));
+	RET = value_bool(cpu, key_is_down(k));
 }
 
 static void devlib_keyp(struct cpu* cpu, int sp, int nargs) {
@@ -206,7 +206,7 @@ static void devlib_keyp(struct cpu* cpu, int sp, int nargs) {
 		argument_error(cpu);
 	struct strobj* key = to_string(cpu, ARG(0));
 	enum key k = key_translate(cpu, key);
-	RET = value_bool(key_is_pressed(k));
+	RET = value_bool(cpu, key_is_pressed(k));
 }
 
 static void devlib_mpos(struct cpu* cpu, int sp, int nargs) {
@@ -214,16 +214,16 @@ static void devlib_mpos(struct cpu* cpu, int sp, int nargs) {
 		argument_error(cpu);
 	struct tabobj* tab = tab_new(cpu);
 	struct io* io = console_getio();
-	tab_set(cpu, tab, str_intern(cpu, "x", 1), value_num(io->mousex));
-	tab_set(cpu, tab, str_intern(cpu, "y", 1), value_num(io->mousey));
-	RET = value_tab(tab);
+	tab_set(cpu, tab, str_intern(cpu, "x", 1), value_num(cpu, io->mousex));
+	tab_set(cpu, tab, str_intern(cpu, "y", 1), value_num(cpu, io->mousey));
+	RET = value_tab(cpu, tab);
 }
 
 static void devlib_mwheel(struct cpu* cpu, int sp, int nargs) {
 	if (nargs != 0)
 		argument_error(cpu);
 	struct io* io = console_getio();
-	RET = value_num(num_kint(io->mousewheel));
+	RET = value_num(cpu, num_kint(io->mousewheel));
 }
 
 static void devlib_input(struct cpu* cpu, int sp, int nargs) {
@@ -233,7 +233,7 @@ static void devlib_input(struct cpu* cpu, int sp, int nargs) {
 		str = cpu->_lit_EMPTY;
 	else
 		str = str_intern(cpu, io->input, io->input_size);
-	RET = value_str(str);
+	RET = value_str(cpu, str);
 }
 
 static void devlib_copy(struct cpu* cpu, int sp, int nargs) {
@@ -249,7 +249,7 @@ static void devlib_paste(struct cpu* cpu, int sp, int nargs) {
 	struct io* io = console_getio();
 	int avail = io->keys[kc_ctrl] && io->keys[kc_v];
 	if (!avail) {
-		RET = value_str(cpu->_lit_EMPTY);
+		RET = value_str(cpu, cpu->_lit_EMPTY);
 		return;
 	}
 	int len = STR_MAXLEN;
@@ -258,9 +258,9 @@ static void devlib_paste(struct cpu* cpu, int sp, int nargs) {
 		out_of_memory_error(cpu);
 	int r = platform_paste(buf, len);
 	if (r < 0)
-		RET = value_undef();
+		RET = value_undef(cpu);
 	else
-		RET = value_str(str_intern(cpu, buf, r));
+		RET = value_str(cpu, str_intern(cpu, buf, r));
 	mem_free(cpu->alloc, buf);
 }
 
@@ -268,7 +268,7 @@ static void devlib_newbuf(struct cpu* cpu, int sp, int nargs) {
 	if (nargs != 1)
 		argument_error(cpu);
 	int size = num_uint(to_number(cpu, ARG(0)));
-	RET = value_buf(buf_new(cpu, size));
+	RET = value_buf(cpu, buf_new(cpu, size));
 }
 
 static struct cart get_cartobj(struct cpu* cpu, struct tabobj* tab) {
@@ -281,7 +281,7 @@ static struct cart get_cartobj(struct cpu* cpu, struct tabobj* tab) {
 
 static struct tabobj* parse_cartobj(struct cpu* cpu, const struct cart* cart) {
 	struct tabobj* tab = tab_new(cpu);
-	struct value code_value = value_str(str_intern(cpu, cart->code, cart->codelen));
+	struct value code_value = value_str(cpu, str_intern(cpu, cart->code, cart->codelen));
 	tab_set(cpu, tab, str_intern(cpu, "code", 4), code_value);
 	return tab;
 }
@@ -307,12 +307,12 @@ static const char* get_cart_filename(struct cpu* cpu, struct strobj* str, char* 
 static struct value get_run_result(struct cpu* cpu, struct run_result result) {
 	struct tabobj* ret = tab_new(cpu);
 	if (result.err != NULL) {
-		struct value err_value = value_str(str_intern(cpu, result.err, (int)strlen(result.err)));
+		struct value err_value = value_str(cpu, str_intern(cpu, result.err, (int)strlen(result.err)));
 		tab_set(cpu, ret, str_intern(cpu, "err", 3), err_value);
-		struct value line_value = value_num(num_kuint(result.linenum));
+		struct value line_value = value_num(cpu, num_kuint(result.linenum));
 		tab_set(cpu, ret, str_intern(cpu, "line", 4), line_value);
 	}
-	return value_tab(ret);
+	return value_tab(cpu, ret);
 }
 
 static void devlib_run(struct cpu* cpu, int sp, int nargs) {
@@ -345,7 +345,7 @@ static void devlib_load(struct cpu* cpu, int sp, int nargs) {
 	if (result.err != NULL)
 		RET = get_run_result(cpu, result);
 	else
-		RET = value_tab(parse_cartobj(cpu, &cart));
+		RET = value_tab(cpu, parse_cartobj(cpu, &cart));
 }
 
 static void devlib_fastParse(struct cpu* cpu, int sp, int nargs) {
@@ -420,10 +420,10 @@ static void devlib_fastParse(struct cpu* cpu, int sp, int nargs) {
 	case pt_string: token_str = str_intern(cpu, "string", 6); break;
 	case pt_comment: token_str = str_intern(cpu, "comment", 7); break;
 	}
-	tab_set(cpu, tab, str_intern(cpu, "token", 5), value_str(token_str));
-	tab_set(cpu, tab, str_intern(cpu, "tokenEnd", 8), value_num(num_kuint(token_end)));
-	tab_set(cpu, tab, str_intern(cpu, "lineStart", 9), value_num(num_kuint(line_start)));
-	RET = value_tab(tab);
+	tab_set(cpu, tab, str_intern(cpu, "token", 5), value_str(cpu, token_str));
+	tab_set(cpu, tab, str_intern(cpu, "tokenEnd", 8), value_num(cpu, num_kuint(token_end)));
+	tab_set(cpu, tab, str_intern(cpu, "lineStart", 9), value_num(cpu, num_kuint(line_start)));
+	RET = value_tab(cpu, tab);
 }
 
 struct libdef {
@@ -471,11 +471,11 @@ static const struct libdef devlibdefs[] = {
 void lib_init(struct cpu* cpu) {
 	for (int i = 0; libdefs[i].name; i++) {
 		struct strobj* key = str_intern(cpu, libdefs[i].name, (int)strlen(libdefs[i].name));
-		tab_set(cpu, cpu->globals, key, value_cfunc(libdefs[i].func));
+		tab_set(cpu, cpu->globals, key, value_cfunc(cpu, libdefs[i].func));
 	}
 	for (int i = 0; devlibdefs[i].name; i++) {
 		struct strobj* key = str_intern(cpu, devlibdefs[i].name, (int)strlen(devlibdefs[i].name));
-		tab_set(cpu, cpu->globals, key, value_cfunc(devlibdefs[i].func));
+		tab_set(cpu, cpu->globals, key, value_cfunc(cpu, devlibdefs[i].func));
 	}
 	rand_seed(cpu, platform_seed());
 }

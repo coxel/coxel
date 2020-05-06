@@ -6,6 +6,7 @@
 #include <stdint.h>
 
 struct alloc* mem_new(uint32_t size);
+void* mem_getbase(struct alloc* alloc);
 void mem_destroy(struct alloc* alloc);
 void* mem_malloc(struct alloc* alloc, int size);
 void* mem_realloc(struct alloc* alloc, void* ptr, int size);

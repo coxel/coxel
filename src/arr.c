@@ -17,7 +17,7 @@ void arr_destroy(struct cpu* cpu, struct arrobj* arr) {
 struct value arr_get(struct cpu* cpu, struct arrobj* arr, number index) {
 	int idx = num_uint(index);
 	if (idx >= arr->len)
-		return value_undef();
+		return value_undef(cpu);
 	else
 		return arr->data[idx];
 }
@@ -37,7 +37,7 @@ void arr_push(struct cpu* cpu, struct arrobj* arr, struct value value) {
 
 struct value arr_pop(struct cpu* cpu, struct arrobj* arr) {
 	if (arr->len == 0)
-		return value_undef();
+		return value_undef(cpu);
 	else
 		return arr->data[--arr->len];
 }
@@ -58,11 +58,11 @@ static void libarr_pop(struct cpu* cpu, int sp, int nargs) {
 
 struct value arr_fget(struct cpu* cpu, struct arrobj* arr, struct strobj* key) {
 	if (key == cpu->_lit_pop)
-		return value_cfunc(libarr_pop);
+		return value_cfunc(cpu, libarr_pop);
 	else if (key == cpu->_lit_push)
-		return value_cfunc(libarr_push);
+		return value_cfunc(cpu, libarr_push);
 	else if (key == cpu->_lit_length)
-		return value_num(num_kuint(arr->len));
+		return value_num(cpu, num_kuint(arr->len));
 	else
-		return value_undef();
+		return value_undef(cpu);
 }

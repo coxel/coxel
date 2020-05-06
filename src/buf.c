@@ -16,9 +16,9 @@ void buf_destroy(struct cpu* cpu, struct bufobj* buf) {
 struct value buf_get(struct cpu* cpu, struct bufobj* buf, number index) {
 	int idx = num_uint(index);
 	if (idx >= buf->len)
-		return value_undef();
+		return value_undef(cpu);
 	else
-		return value_num(num_kuint(buf->data[idx]));
+		return value_num(cpu, num_kuint(buf->data[idx]));
 }
 
 void buf_set(struct cpu* cpu, struct bufobj* buf, number index, struct value value) {
@@ -33,7 +33,7 @@ void buf_set(struct cpu* cpu, struct bufobj* buf, number index, struct value val
 
 struct value buf_fget(struct cpu* cpu, struct bufobj* buf, struct strobj* key) {
 	if (key == cpu->_lit_length)
-		return value_num(num_uint(buf->len));
+		return value_num(cpu, num_uint(buf->len));
 	else
-		return value_undef();
+		return value_undef(cpu);
 }

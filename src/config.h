@@ -4,6 +4,10 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#ifndef _DEBUG
+#define RELATIVE_ADDRESSING
+#endif
+
 #ifdef _MSC_VER
 #define NORETURN	__declspec(noreturn)
 #define FORCEINLINE	__forceinline

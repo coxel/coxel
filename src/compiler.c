@@ -691,11 +691,12 @@ static void sval_set(struct context* ctx, struct sval lval, struct sval rval) {
 
 static struct sval sval_str(struct context* ctx, struct strobj* str) {
 	/* find duplicate constant */
+	struct cpu* cpu = ctx->cpu;
 	struct code* code = topcode();
 	struct value* k = code->k;
 	int slot = -1;
 	for (int i = 0; i < code->k_cnt; i++) {
-		if (k[i].type == t_str && k[i].str == str) {
+		if (k[i].type == t_str && (struct strobj*)readptr(k[i].str) == str) {
 			slot = i;
 			break;
 		}
@@ -705,7 +706,7 @@ static struct sval sval_str(struct context* ctx, struct strobj* str) {
 		slot = code->k_cnt - 1;
 		struct value* kval = &code->k[slot];
 		kval->type = t_str;
-		kval->str = str;
+		kval->str = writeptr(str);
 	}
 	emit_imm(ctx, op_kobj, ctx->sp, slot);
 	return sval_value(ctx->sp++);
