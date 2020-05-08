@@ -107,9 +107,9 @@ int str_vsprintf(char* buf, const char* format, va_list args) {
 void strtab_init(struct cpu* cpu) {
 	cpu->strtab_cnt = 0;
 	cpu->strtab_size = INITIAL_STRTAB_SIZE;
-	cpu->strtab = (struct strobj**)mem_malloc(cpu->alloc, cpu->strtab_size * sizeof(struct strobj*));
+	cpu->strtab = (ptr_t*)mem_malloc(cpu->alloc, cpu->strtab_size * sizeof(ptr_t));
 	for (int i = 0; i < cpu->strtab_size; i++)
-		cpu->strtab[i] = 0;
+		cpu->strtab[i] = writeptr(NULL);
 }
 
 static void strtab_grow(struct cpu* cpu) {
@@ -119,8 +119,8 @@ static void strtab_grow(struct cpu* cpu) {
 void str_destroy(struct cpu* cpu, struct strobj* str) {
 	/* Remove from intern table */
 	uint32_t bucket = str->hash % cpu->strtab_size;
-	struct strobj** prev = &cpu->strtab[bucket];
-	for (struct strobj* p = *prev; p; prev = &p->next, p = *prev) {
+	ptr_t* prev = &cpu->strtab[bucket];
+	for (struct strobj* p = readptr(*prev); p; prev = &p->next, p = readptr(*prev)) {
 		if (p == str) {
 			*prev = p->next;
 			mem_free(cpu->alloc, p);
@@ -133,7 +133,7 @@ void str_destroy(struct cpu* cpu, struct strobj* str) {
 static struct strobj* str_intern_impl(struct cpu* cpu, const char* str, int len, int nogc) {
 	uint32_t hash = str_hash(str, len);
 	uint32_t bucket = hash % cpu->strtab_size;
-	for (struct strobj* p = cpu->strtab[bucket]; p; p = p->next) {
+	for (struct strobj* p = readptr(cpu->strtab[bucket]); p; p = readptr(p->next)) {
 		if (str_equal(p->data, p->len, str, len))
 			return p;
 	}
@@ -151,7 +151,7 @@ static struct strobj* str_intern_impl(struct cpu* cpu, const char* str, int len,
 	obj->len = len;
 	memcpy(obj->data, str, len);
 	obj->next = cpu->strtab[bucket];
-	cpu->strtab[bucket] = obj;
+	cpu->strtab[bucket] = writeptr(obj);
 	return obj;
 }
 

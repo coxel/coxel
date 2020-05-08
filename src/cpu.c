@@ -82,8 +82,8 @@ static void cpu_growstack(struct cpu* cpu) {
 	cpu->stack = (struct value*)mem_realloc(cpu->alloc, cpu->stack, new_cap * sizeof(struct value));
 	cpu->stack_cap = new_cap;
 	/* adjust open upvalues */
-	for (struct upval* val = cpu->upval_open; val; val = val->next)
-		val->val = val->val - old_stack + cpu->stack;
+	for (struct upval* val = cpu->upval_open; val; val = readptr(val->next))
+		val->val = writeptr((struct value*)readptr(val->val) - old_stack + cpu->stack);
 }
 
 int to_bool(struct cpu* cpu, struct value val) {
@@ -204,26 +204,27 @@ static void fset(struct cpu* cpu, struct value obj, struct value field, struct v
 }
 
 static void upval_unlink(struct cpu* cpu, struct upval* val) {
-	if (val->prev)
-		val->prev->next = val->next;
+	struct upval* prev = readptr(val->prev);
+	if (prev)
+		prev->next = val->next;
 	else
-		cpu->upval_open = val->next;
-	if (val->next)
-		val->next->prev = val->prev;
+		cpu->upval_open = readptr(val->next);
+	struct upval* next = readptr(val->next);
+	if (next)
+		next->prev = val->prev;
 }
 
 static void close_upvals(struct cpu* cpu, struct value* frame, int base) {
 	struct upval* val;
-	for (val = cpu->upval_open; val && val->val >= frame;) {
-		if (val->val - frame >= base) {
-			struct upval* next = val->next;
+	for (val = cpu->upval_open; val && readptr(val->val) >= frame;) {
+		struct value* v = readptr(val->val);
+		struct upval* next = readptr(val->next);
+		if (v - frame >= base) {
 			upval_unlink(cpu, val);
-			val->val_holder = *val->val;
-			val->val = &val->val_holder;
-			val = next;
+			val->val_holder = *v;
+			val->val = writeptr(&val->val_holder);
 		}
-		else
-			val = val->next;
+		val = next;
 	}
 }
 
@@ -233,7 +234,7 @@ void func_destroy(struct cpu* cpu, struct funcobj* func) {
 
 void upval_destroy(struct cpu* cpu, struct upval* upval) {
 	/* Open upval ? unlink it */
-	if (upval->val != &upval->val_holder)
+	if (readptr(upval->val) != &upval->val_holder)
 		upval_unlink(cpu, upval);
 	mem_free(cpu->alloc, upval);
 }
@@ -267,7 +268,7 @@ void cpu_execute(struct cpu* cpu, struct funcobj* func) {
 	cpu->stack[1] = value_undef(cpu);
 	cpu->stack[2] = value_undef(cpu); // call info 1
 	cpu->stack[3] = value_undef(cpu); // call info 2
-	struct code* code = func->code;
+	struct code* code = readptr(func->code);
 	for (int pc = 0;;) {
 		struct ins* ins = &code->ins[pc++];
 		switch (ins->opcode) {
@@ -329,8 +330,8 @@ void cpu_execute(struct cpu* cpu, struct funcobj* func) {
 		case op_fset: fset(cpu, retval, lval, rval); break;
 		case op_gget: retval = tab_get(cpu, cpu->globals, lvalstr); break;
 		case op_gset: tab_set(cpu, cpu->globals, retvalstr, lval); break;
-		case op_uget: retval = *func->upval[ins->op2]->val; break;
-		case op_uset: *func->upval[ins->op1]->val = lval; break;
+		case op_uget: retval = *(struct value*)readptr(((struct upval*)readptr(func->upval[ins->op2]))->val); break;
+		case op_uset: *(struct value*)readptr(((struct upval*)readptr(func->upval[ins->op1]))->val) = lval; break;
 		case op_j: pc += ins->imm; break;
 		case op_jtrue: if (retvalbool) pc += ins->imm; break;
 		case op_jfalse: if (!retvalbool) pc += ins->imm; break;
@@ -338,32 +339,34 @@ void cpu_execute(struct cpu* cpu, struct funcobj* func) {
 			struct code* code = &cpu->code[ins->imm];
 			struct funcobj* f = (struct funcobj*)gc_alloc(cpu, t_func,
 				sizeof(struct funcobj) + sizeof(struct upval) * code->upval_cnt);
-			f->code = code;
+			f->code = writeptr(code);
 			for (int i = 0; i < code->upval_cnt; i++) {
 				struct updef* def = &code->upval[i];
 				if (def->in_stack) {
 					/* find existing open upvalue */
 					struct upval* val = cpu->upval_open;
 					while (val) {
-						if (val->val >= frame) {
-							int idx = (int)(val->val - frame);
+						struct value* v = readptr(val->val);
+						if (v >= frame) {
+							int idx = (int)(v - frame);
 							if (idx == def->idx) {
-								f->upval[i] = val;
+								f->upval[i] = writeptr(val);
 								break;
 							}
 						}
-						val = val->next;
+						val = readptr(val->next);
 					}
 					if (!val) {
 						/* not found, create new one */
 						val = (struct upval*)gc_alloc(cpu, t_upval, sizeof(struct upval));
-						val->val = &frame[def->idx];
-						val->prev = NULL;
-						val->next = cpu->upval_open;
-						if (val->next)
-							val->next->prev = val;
+						val->val = writeptr(&frame[def->idx]);
+						val->prev = writeptr(NULL);
+						val->next = writeptr(cpu->upval_open);
+						struct upval* next = readptr(val->next);
+						if (next)
+							next->prev = writeptr(val);
 						cpu->upval_open = val;
-						f->upval[i] = val;
+						f->upval[i] = writeptr(val);
 					}
 				}
 				else
@@ -382,12 +385,13 @@ void cpu_execute(struct cpu* cpu, struct funcobj* func) {
 			else if (retval.type == t_func) {
 				struct funcobj* f = (struct funcobj*)readptr(retval.func);
 				/* Fill missing arguments to undefined */
-				for (int i = ins->op2; i < f->code->nargs; i++)
+				int nargs = ((struct code*)readptr(f->code))->nargs;
+				for (int i = ins->op2; i < nargs; i++)
 					frame[ins->op1 + 2 + i] = value_undef(cpu);
 				int stack_size = ins->op1;
 				cpu->sp += ins->op1;
 				update_stack();
-				int ci = cpu->sp + 2 + f->code->nargs;
+				int ci = cpu->sp + 2 + nargs;
 				cpu->stack[ci].type = t_callinfo1;
 				struct callinfo1* ci1 = &cpu->stack[ci].ci1;
 				ci1->func = func;
@@ -397,7 +401,7 @@ void cpu_execute(struct cpu* cpu, struct funcobj* func) {
 				ci2->stack_size = stack_size;
 				pc = 0;
 				func = f;
-				code = func->code;
+				code = readptr(func->code);
 			}
 			else
 				runtime_error(cpu, "Not callable object.");
@@ -408,8 +412,9 @@ void cpu_execute(struct cpu* cpu, struct funcobj* func) {
 			close_upvals(cpu, frame, 0);
 			if (cpu->sp == 0)
 				return;
-			struct callinfo1 ci1 = frame[2 + func->code->nargs].ci1;
-			struct callinfo2 ci2 = frame[3 + func->code->nargs].ci2;
+			int nargs = ((struct code*)readptr(func->code))->nargs;
+			struct callinfo1 ci1 = frame[2 + nargs].ci1;
+			struct callinfo2 ci2 = frame[3 + nargs].ci2;
 			if (ins->opcode == op_retu)
 				frame[0] = value_undef(cpu);
 			else
@@ -418,7 +423,7 @@ void cpu_execute(struct cpu* cpu, struct funcobj* func) {
 			pc = ci2.pc;
 			cpu->sp -= ci2.stack_size;
 			update_stack();
-			code = func->code;
+			code = readptr(func->code);
 			break;
 		}
 		default: internal_error(cpu);

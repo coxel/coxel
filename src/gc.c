@@ -15,7 +15,7 @@ struct obj* gc_alloc(struct cpu* cpu, enum type type, uint32_t size) {
 }
 
 #define gc_mark(obj)	((obj)->gcnext = (ptr_t)((uintptr_t)obj->gcnext | 1))
-#define gc_next(obj)	((ptr_t)(((uintptr_t)readptr((uintptr_t)obj->gcnext & ~1))))
+#define gc_next(obj)	((void*)(((uintptr_t)readptr((uintptr_t)obj->gcnext & ~1))))
 #define gc_clear(obj)	((obj)->gcnext = (ptr_t)((uintptr_t)(obj)->gcnext & ~1))
 #define gc_getmark(obj)	((uintptr_t)obj->gcnext & 1)
 
@@ -23,14 +23,15 @@ static void gc_traverse_val(struct cpu* cpu, struct value* value);
 
 static void gc_traverse_arr(struct cpu* cpu, struct arrobj* arr) {
 	for (int i = 0; i < arr->len; i++)
-		gc_traverse_val(cpu, &arr->data[i]);
+		gc_traverse_val(cpu, &((struct value*)arr->data)[i]);
 }
 
 static void gc_traverse_tab(struct cpu* cpu, struct tabobj* tab) {
 	for (int i = 0; i < tab->bucket_cnt; i++) {
-		for (uint16_t p = tab->bucket[i]; p != TAB_NULL;) {
-			struct tabent* ent = &tab->entry[p];
-			gc_mark(ent->key);
+		for (uint16_t p = ((uint16_t*)readptr(tab->bucket))[i]; p != TAB_NULL;) {
+			struct tabent* ent = &((struct tabent*)readptr(tab->entry))[p];
+			struct strobj* key = (struct strobj*)readptr(ent->key);
+			gc_mark(key);
 			gc_traverse_val(cpu, &ent->value);
 			p = ent->next;
 		}
@@ -38,12 +39,12 @@ static void gc_traverse_tab(struct cpu* cpu, struct tabobj* tab) {
 }
 
 static void gc_traverse_func(struct cpu* cpu, struct funcobj* func) {
-	int upval_cnt = func->code->upval_cnt;
+	int upval_cnt = ((struct code*)readptr(func->code))->upval_cnt;
 	for (int i = 0; i < upval_cnt; i++) {
-		struct upval* uval = func->upval[i];
+		struct upval* uval = readptr(func->upval[i]);
 		if (!gc_getmark(uval)) {
 			gc_mark(uval);
-			gc_traverse_val(cpu, uval->val);
+			gc_traverse_val(cpu, readptr(uval->val));
 		}
 	}
 }

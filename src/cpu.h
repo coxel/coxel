@@ -56,7 +56,7 @@ struct value {
 	union {
 		int b;
 		number num;
-		ptr(struct obj*) obj;
+		ptr(struct obj) obj;
 		ptr(struct strobj) str;
 		ptr(struct bufobj) buf;
 		ptr(struct arrobj) arr;
@@ -75,7 +75,7 @@ struct obj {
 
 struct strobj {
 	OBJ_HEADER;
-	struct strobj* next;
+	ptr(struct strobj) next;
 	uint32_t hash;
 	uint32_t len;
 	char data[];
@@ -90,13 +90,13 @@ struct bufobj {
 struct arrobj {
 	OBJ_HEADER;
 	uint32_t len, cap;
-	struct value* data;
+	ptr(struct value) data;
 };
 
 #define TAB_NULL		((uint16_t)-1)
 
 struct tabent {
-	struct strobj* key;
+	ptr(struct strobj) key;
 	struct value value;
 	uint16_t next;
 };
@@ -104,10 +104,10 @@ struct tabent {
 struct tabobj {
 	OBJ_HEADER;
 	int entry_cnt;
-	struct tabent* entry;
+	ptr(struct tabent) entry;
 	uint16_t freelist;
 	int bucket_cnt;
-	uint16_t* bucket;
+	ptr(uint16_t) bucket;
 };
 
 #define OPCODE_DEF(X) \
@@ -212,12 +212,12 @@ struct code {
 
 struct upval {
 	OBJ_HEADER;
-	struct value* val;
+	ptr(struct value) val;
 	union {
 		/* open field */
 		struct {
-			struct upval* prev;
-			struct upval* next;
+			ptr(struct upval) prev;
+			ptr(struct upval) next;
 		};
 		/* close field */
 		struct value val_holder;
@@ -226,8 +226,8 @@ struct upval {
 
 struct funcobj {
 	OBJ_HEADER;
-	struct code* code;
-	struct upval* upval[];
+	ptr(struct code) code;
+	ptr(struct upval) upval[];
 };
 
 #define WIDTH	160
@@ -268,7 +268,7 @@ struct cpu {
 	int stopped;
 
 	/* interned string hash table */
-	struct strobj** strtab;
+	ptr(struct strobj)* strtab;
 	int strtab_size, strtab_cnt;
 
 	/* interned string literals */

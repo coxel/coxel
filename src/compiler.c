@@ -1534,7 +1534,7 @@ struct compile_err compile(struct cpu* cpu, const char* code, int codelen) {
 		compile_block(&ctx);
 		emit(&ctx, op_retu, 0, 0, 0);
 		cpu->topfunc = (struct funcobj*)mem_malloc(cpu->alloc, sizeof(struct funcobj));
-		cpu->topfunc->code = &cpu->code[func.code_id];
+		cpu->topfunc->code = writeptr(&cpu->code[func.code_id]);
 		mem_free(ctx.alloc, ctx.sbuf);
 	}
 
