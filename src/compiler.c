@@ -523,10 +523,17 @@ enum value_type {
 #define sval_in_reg(x)	((x).type == vt_value || (x).type == vt_local)
 #define topcode()		(&ctx->cpu->code[ctx->topfunc->code_id])
 
-static void emit(struct context* ctx, enum opcode opcode, uint8_t op1, uint8_t op2, uint8_t op3) {
+static struct ins* add_ins(struct context* ctx) {
+	struct cpu* cpu = ctx->cpu;
 	struct code* code = topcode();
-	vec_add(ctx->alloc, code->ins, code->ins_cnt, code->ins_cap);
-	struct ins* ins = &code->ins[code->ins_cnt - 1];
+	struct ins* ins = readptr(code->ins);
+	vec_add(ctx->alloc, ins, code->ins_cnt, code->ins_cap);
+	code->ins = writeptr(ins);
+	return &ins[code->ins_cnt - 1];
+}
+
+static void emit(struct context* ctx, enum opcode opcode, uint8_t op1, uint8_t op2, uint8_t op3) {
+	struct ins* ins = add_ins(ctx);
 	ins->opcode = opcode;
 	ins->op1 = op1;
 	ins->op2 = op2;
@@ -534,9 +541,7 @@ static void emit(struct context* ctx, enum opcode opcode, uint8_t op1, uint8_t o
 }
 
 static void emit_imm(struct context* ctx, enum opcode opcode, uint8_t op1, uint16_t imm) {
-	struct code* code = topcode();
-	vec_add(ctx->alloc, code->ins, code->ins_cnt, code->ins_cap);
-	struct ins* ins = &code->ins[code->ins_cnt - 1];
+	struct ins* ins = add_ins(ctx);
 	ins->opcode = opcode;
 	ins->op1 = op1;
 	ins->imm = imm;
@@ -544,8 +549,7 @@ static void emit_imm(struct context* ctx, enum opcode opcode, uint8_t op1, uint1
 
 static void emit_rel(struct context* ctx, enum opcode opcode, uint8_t op1, int destpc) {
 	struct code* code = topcode();
-	vec_add(ctx->alloc, code->ins, code->ins_cnt, code->ins_cap);
-	struct ins* ins = &code->ins[code->ins_cnt - 1];
+	struct ins* ins = add_ins(ctx);
 	ins->opcode = opcode;
 	ins->op1 = op1;
 	ins->imm = destpc - code->ins_cnt;
@@ -556,7 +560,8 @@ static inline int current_pc(struct context* ctx) {
 }
 
 static inline void patch_rel(struct context* ctx, int pc, int target) {
-	topcode()->ins[pc].imm = target - pc - 1;
+	struct cpu* cpu = ctx->cpu;
+	((struct ins*)readptr(topcode()->ins))[pc].imm = target - pc - 1;
 }
 
 struct sval {
@@ -693,7 +698,7 @@ static struct sval sval_str(struct context* ctx, struct strobj* str) {
 	/* find duplicate constant */
 	struct cpu* cpu = ctx->cpu;
 	struct code* code = topcode();
-	struct value* k = code->k;
+	struct value* k = readptr(code->k);
 	int slot = -1;
 	for (int i = 0; i < code->k_cnt; i++) {
 		if (k[i].type == t_str && (struct strobj*)readptr(k[i].str) == str) {
@@ -702,9 +707,10 @@ static struct sval sval_str(struct context* ctx, struct strobj* str) {
 		}
 	}
 	if (slot == -1) {
-		vec_add(ctx->alloc, code->k, code->k_cnt, code->k_cap);
+		vec_add(ctx->alloc, k, code->k_cnt, code->k_cap);
+		code->k = writeptr(k);
 		slot = code->k_cnt - 1;
-		struct value* kval = &code->k[slot];
+		struct value* kval = &k[slot];
 		kval->type = t_str;
 		kval->str = writeptr(str);
 	}
@@ -730,13 +736,13 @@ static int add_code(struct cpu* cpu) {
 	code->enclosure = -1;
 	code->ins_cnt = 0;
 	code->ins_cap = 0;
-	code->ins = NULL;
+	code->ins = writeptr(NULL);
 	code->k_cnt = 0;
 	code->k_cap = 0;
-	code->k = NULL;
+	code->k = writeptr(NULL);
 	code->upval_cnt = 0;
 	code->upval_cap = 0;
-	code->upval = NULL;
+	code->upval = writeptr(NULL);
 	return cpu->code_cnt - 1;
 }
 
@@ -756,16 +762,19 @@ static int add_updef(struct context* ctx, struct functx* fctx, int level, int re
 		in_stack = 0;
 		idx = add_updef(ctx, fctx->enfunc, level, reg);
 	}
+	struct cpu* cpu = ctx->cpu;
 	/* find duplicate */
-	struct code* code = &ctx->cpu->code[fctx->code_id];
+	struct code* code = &cpu->code[fctx->code_id];
+	struct updef* upvals = readptr(code->upval);
 	for (int i = 0; i < code->upval_cnt; i++) {
-		struct updef* def = &code->upval[i];
+		struct updef* def = &upvals[i];
 		if (def->in_stack == in_stack && def->idx == idx)
 			return i;
 	}
 	/* not found, create one */
-	vec_add(ctx->alloc, code->upval, code->upval_cnt, code->upval_cap);
-	struct updef* def = &code->upval[code->upval_cnt - 1];
+	vec_add(ctx->alloc, upvals, code->upval_cnt, code->upval_cap);
+	code->upval = writeptr(upvals);
+	struct updef* def = &upvals[code->upval_cnt - 1];
 	def->in_stack = in_stack;
 	def->idx = idx;
 	return code->upval_cnt - 1;

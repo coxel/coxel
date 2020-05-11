@@ -270,21 +270,21 @@ void cpu_execute(struct cpu* cpu, struct funcobj* func) {
 	cpu->stack[3] = value_undef(cpu); // call info 2
 	struct code* code = readptr(func->code);
 	for (int pc = 0;;) {
-		struct ins* ins = &code->ins[pc++];
+		struct ins* ins = &((struct ins*)readptr(code->ins))[pc++];
 		switch (ins->opcode) {
 		case op_kundef: retval = value_undef(cpu); break;
 		case op_knull: retval = value_null(cpu); break;
 		case op_kfalse: retval = value_bool(cpu, 0); break;
 		case op_ktrue: retval = value_bool(cpu, 1); break;
 		case op_knum: {
-			struct ins* next = &code->ins[pc++];
+			struct ins* next = &((struct ins*)readptr(code->ins))[pc++];
 			uint16_t low = ins->imm;
 			uint16_t high = next->imm;
 			number num = (number)low + ((number)high << 16);
 			retval = value_num(cpu, num);
 			break;
 		}
-		case op_kobj: retval = code->k[ins->imm]; break;
+		case op_kobj: retval = ((struct value*)readptr(code->k))[ins->imm]; break;
 		case op_mov: retval = lval; break;
 		case op_xchg: {
 			struct value tmp = retval;
@@ -340,8 +340,9 @@ void cpu_execute(struct cpu* cpu, struct funcobj* func) {
 			struct funcobj* f = (struct funcobj*)gc_alloc(cpu, t_func,
 				sizeof(struct funcobj) + sizeof(struct upval) * code->upval_cnt);
 			f->code = writeptr(code);
+			struct updef* defs = readptr(code->upval);
 			for (int i = 0; i < code->upval_cnt; i++) {
-				struct updef* def = &code->upval[i];
+				struct updef* def = &defs[i];
 				if (def->in_stack) {
 					/* find existing open upvalue */
 					struct upval* val = cpu->upval_open;
@@ -394,7 +395,7 @@ void cpu_execute(struct cpu* cpu, struct funcobj* func) {
 				int ci = cpu->sp + 2 + nargs;
 				cpu->stack[ci].type = t_callinfo1;
 				struct callinfo1* ci1 = &cpu->stack[ci].ci1;
-				ci1->func = func;
+				ci1->func = writeptr(func);
 				cpu->stack[ci + 1].type = t_callinfo2;
 				struct callinfo2* ci2 = &cpu->stack[ci + 1].ci2;
 				ci2->pc = pc;
@@ -419,7 +420,7 @@ void cpu_execute(struct cpu* cpu, struct funcobj* func) {
 				frame[0] = value_undef(cpu);
 			else
 				frame[0] = retval;
-			func = ci1.func;
+			func = readptr(ci1.func);
 			pc = ci2.pc;
 			cpu->sp -= ci2.stack_size;
 			update_stack();
@@ -490,11 +491,12 @@ static int dump_func(struct cpu* cpu, int func_id, char* buf, int buflen) {
 	*cur++ = ':';
 	cur += int_format(code->enclosure, cur);
 	*cur++ = '\n';
+	struct updef* upvals = readptr(code->upval);
 	for (int i = 0; i < code->upval_cnt; i++) {
 		*cur++ = 'u';
 		*cur++ = 'p';
 		*cur++ = ' ';
-		struct updef* upval = &code->upval[i];
+		struct updef* upval = &upvals[i];
 		cur += int_format(i, cur);
 		*cur++ = ':';
 		*cur++ = ' ';
@@ -503,9 +505,10 @@ static int dump_func(struct cpu* cpu, int func_id, char* buf, int buflen) {
 		cur += int_format(upval->idx, cur);
 		*cur++ = '\n';
 	}
+	struct ins* inss = readptr(code->ins);
 	for (int pc = 0; pc < code->ins_cnt;) {
 		CHECKSPACE();
-		struct ins* ins = &code->ins[pc];
+		struct ins* ins = &inss[pc];
 		cur += int_format(pc++, cur);
 		*cur++ = '\t';
 		const struct opcode_desc* desc = &opcode_desc[ins->opcode];
@@ -526,7 +529,7 @@ static int dump_func(struct cpu* cpu, int func_id, char* buf, int buflen) {
 			}
 			switch (desc->op2) {
 			case ot_IMMK: {
-				struct value val = code->k[ins->imm];
+				struct value val = ((struct value*)readptr(code->k))[ins->imm];
 				if (val.type == t_str) {
 					struct strobj* str = (struct strobj*)readptr(val.str);
 					int len = str->len;
@@ -551,7 +554,7 @@ static int dump_func(struct cpu* cpu, int func_id, char* buf, int buflen) {
 				cur += int_format(ins->imm, cur);
 				break;
 			case ot_IMMNUM: {
-				number num = ins->imm + (code->ins[pc++].imm << 16);
+				number num = ins->imm + (inss[pc++].imm << 16);
 				cur += num_format(num, 4, cur);
 				break;
 			}

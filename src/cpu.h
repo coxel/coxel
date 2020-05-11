@@ -44,7 +44,7 @@ enum type {
 typedef void (*cfunc)(struct cpu* cpu, int sp, int nargs);
 
 struct callinfo1 {
-	struct funcobj* func;
+	ptr(struct funcobj) func;
 };
 
 struct callinfo2 {
@@ -201,13 +201,13 @@ struct code {
 	int enclosure;
 	/* instructions */
 	int ins_cnt, ins_cap;
-	struct ins* ins;
+	ptr(struct ins) ins;
 	/* constants */
 	int k_cnt, k_cap;
-	struct value* k;
+	ptr(struct value) k;
 	/* upvalues */
 	int upval_cnt, upval_cap;
-	struct updef* upval;
+	ptr(struct updef) upval;
 };
 
 struct upval {
@@ -257,7 +257,7 @@ struct gfx {
 struct cpu {
 	struct alloc* alloc;
 	void* base;
-	/* functions */
+	/* code objects */
 	int code_cnt, code_cap;
 	struct code* code;
 
