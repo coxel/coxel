@@ -4,8 +4,12 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#ifndef _DEBUG
+#if !defined(_DEBUG) && !defined(ESP_PLATFORM)
 #define RELATIVE_ADDRESSING
+#endif
+
+#if defined(ESP_PLATFORM)
+#define HIERARCHICAL_MEMORY
 #endif
 
 #ifdef _MSC_VER

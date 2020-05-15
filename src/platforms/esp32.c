@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <sys/stat.h>
+#include "../gfx.h"
 #include "../platform.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -15,10 +16,6 @@
 #include "esp_vfs_fat.h"
 #include "esp_system.h"
 #include "sdmmc_cmd.h"
-
-char key_get_standard_input();
-extern uint32_t palette[16];
-int gfx_getpixel(struct gfx* gfx, int x, int y);
 
 #define TFT_MISO	12
 #define TFT_MOSI	23
@@ -147,7 +144,7 @@ DRAM_ATTR static const lcd_init_cmd_t lcd_init_cmds[] = {
 };
 
 NORETURN void platform_error(const char* msg) {
-	printf("%s\n", msg);
+	printf("Critical error: %s\n", msg);
 	vTaskDelay(5000 / portTICK_RATE_MS);
 	esp_restart();
 }
@@ -159,10 +156,24 @@ NORETURN void platform_exit(int code) {
 }
 
 void* platform_malloc(int size) {
-	return heap_caps_malloc(size, MALLOC_CAP_SPIRAM);
+	void *addr = heap_caps_malloc(size, MALLOC_CAP_SPIRAM);
+	printf("Memory allocation: %p size: 0x%x\n", addr, size);
+	return addr;
 }
 
 void platform_free(void* ptr) {
+	printf("Memory free: %p\n", ptr);
+	heap_caps_free(ptr);
+}
+
+void* platform_malloc_fast(int size) {
+	void* addr = heap_caps_malloc(size, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+	printf("Memory allocation: %p size: 0x%x\n", addr, size);
+	return addr;
+}
+
+void platform_free_fast(void* ptr) {
+	printf("Memory free: %p\n", ptr);
 	heap_caps_free(ptr);
 }
 
@@ -179,9 +190,13 @@ uint32_t platform_seed() {
 
 void* platform_open(const char* filename, uint32_t* filesize) {
 	char buf[300] = "/sdcard/";
-	if (strlen(filename) > 256)
-		return 0;
-	strcpy(buf + 8, filename);
+	if (filename == NULL)
+		strcpy(buf + 8, FIRMWARE_PATH);
+	else {
+		if (strlen(filename) > 256)
+			return 0;
+		strcpy(buf + 8, filename);
+	}
 	struct stat st;
 	if (stat(buf, &st))
 		return 0;
@@ -207,10 +222,6 @@ int platform_write(void* file, const char* data, int len) {
 
 void platform_close(void* file) {
 	fclose((FILE*)file);
-}
-
-char key_get_input() {
-	return key_get_standard_input();
 }
 
 static struct spi_transaction_t spi_trans_cmd(uint8_t cmd) {
@@ -400,7 +411,6 @@ void app_main() {
 	ret = esp_vfs_fat_sdmmc_mount("/sdcard", &host, &slot_config, &mount_config, &card);
 	if (ret != ESP_OK)
 		printf("esp_vfs_fat_sdmmc_mount() error.\n");
-
 	// Card has been initialized, print its properties
 	sdmmc_card_print_info(stdout, card);
 	

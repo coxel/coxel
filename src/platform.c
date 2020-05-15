@@ -24,6 +24,9 @@ NORETURN void critical_error(const char* fmt, ...) {
 static struct io g_io;
 static struct cpu* g_cpus[MAX_CPUS];
 static int g_cur_cpu, g_next_cpu;
+#ifdef HIERARCHICAL_MEMORY
+static struct gfx g_gfx;
+#endif
 
 #define SEPARATOR_MAGIC		"\n~!@#$%^&*()_"
 
@@ -202,14 +205,31 @@ struct run_result console_run(const struct cart* cart) {
 	return ret;
 }
 
+static void save_cpu_state() {
+#ifdef HIERARCHICAL_MEMORY
+	memcpy(&g_cpus[g_cur_cpu]->gfx, &g_gfx, sizeof(struct gfx));
+#endif
+}
+
+static void load_cpu_state() {
+#ifdef HIERARCHICAL_MEMORY
+	memcpy(&g_gfx, &g_cpus[g_cur_cpu]->gfx, sizeof(struct gfx));
+#endif
+}
+
 void console_update() {
 	key_preupdate(&g_io);
-	g_cur_cpu = g_next_cpu;
+	if (g_cur_cpu != g_next_cpu) {
+		save_cpu_state();
+		g_cur_cpu = g_next_cpu;
+		load_cpu_state();
+	}
 	if (key_is_pressed(kc_esc) && g_cur_cpu != 0) {
 		int parent = g_cpus[g_cur_cpu]->parent;
 		cpu_destroy(g_cpus[g_cur_cpu]);
 		g_cpus[g_cur_cpu] = NULL;
 		g_cur_cpu = g_next_cpu = parent == -1 ? 0 : parent;
+		load_cpu_state();
 	}
 	struct cpu* cpu = g_cpus[g_cur_cpu];
 	if (!cpu->stopped) {
@@ -240,5 +260,9 @@ struct io* console_getio() {
 }
 
 struct gfx* console_getgfx() {
+#ifdef HIERARCHICAL_MEMORY
+	return &g_gfx;
+#else
 	return &g_cpus[g_cur_cpu]->gfx;
+#endif
 }

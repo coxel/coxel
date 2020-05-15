@@ -9,6 +9,13 @@ NORETURN void platform_error(const char* msg);
 NORETURN void platform_exit(int code);
 void* platform_malloc(int size);
 void platform_free(void* ptr);
+#ifdef HIERARCHICAL_MEMORY
+void* platform_malloc_fast(int size);
+void platform_free_fast(void* ptr);
+#else
+#define platform_malloc_fast platform_malloc
+#define platform_free_fast platform_free
+#endif
 
 void platform_copy(const char* ptr, int len);
 int platform_paste(char* ptr, int len);

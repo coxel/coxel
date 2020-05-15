@@ -414,7 +414,7 @@ static void devlib_fastParse(struct cpu* cpu, int sp, int nargs) {
 		}
 	}
 	struct tabobj* tab = tab_new(cpu);
-	struct strobj* token_str;
+	struct strobj* token_str = NULL;
 	switch (token) {
 	case pt_none: token_str = str_intern(cpu, "none", 4); break;
 	case pt_string: token_str = str_intern(cpu, "string", 6); break;
