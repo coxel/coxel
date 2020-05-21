@@ -256,8 +256,17 @@ static struct spi_transaction_t spi_trans_data(const void* buf, int len) {
 	return trans;
 }
 
+static uint8_t gfx_screen[WIDTH * HEIGHT / 2];
+
+static FORCEINLINE uint16_t rgb888_to_rgb565(uint32_t color) {
+	uint16_t color16 = ((color & 0xF80000) >> 8) | ((color & 0xFC00) >> 5) | ((color & 0xF8) >> 3);
+	return (color16 >> 8) | (color16 << 8);
+}
+
 static void paint(spi_device_handle_t spi) {
 	esp_err_t err;
+	err = spi_device_acquire_bus(spi, portMAX_DELAY);
+	assert(err == ESP_OK);
 	spi_transaction_t init_trans[] = {
 		/* Column address set */
 		spi_trans_cmd(0x2A),
@@ -270,42 +279,55 @@ static void paint(spi_device_handle_t spi) {
 	};
 	/* Prepare for writing */
 	for (int i = 0; i < sizeof(init_trans) / sizeof(spi_transaction_t); i++) {
-		err = spi_device_queue_trans(spi, &init_trans[i], portMAX_DELAY);
+		err = spi_device_polling_transmit(spi, &init_trans[i]);
 		assert(err == ESP_OK);
 	}
-	int init_finished = 0;
-	spi_transaction_t line_trans;
-	uint16_t line[160];
-	for (int y = 0; y < 144; y++) {
-		/* Wait for last transaction to finish */
-		if (y) {
-			/* Wait for finish */
-			if (!init_finished) {
-				for (int i = 0; i < sizeof(init_trans) / sizeof(spi_transaction_t); i++) {
-					spi_transaction_t* wt = &init_trans[i];
-					err = spi_device_get_trans_result(spi, &wt, portMAX_DELAY);
-					assert(err == ESP_OK);
-				}
-				init_finished = 1;
+	static uint32_t line[2][PARALLEL_LINES * WIDTH / 2];
+	int bufno = 0;
+	for (int y = 0; y < HEIGHT; y += PARALLEL_LINES) {
+		for (int lineno = 0; lineno < PARALLEL_LINES; lineno++) {
+			for (int i = 0; i < WIDTH / 2; i++) {
+				uint8_t color = gfx_screen[(y + lineno) * WIDTH / 2 + i];
+				int low = color & 0x0F;
+				int high = color >> 4;
+				line[bufno][lineno * WIDTH / 2 + i] = rgb888_to_rgb565(palette[low]) + (rgb888_to_rgb565(palette[high]) << 16);
 			}
-			spi_transaction_t* wt = &line_trans;
-			err = spi_device_get_trans_result(spi, &wt, portMAX_DELAY);
+		}
+		if (y) {
+			err = spi_device_polling_end(spi, portMAX_DELAY);
+			if (err != ESP_OK) {
+				printf("spi_device_polling_end() failed.\n");
+				assert(err == ESP_OK);
+			}
+		}
+		spi_transaction_t line_trans = spi_trans_data(line[bufno], PARALLEL_LINES * WIDTH * 2);
+		err = spi_device_polling_start(spi, &line_trans, portMAX_DELAY);
+		if (err != ESP_OK) {
+			printf("spi_device_polling_start() failed.\n");
 			assert(err == ESP_OK);
 		}
-		for (int x = 0; x < 160; x++) {
-			uint32_t color = palette[gfx_getpixel(console_getgfx(), x, y)];
-			/* RGB888 to RGB565 */
-			uint16_t color16 = ((color & 0xF80000) >> 8) | ((color & 0xFC00) >> 5) | ((color & 0xF8) >> 3);
-			line[x] = (color16 >> 8) | (color16 << 8);
-		}
-		line_trans = spi_trans_data(line, 160 * 2);
-		err = spi_device_queue_trans(spi, &line_trans, portMAX_DELAY);
+		bufno = !bufno;
+	}
+	err = spi_device_polling_end(spi, portMAX_DELAY);
+	if (err != ESP_OK) {
+		printf("spi_device_polling_end() failed.\n");
 		assert(err == ESP_OK);
 	}
-	/* Wait for last transaction to finish */
-	spi_transaction_t* wt = &line_trans;
-	err = spi_device_get_trans_result(spi, &wt, portMAX_DELAY);
-	assert(err == ESP_OK);
+	spi_device_release_bus(spi);
+}
+
+static SemaphoreHandle_t console_sem;
+static SemaphoreHandle_t paint_sem;
+
+static void console_task_main(void *pvParameters) {
+	printf("Console initializing...\n");
+	console_init();
+	printf("Initialization completed. Starting main loop.\n");
+	for (;;) {
+		console_update();
+		xSemaphoreGive(paint_sem);
+		xSemaphoreTake(console_sem, portMAX_DELAY);
+	}
 }
 
 void app_main() {
@@ -340,7 +362,7 @@ void app_main() {
 		.max_transfer_sz = 240 * 320 * 2 + 8,
 	};
 	spi_device_interface_config_t devcfg = {
-		.clock_speed_hz = 10 * 1000 * 1000,
+		.clock_speed_hz = 26 * 1000 * 1000,
 		.mode = 0,
 		.spics_io_num = TFT_CS,
 		.queue_size = 7,
@@ -413,13 +435,30 @@ void app_main() {
 		printf("esp_vfs_fat_sdmmc_mount() error.\n");
 	// Card has been initialized, print its properties
 	sdmmc_card_print_info(stdout, card);
+
+	printf("Creating synchronization semaphores...\n");
+	console_sem = xSemaphoreCreateBinary();
+	if (console_sem == NULL)
+		printf("Creating console semaphore failed.\n");
+	paint_sem = xSemaphoreCreateBinary();
+	if (paint_sem == NULL)
+		printf("Creating paint semaphore failed.\n");
+
+	printf("Starting console task...\n");
+	TaskHandle_t console_task;
+	if (xTaskCreatePinnedToCore(console_task_main, "console", 16384, NULL, 1, &console_task, 1) != pdPASS)
+		printf("xTaskCreatePinnedToCore() error.\n");
 	
-	printf("Console initializing...\n");
-	console_init();
-	printf("Initialization completed. Starting main loop.\n");
+	printf("Starting main loop...\n");
 	for (;;) {
-		console_update();
+		uint64_t start_time = esp_timer_get_time();
+		xSemaphoreTake(paint_sem, portMAX_DELAY);
+		memcpy(gfx_screen, console_getgfx()->screen, WIDTH * HEIGHT / 2);
+		xSemaphoreGive(console_sem);
+		uint64_t end_time = esp_timer_get_time();
 		paint(spi);
+		uint64_t end_time2 = esp_timer_get_time();
+		printf("Elapsed time: %llu %llu\n", end_time - start_time, end_time2 - end_time);
 		if (pressed == BUTTON_0 && duty > 0)
 			--duty;
 		else if (pressed == BUTTON_2 && duty < 7)
@@ -427,6 +466,7 @@ void app_main() {
 		pressed = 0;
 		ledc_set_duty(LEDC_HIGH_SPEED_MODE, LEDC_CHANNEL_0, duty);
 		ledc_update_duty(LEDC_HIGH_SPEED_MODE, LEDC_CHANNEL_0);
-		vTaskDelay(1 / portTICK_PERIOD_MS);
+		//vTaskDelay(1 / portTICK_PERIOD_MS);
+		vTaskDelay(0);
 	}
 }
