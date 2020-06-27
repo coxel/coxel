@@ -62,13 +62,13 @@ struct cpu* cpu_new() {
 	cpu->upval_open = writeptr(NULL);
 	cpu->frame = 0;
 
-	cpu->_lit_EMPTY = str_intern_nogc(cpu, "", 0);
-#define X(s) cpu->_lit_##s = str_intern_nogc(cpu, #s, (sizeof #s) - 1);
+	cpu->_lit_EMPTY = writeptr(str_intern_nogc(cpu, "", 0));
+#define X(s) cpu->_lit_##s = writeptr(str_intern_nogc(cpu, #s, (sizeof #s) - 1));
 	STRLIT_DEF(X);
 #undef X
 	lib_init(cpu);
 	gfx_init(&cpu->gfx);
-	tab_set(cpu, globals, cpu->_lit_global, value_tab(cpu, globals));
+	tab_set(cpu, globals, LIT(global), value_tab(cpu, globals));
 
 	return cpu;
 }
@@ -116,13 +116,13 @@ number to_number(struct cpu* cpu, struct value val) {
 
 struct strobj* to_string(struct cpu* cpu, struct value val) {
 	switch (val.type) {
-	case t_undef: return cpu->_lit_undefined;
-	case t_null: return cpu->_lit_null;
+	case t_undef: return LIT(undefined);
+	case t_null: return LIT(null);
 	case t_bool: {
 		if (val.b)
-			return cpu->_lit_true;
+			return LIT(true);
 		else
-			return cpu->_lit_false;
+			return LIT(false);
 	}
 	case t_num: {
 		char buf[20];

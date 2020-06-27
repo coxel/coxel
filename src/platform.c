@@ -239,7 +239,7 @@ void console_update() {
 			gc_collect(cpu);
 		}
 		else {
-			struct value fval = tab_get(cpu, (struct tabobj*)readptr(cpu->globals), cpu->_lit_onframe);
+			struct value fval = tab_get(cpu, (struct tabobj*)readptr(cpu->globals), LIT(onframe));
 			if (fval.type == t_func) {
 				struct funcobj* fobj = readptr(fval.func);
 				cpu_execute(cpu, fobj);

@@ -853,6 +853,7 @@ static struct sval compile_function(struct context* ctx, int global) {
 }
 
 static struct sval compile_element(struct context* ctx) {
+	struct cpu* cpu = ctx->cpu;
 	switch (ctx->token) {
 	case tk_ident: {
 		int level;
@@ -910,7 +911,7 @@ static struct sval compile_element(struct context* ctx) {
 	case tk_this: {
 		next_token(ctx);
 		if (ctx->topfunc->enfunc == NULL) {
-			struct sval val = sval_str(ctx, ctx->cpu->_lit_global);
+			struct sval val = sval_str(ctx, LIT(global));
 			sval_pop(ctx, val);
 			emit(ctx, op_gget, ctx->sp, val.reg, 0);
 			return sval_value(ctx->sp++);

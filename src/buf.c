@@ -32,7 +32,7 @@ void buf_set(struct cpu* cpu, struct bufobj* buf, number index, struct value val
 }
 
 struct value buf_fget(struct cpu* cpu, struct bufobj* buf, struct strobj* key) {
-	if (key == cpu->_lit_length)
+	if (key == LIT(length))
 		return value_num(cpu, num_uint(buf->len));
 	else
 		return value_undef(cpu);

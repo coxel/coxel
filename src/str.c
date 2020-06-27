@@ -283,13 +283,13 @@ static void libstr_substr(struct cpu* cpu, int sp, int nargs) {
 }
 
 struct value str_fget(struct cpu* cpu, struct strobj* str, struct strobj* key) {
-	if (key == cpu->_lit_indexOf)
+	if (key == LIT(indexOf))
 		return value_cfunc(cpu, libstr_indexOf);
-	else if (key == cpu->_lit_lastIndexOf)
+	else if (key == LIT(lastIndexOf))
 		return value_cfunc(cpu, libstr_lastIndexOf);
-	else if (key == cpu->_lit_substr)
+	else if (key == LIT(substr))
 		return value_cfunc(cpu, libstr_substr);
-	else if (key == cpu->_lit_length)
+	else if (key == LIT(length))
 		return value_num(cpu, num_kuint(str->len));
 	else
 		return value_undef(cpu);

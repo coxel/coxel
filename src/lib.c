@@ -230,7 +230,7 @@ static void devlib_input(struct cpu* cpu, int sp, int nargs) {
 	struct io* io = console_getio();
 	struct strobj* str;
 	if (io->input_size == 0)
-		str = cpu->_lit_EMPTY;
+		str = LIT(EMPTY);
 	else
 		str = str_intern(cpu, io->input, io->input_size);
 	RET = value_str(cpu, str);
@@ -249,7 +249,7 @@ static void devlib_paste(struct cpu* cpu, int sp, int nargs) {
 	struct io* io = console_getio();
 	int avail = io->keys[kc_ctrl] && io->keys[kc_v];
 	if (!avail) {
-		RET = value_str(cpu, cpu->_lit_EMPTY);
+		RET = value_str(cpu, LIT(EMPTY));
 		return;
 	}
 	int len = STR_MAXLEN;

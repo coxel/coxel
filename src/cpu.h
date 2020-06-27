@@ -272,8 +272,8 @@ struct cpu {
 	int strtab_size, strtab_cnt;
 
 	/* interned string literals */
-	struct strobj* _lit_EMPTY;
-#define X(s) struct strobj* _lit_##s;
+	ptr(struct strobj) _lit_EMPTY;
+#define X(s) ptr(struct strobj) _lit_##s;
 	STRLIT_DEF(X)
 #undef X
 
@@ -316,6 +316,7 @@ struct io {
 #define RET			cpu->stack[sp]
 #define ARG(i)		cpu->stack[sp + 2 + (i)]
 #define THIS		cpu->stack[sp + 1]
+#define LIT(x)		((struct strobj*)readptr(cpu->_lit_##x))
 
 NORETURN void runtime_error(struct cpu* cpu, const char* msg);
 NORETURN void argument_error(struct cpu* cpu);

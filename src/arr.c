@@ -59,11 +59,11 @@ static void libarr_pop(struct cpu* cpu, int sp, int nargs) {
 }
 
 struct value arr_fget(struct cpu* cpu, struct arrobj* arr, struct strobj* key) {
-	if (key == cpu->_lit_pop)
+	if (key == LIT(pop))
 		return value_cfunc(cpu, libarr_pop);
-	else if (key == cpu->_lit_push)
+	else if (key == LIT(push))
 		return value_cfunc(cpu, libarr_push);
-	else if (key == cpu->_lit_length)
+	else if (key == LIT(length))
 		return value_num(cpu, num_kuint(arr->len));
 	else
 		return value_undef(cpu);
