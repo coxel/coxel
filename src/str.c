@@ -190,7 +190,7 @@ struct value str_get(struct cpu* cpu, struct strobj* str, number index) {
 		return value_str(cpu, str_intern(cpu, &str->data[idx], 1));
 }
 
-static struct value libstr_indexOf(struct cpu* cpu, int sp, int nargs) {
+struct value libstr_indexOf(struct cpu* cpu, int sp, int nargs) {
 	if (nargs != 1 && nargs != 2)
 		argument_error(cpu);
 	struct strobj* str = to_string(cpu, THIS);
@@ -226,7 +226,7 @@ static struct value libstr_indexOf(struct cpu* cpu, int sp, int nargs) {
 	return value_num(cpu, num_kint(-1));
 }
 
-static struct value libstr_lastIndexOf(struct cpu* cpu, int sp, int nargs) {
+struct value libstr_lastIndexOf(struct cpu* cpu, int sp, int nargs) {
 	if (nargs != 1 && nargs != 2)
 		argument_error(cpu);
 	struct strobj* str = to_string(cpu, THIS);
@@ -257,7 +257,7 @@ static struct value libstr_lastIndexOf(struct cpu* cpu, int sp, int nargs) {
 	return value_num(cpu, num_kint(-1));
 }
 
-static struct value libstr_substr(struct cpu* cpu, int sp, int nargs) {
+struct value libstr_substr(struct cpu* cpu, int sp, int nargs) {
 	if (nargs != 1 && nargs != 2)
 		argument_error(cpu);
 	struct strobj* str = to_string(cpu, THIS);
@@ -272,11 +272,11 @@ static struct value libstr_substr(struct cpu* cpu, int sp, int nargs) {
 
 struct value str_fget(struct cpu* cpu, struct strobj* str, struct strobj* key) {
 	if (key == LIT(indexOf))
-		return value_cfunc(cpu, libstr_indexOf);
+		return value_cfunc(cpu, cf_libstr_indexOf);
 	else if (key == LIT(lastIndexOf))
-		return value_cfunc(cpu, libstr_lastIndexOf);
+		return value_cfunc(cpu, cf_libstr_lastIndexOf);
 	else if (key == LIT(substr))
-		return value_cfunc(cpu, libstr_substr);
+		return value_cfunc(cpu, cf_libstr_substr);
 	else if (key == LIT(length))
 		return value_num(cpu, num_kuint(str->len));
 	else

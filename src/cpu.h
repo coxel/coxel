@@ -3,6 +3,7 @@
 
 #include "alloc.h"
 #include "arith.h"
+#include "cfunc.h"
 #include "config.h"
 #include "key.h"
 
@@ -41,8 +42,6 @@ enum type {
 	t_cnt,
 };
 
-typedef struct value (*cfunc)(struct cpu* cpu, int sp, int nargs);
-
 struct callinfo1 {
 	ptr(struct funcobj) func;
 };
@@ -62,7 +61,7 @@ struct value {
 		ptr(struct arrobj) arr;
 		ptr(struct tabobj) tab;
 		ptr(struct funcobj) func;
-		cfunc cfunc;
+		enum cfuncname cfunc;
 		struct callinfo1 ci1;
 		struct callinfo2 ci2;
 	};
@@ -394,7 +393,7 @@ static inline struct value value_func(struct cpu* cpu, struct funcobj* func) {
 	return val;
 }
 
-static inline struct value value_cfunc(struct cpu* cpu, cfunc cfunc) {
+static inline struct value value_cfunc(struct cpu* cpu, enum cfuncname cfunc) {
 	struct value val;
 	val.type = t_cfunc;
 	val.cfunc = cfunc;

@@ -8,7 +8,7 @@
 
 #include <string.h>
 
-static struct value lib_btn(struct cpu* cpu, int sp, int nargs) {
+struct value lib_btn(struct cpu* cpu, int sp, int nargs) {
 	if (nargs != 1 && nargs != 2)
 		argument_error(cpu);
 	int btn = btn_translate(cpu, to_string(cpu, ARG(0)));
@@ -18,7 +18,7 @@ static struct value lib_btn(struct cpu* cpu, int sp, int nargs) {
 	return value_bool(cpu, btn_is_down(btn, player));
 }
 
-static struct value lib_btnp(struct cpu* cpu, int sp, int nargs) {
+struct value lib_btnp(struct cpu* cpu, int sp, int nargs) {
 	if (nargs != 1 && nargs != 2)
 		argument_error(cpu);
 	int btn = btn_translate(cpu, to_string(cpu, ARG(0)));
@@ -28,7 +28,7 @@ static struct value lib_btnp(struct cpu* cpu, int sp, int nargs) {
 	return value_bool(cpu, btn_is_pressed(btn, player));
 }
 
-static struct value lib_cls(struct cpu* cpu, int sp, int nargs) {
+struct value lib_cls(struct cpu* cpu, int sp, int nargs) {
 	if (nargs != 0 && nargs != 1)
 		argument_error(cpu);
 	int c = -1;
@@ -38,7 +38,7 @@ static struct value lib_cls(struct cpu* cpu, int sp, int nargs) {
 	return value_undef(cpu);
 }
 
-static struct value lib_camera(struct cpu* cpu, int sp, int nargs) {
+struct value lib_camera(struct cpu* cpu, int sp, int nargs) {
 	if (nargs != 0 && nargs != 2)
 		argument_error(cpu);
 	if (nargs == 0)
@@ -51,7 +51,7 @@ static struct value lib_camera(struct cpu* cpu, int sp, int nargs) {
 	return value_undef(cpu);
 }
 
-static struct value lib_pget(struct cpu* cpu, int sp, int nargs) {
+struct value lib_pget(struct cpu* cpu, int sp, int nargs) {
 	if (nargs != 2)
 		argument_error(cpu);
 	int x = num_int(to_number(cpu, ARG(0)));
@@ -62,7 +62,7 @@ static struct value lib_pget(struct cpu* cpu, int sp, int nargs) {
 		return value_num(cpu, num_int(gfx_getpixel(console_getgfx(), x, y)));
 }
 
-static struct value lib_pset(struct cpu* cpu, int sp, int nargs) {
+struct value lib_pset(struct cpu* cpu, int sp, int nargs) {
 	if (nargs != 2 && nargs != 3)
 		argument_error(cpu);
 	int x = num_int(to_number(cpu, ARG(0)));
@@ -75,7 +75,7 @@ static struct value lib_pset(struct cpu* cpu, int sp, int nargs) {
 	return value_undef(cpu);
 }
 
-static struct value lib_line(struct cpu* cpu, int sp, int nargs) {
+struct value lib_line(struct cpu* cpu, int sp, int nargs) {
 	if (nargs != 4 && nargs != 5)
 		argument_error(cpu);
 	int x1 = num_int(to_number(cpu, ARG(0)));
@@ -89,7 +89,7 @@ static struct value lib_line(struct cpu* cpu, int sp, int nargs) {
 	return value_undef(cpu);
 }
 
-static struct value lib_rect(struct cpu* cpu, int sp, int nargs) {
+struct value lib_rect(struct cpu* cpu, int sp, int nargs) {
 	if (nargs != 4 && nargs != 5)
 		argument_error(cpu);
 	int x = num_int(to_number(cpu, ARG(0)));
@@ -103,7 +103,7 @@ static struct value lib_rect(struct cpu* cpu, int sp, int nargs) {
 	return value_undef(cpu);
 }
 
-static struct value lib_fillRect(struct cpu* cpu, int sp, int nargs) {
+struct value lib_fillRect(struct cpu* cpu, int sp, int nargs) {
 	if (nargs != 4 && nargs != 5)
 		argument_error(cpu);
 	int x = num_int(to_number(cpu, ARG(0)));
@@ -117,7 +117,7 @@ static struct value lib_fillRect(struct cpu* cpu, int sp, int nargs) {
 	return value_undef(cpu);
 }
 
-static struct value lib_print(struct cpu* cpu, int sp, int nargs) {
+struct value lib_print(struct cpu* cpu, int sp, int nargs) {
 	if (nargs != 1 && nargs != 3 && nargs != 4)
 		argument_error(cpu);
 	struct strobj* str = to_string(cpu, ARG(0));
@@ -134,14 +134,14 @@ static struct value lib_print(struct cpu* cpu, int sp, int nargs) {
 	return value_undef(cpu);
 }
 
-static struct value lib_abs(struct cpu* cpu, int sp, int nargs) {
+struct value lib_abs(struct cpu* cpu, int sp, int nargs) {
 	if (nargs != 1)
 		argument_error(cpu);
 	number num = to_number(cpu, ARG(0));
 	return value_num(cpu, num_abs(num));
 }
 
-static struct value lib_max(struct cpu* cpu, int sp, int nargs) {
+struct value lib_max(struct cpu* cpu, int sp, int nargs) {
 	number ret = 0x80000000;
 	for (int i = 0; i < nargs; i++) {
 		number cur = to_number(cpu, ARG(i));
@@ -151,7 +151,7 @@ static struct value lib_max(struct cpu* cpu, int sp, int nargs) {
 	return value_num(cpu, ret);
 }
 
-static struct value lib_min(struct cpu* cpu, int sp, int nargs) {
+struct value lib_min(struct cpu* cpu, int sp, int nargs) {
 	number ret = 0x7FFFFFFF;
 	for (int i = 0; i < nargs; i++) {
 		number cur = to_number(cpu, ARG(i));
@@ -161,21 +161,21 @@ static struct value lib_min(struct cpu* cpu, int sp, int nargs) {
 	return value_num(cpu, ret);
 }
 
-static struct value lib_ceil(struct cpu* cpu, int sp, int nargs) {
+struct value lib_ceil(struct cpu* cpu, int sp, int nargs) {
 	if (nargs != 1)
 		argument_error(cpu);
 	number value = to_number(cpu, ARG(0));
 	return value_num(cpu, num_ceil(value));
 }
 
-static struct value lib_floor(struct cpu* cpu, int sp, int nargs) {
+struct value lib_floor(struct cpu* cpu, int sp, int nargs) {
 	if (nargs != 1)
 		argument_error(cpu);
 	number value = to_number(cpu, ARG(0));
 	return value_num(cpu, num_floor(value));
 }
 
-static struct value lib_srand(struct cpu* cpu, int sp, int nargs) {
+struct value lib_srand(struct cpu* cpu, int sp, int nargs) {
 	if (nargs != 1)
 		argument_error(cpu);
 	number value = to_number(cpu, ARG(0));
@@ -183,7 +183,7 @@ static struct value lib_srand(struct cpu* cpu, int sp, int nargs) {
 	return value_undef(cpu);
 }
 
-static struct value lib_rand(struct cpu* cpu, int sp, int nargs) {
+struct value lib_rand(struct cpu* cpu, int sp, int nargs) {
 	if (nargs == 0)
 		return value_num(cpu, rand_int(cpu, num_kint(1) - 1));
 	else if (nargs == 1) {
@@ -199,7 +199,7 @@ static struct value lib_rand(struct cpu* cpu, int sp, int nargs) {
 		argument_error(cpu);
 }
 
-static struct value devlib_key(struct cpu* cpu, int sp, int nargs) {
+struct value devlib_key(struct cpu* cpu, int sp, int nargs) {
 	if (nargs != 1)
 		argument_error(cpu);
 	struct strobj* key = to_string(cpu, ARG(0));
@@ -207,7 +207,7 @@ static struct value devlib_key(struct cpu* cpu, int sp, int nargs) {
 	return value_bool(cpu, key_is_down(k));
 }
 
-static struct value devlib_keyp(struct cpu* cpu, int sp, int nargs) {
+struct value devlib_keyp(struct cpu* cpu, int sp, int nargs) {
 	if (nargs != 1)
 		argument_error(cpu);
 	struct strobj* key = to_string(cpu, ARG(0));
@@ -215,7 +215,7 @@ static struct value devlib_keyp(struct cpu* cpu, int sp, int nargs) {
 	return value_bool(cpu, key_is_pressed(k));
 }
 
-static struct value devlib_mpos(struct cpu* cpu, int sp, int nargs) {
+struct value devlib_mpos(struct cpu* cpu, int sp, int nargs) {
 	if (nargs != 0)
 		argument_error(cpu);
 	struct tabobj* tab = tab_new(cpu);
@@ -225,14 +225,14 @@ static struct value devlib_mpos(struct cpu* cpu, int sp, int nargs) {
 	return value_tab(cpu, tab);
 }
 
-static struct value devlib_mwheel(struct cpu* cpu, int sp, int nargs) {
+struct value devlib_mwheel(struct cpu* cpu, int sp, int nargs) {
 	if (nargs != 0)
 		argument_error(cpu);
 	struct io* io = console_getio();
 	return value_num(cpu, num_kint(io->mousewheel));
 }
 
-static struct value devlib_input(struct cpu* cpu, int sp, int nargs) {
+struct value devlib_input(struct cpu* cpu, int sp, int nargs) {
 	struct io* io = console_getio();
 	struct strobj* str;
 	if (io->input_size == 0)
@@ -242,7 +242,7 @@ static struct value devlib_input(struct cpu* cpu, int sp, int nargs) {
 	return value_str(cpu, str);
 }
 
-static struct value devlib_copy(struct cpu* cpu, int sp, int nargs) {
+struct value devlib_copy(struct cpu* cpu, int sp, int nargs) {
 	if (nargs != 1)
 		argument_error(cpu);
 	struct strobj* str = to_string(cpu, ARG(0));
@@ -250,7 +250,7 @@ static struct value devlib_copy(struct cpu* cpu, int sp, int nargs) {
 	return value_undef(cpu);
 }
 
-static struct value devlib_paste(struct cpu* cpu, int sp, int nargs) {
+struct value devlib_paste(struct cpu* cpu, int sp, int nargs) {
 	if (nargs != 0)
 		argument_error(cpu);
 	struct io* io = console_getio();
@@ -271,7 +271,7 @@ static struct value devlib_paste(struct cpu* cpu, int sp, int nargs) {
 	return ret;
 }
 
-static struct value devlib_newbuf(struct cpu* cpu, int sp, int nargs) {
+struct value devlib_newbuf(struct cpu* cpu, int sp, int nargs) {
 	if (nargs != 1)
 		argument_error(cpu);
 	int size = num_uint(to_number(cpu, ARG(0)));
@@ -322,7 +322,7 @@ static struct value get_run_result(struct cpu* cpu, struct run_result result) {
 	return value_tab(cpu, ret);
 }
 
-static struct value devlib_run(struct cpu* cpu, int sp, int nargs) {
+struct value devlib_run(struct cpu* cpu, int sp, int nargs) {
 	if (nargs != 1)
 		argument_error(cpu);
 	struct tabobj* tab = to_tab(cpu, ARG(0));
@@ -331,7 +331,7 @@ static struct value devlib_run(struct cpu* cpu, int sp, int nargs) {
 	return get_run_result(cpu, result);
 }
 
-static struct value devlib_save(struct cpu* cpu, int sp, int nargs) {
+struct value devlib_save(struct cpu* cpu, int sp, int nargs) {
 	if (nargs != 2)
 		argument_error(cpu);
 	struct strobj* filename = to_string(cpu, ARG(0));
@@ -342,7 +342,7 @@ static struct value devlib_save(struct cpu* cpu, int sp, int nargs) {
 	return get_run_result(cpu, result);
 }
 
-static struct value devlib_load(struct cpu* cpu, int sp, int nargs) {
+struct value devlib_load(struct cpu* cpu, int sp, int nargs) {
 	if (nargs != 1)
 		argument_error(cpu);
 	struct strobj* filename = to_string(cpu, ARG(0));
@@ -355,7 +355,7 @@ static struct value devlib_load(struct cpu* cpu, int sp, int nargs) {
 		return value_tab(cpu, parse_cartobj(cpu, &cart));
 }
 
-static struct value devlib_fastParse(struct cpu* cpu, int sp, int nargs) {
+struct value devlib_fastParse(struct cpu* cpu, int sp, int nargs) {
 	if (nargs != 2)
 		argument_error(cpu);
 	struct strobj* str = to_string(cpu, ARG(0));
@@ -435,44 +435,44 @@ static struct value devlib_fastParse(struct cpu* cpu, int sp, int nargs) {
 
 struct libdef {
 	const char* name;
-	cfunc func;
+	enum cfuncname func;
 };
 
 static const struct libdef libdefs[] = {
-	{"btn", lib_btn },
-	{"btnp", lib_btnp },
-	{"cls", lib_cls },
-	{"camera", lib_camera },
-	{"pget", lib_pget },
-	{"pset", lib_pset },
-	{"line", lib_line },
-	{"rect", lib_rect },
-	{"fillRect", lib_fillRect },
-	{"print", lib_print },
-	{"abs", lib_abs },
-	{"max", lib_max },
-	{"min", lib_min },
-	{"ceil", lib_ceil },
-	{"floor", lib_floor },
-	{"srand", lib_srand },
-	{"rand", lib_rand },
-	{ NULL, NULL },
+	{"btn", cf_lib_btn },
+	{"btnp", cf_lib_btnp },
+	{"cls", cf_lib_cls },
+	{"camera", cf_lib_camera },
+	{"pget", cf_lib_pget },
+	{"pset", cf_lib_pset },
+	{"line", cf_lib_line },
+	{"rect", cf_lib_rect },
+	{"fillRect", cf_lib_fillRect },
+	{"print", cf_lib_print },
+	{"abs", cf_lib_abs },
+	{"max", cf_lib_max },
+	{"min", cf_lib_min },
+	{"ceil", cf_lib_ceil },
+	{"floor", cf_lib_floor },
+	{"srand", cf_lib_srand },
+	{"rand", cf_lib_rand },
+	{ NULL, 0 },
 };
 
 static const struct libdef devlibdefs[] = {
-	{"dev_key", devlib_key },
-	{"dev_keyp", devlib_keyp },
-	{"dev_mpos", devlib_mpos },
-	{"dev_mwheel", devlib_mwheel },
-	{"dev_input", devlib_input },
-	{"dev_copy", devlib_copy },
-	{"dev_paste", devlib_paste },
-	{"dev_newbuf", devlib_newbuf },
-	{"dev_fastParse", devlib_fastParse },
-	{"dev_run", devlib_run },
-	{"dev_save", devlib_save },
-	{"dev_load", devlib_load },
-	{ NULL, NULL },
+	{"dev_key", cf_devlib_key },
+	{"dev_keyp", cf_devlib_keyp },
+	{"dev_mpos", cf_devlib_mpos },
+	{"dev_mwheel", cf_devlib_mwheel },
+	{"dev_input", cf_devlib_input },
+	{"dev_copy", cf_devlib_copy },
+	{"dev_paste", cf_devlib_paste },
+	{"dev_newbuf", cf_devlib_newbuf },
+	{"dev_fastParse", cf_devlib_fastParse },
+	{"dev_run", cf_devlib_run },
+	{"dev_save", cf_devlib_save },
+	{"dev_load", cf_devlib_load },
+	{ NULL, 0 },
 };
 
 void lib_init(struct cpu* cpu) {

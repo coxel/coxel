@@ -384,7 +384,8 @@ void cpu_execute(struct cpu* cpu, struct funcobj* func) {
 		case op_call: {
 			if (retval.type == t_cfunc) {
 				int sp = cpu->sp + ins->op1;
-				cpu->stack[sp] = retval.cfunc(cpu, sp, ins->op2);
+				cfunc func = cfunc_get(retval.cfunc);
+				cpu->stack[sp] = func(cpu, sp, ins->op2);
 			}
 			else if (retval.type == t_func) {
 				struct funcobj* f = (struct funcobj*)readptr(retval.func);

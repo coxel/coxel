@@ -44,7 +44,7 @@ struct value arr_pop(struct cpu* cpu, struct arrobj* arr) {
 		return ((struct value*)readptr(arr->data))[--arr->len];
 }
 
-static struct value libarr_push(struct cpu* cpu, int sp, int nargs) {
+struct value libarr_push(struct cpu* cpu, int sp, int nargs) {
 	if (nargs != 1)
 		argument_error(cpu);
 	struct arrobj* arr = to_arr(cpu, THIS);
@@ -52,7 +52,7 @@ static struct value libarr_push(struct cpu* cpu, int sp, int nargs) {
 	return value_undef(cpu);
 }
 
-static struct value libarr_pop(struct cpu* cpu, int sp, int nargs) {
+struct value libarr_pop(struct cpu* cpu, int sp, int nargs) {
 	if (nargs != 0)
 		argument_error(cpu);
 	struct arrobj* arr = to_arr(cpu, THIS);
@@ -61,9 +61,9 @@ static struct value libarr_pop(struct cpu* cpu, int sp, int nargs) {
 
 struct value arr_fget(struct cpu* cpu, struct arrobj* arr, struct strobj* key) {
 	if (key == LIT(pop))
-		return value_cfunc(cpu, libarr_pop);
+		return value_cfunc(cpu, cf_libarr_pop);
 	else if (key == LIT(push))
-		return value_cfunc(cpu, libarr_push);
+		return value_cfunc(cpu, cf_libarr_push);
 	else if (key == LIT(length))
 		return value_num(cpu, num_kuint(arr->len));
 	else

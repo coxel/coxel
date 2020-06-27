@@ -7,6 +7,8 @@ set(SOURCES
 	arr.h
 	buf.c
 	buf.h
+	cfunc.c
+	cfunc.h
 	compiler.c
 	compiler.h
 	config.h
