@@ -10,8 +10,8 @@
 
 #ifdef RELATIVE_ADDRESSING
 typedef uint32_t ptr_t;
-#define readptr(aptr)		((void*)((uint8_t*)cpu->base + (aptr)))
-#define writeptr(aptr)		((ptr_t)((uint8_t*)(aptr) - (uint8_t*)cpu->base))
+#define readptr(aptr)		(((aptr) == 0) ? NULL : (void*)((uint8_t*)cpu->base + (aptr)))
+#define writeptr(aptr)		(((aptr) == NULL) ? 0 : (ptr_t)((uint8_t*)(aptr) - (uint8_t*)cpu->base))
 #define ptr(type)			ptr_t
 #else
 typedef void* ptr_t;
