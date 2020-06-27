@@ -44,18 +44,19 @@ struct value arr_pop(struct cpu* cpu, struct arrobj* arr) {
 		return ((struct value*)readptr(arr->data))[--arr->len];
 }
 
-static void libarr_push(struct cpu* cpu, int sp, int nargs) {
+static struct value libarr_push(struct cpu* cpu, int sp, int nargs) {
 	if (nargs != 1)
 		argument_error(cpu);
 	struct arrobj* arr = to_arr(cpu, THIS);
 	arr_push(cpu, arr, ARG(0));
+	return value_undef(cpu);
 }
 
-static void libarr_pop(struct cpu* cpu, int sp, int nargs) {
+static struct value libarr_pop(struct cpu* cpu, int sp, int nargs) {
 	if (nargs != 0)
 		argument_error(cpu);
 	struct arrobj* arr = to_arr(cpu, THIS);
-	RET = arr_pop(cpu, arr);
+	return arr_pop(cpu, arr);
 }
 
 struct value arr_fget(struct cpu* cpu, struct arrobj* arr, struct strobj* key) {

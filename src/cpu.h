@@ -41,7 +41,7 @@ enum type {
 	t_cnt,
 };
 
-typedef void (*cfunc)(struct cpu* cpu, int sp, int nargs);
+typedef struct value (*cfunc)(struct cpu* cpu, int sp, int nargs);
 
 struct callinfo1 {
 	ptr(struct funcobj) func;
@@ -313,7 +313,6 @@ struct io {
 	int mousewheel;
 };
 
-#define RET			cpu->stack[sp]
 #define ARG(i)		cpu->stack[sp + 2 + (i)]
 #define THIS		cpu->stack[sp + 1]
 #define LIT(x)		((struct strobj*)readptr(cpu->_lit_##x))
