@@ -469,13 +469,14 @@ static const struct libdef devlibdefs[] = {
 };
 
 void lib_init(struct cpu* cpu) {
+	struct tabobj* globals = (struct tabobj*)readptr(cpu->globals);
 	for (int i = 0; libdefs[i].name; i++) {
 		struct strobj* key = str_intern(cpu, libdefs[i].name, (int)strlen(libdefs[i].name));
-		tab_set(cpu, cpu->globals, key, value_cfunc(cpu, libdefs[i].func));
+		tab_set(cpu, globals, key, value_cfunc(cpu, libdefs[i].func));
 	}
 	for (int i = 0; devlibdefs[i].name; i++) {
 		struct strobj* key = str_intern(cpu, devlibdefs[i].name, (int)strlen(devlibdefs[i].name));
-		tab_set(cpu, cpu->globals, key, value_cfunc(cpu, devlibdefs[i].func));
+		tab_set(cpu, globals, key, value_cfunc(cpu, devlibdefs[i].func));
 	}
 	rand_seed(cpu, platform_seed());
 }

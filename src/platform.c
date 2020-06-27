@@ -234,12 +234,12 @@ void console_update() {
 	struct cpu* cpu = g_cpus[g_cur_cpu];
 	if (!cpu->stopped) {
 		if (!cpu->top_executed) {
-			cpu_execute(cpu, cpu->topfunc);
+			cpu_execute(cpu, (struct funcobj*)readptr(cpu->topfunc));
 			cpu->top_executed = 1;
 			gc_collect(cpu);
 		}
 		else {
-			struct value fval = tab_get(cpu, cpu->globals, cpu->_lit_onframe);
+			struct value fval = tab_get(cpu, (struct tabobj*)readptr(cpu->globals), cpu->_lit_onframe);
 			if (fval.type == t_func) {
 				struct funcobj* fobj = readptr(fval.func);
 				cpu_execute(cpu, fobj);

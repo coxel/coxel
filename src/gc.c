@@ -99,7 +99,7 @@ void gc_free(struct cpu* cpu, struct obj* obj) {
 void gc_collect(struct cpu* cpu) {
 	/* Mark all reachable objects */
 	/* Traverse root sets */
-	gc_traverse_tab(cpu, cpu->globals);
+	gc_traverse_tab(cpu, (struct tabobj*)readptr(cpu->globals));
 
 	/* Sweep unreachable objects */
 	ptr_t* prev = &cpu->gchead;

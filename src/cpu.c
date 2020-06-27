@@ -48,17 +48,18 @@ struct cpu* cpu_new() {
 	cpu->top_executed = 0;
 	cpu->stopped = 0;
 	strtab_init(cpu);
-	cpu->globals = tab_new(cpu);
+	struct tabobj* globals = tab_new(cpu);
+	cpu->globals = writeptr(globals);
 	cpu->sp = 0;
 	cpu->stack_cap = 0;
 	cpu->stack = NULL;
-	cpu->code = NULL;
+	cpu->code = writeptr(NULL);
 	cpu->code_cnt = 0;
 	cpu->code_cap = 0;
 	cpu->stack = NULL;
 	cpu->sp = 0;
 	cpu->stack_cap = 0;
-	cpu->upval_open = NULL;
+	cpu->upval_open = writeptr(NULL);
 	cpu->frame = 0;
 
 	cpu->_lit_EMPTY = str_intern_nogc(cpu, "", 0);
@@ -67,7 +68,7 @@ struct cpu* cpu_new() {
 #undef X
 	lib_init(cpu);
 	gfx_init(&cpu->gfx);
-	tab_set(cpu, cpu->globals, cpu->_lit_global, value_tab(cpu, cpu->globals));
+	tab_set(cpu, globals, cpu->_lit_global, value_tab(cpu, globals));
 
 	return cpu;
 }
@@ -82,7 +83,7 @@ static void cpu_growstack(struct cpu* cpu) {
 	cpu->stack = (struct value*)mem_realloc(cpu->alloc, cpu->stack, new_cap * sizeof(struct value));
 	cpu->stack_cap = new_cap;
 	/* adjust open upvalues */
-	for (struct upval* val = cpu->upval_open; val; val = readptr(val->next))
+	for (struct upval* val = readptr(cpu->upval_open); val; val = readptr(val->next))
 		val->val = writeptr((struct value*)readptr(val->val) - old_stack + cpu->stack);
 }
 
@@ -208,7 +209,7 @@ static void upval_unlink(struct cpu* cpu, struct upval* val) {
 	if (prev)
 		prev->next = val->next;
 	else
-		cpu->upval_open = readptr(val->next);
+		cpu->upval_open = val->next;
 	struct upval* next = readptr(val->next);
 	if (next)
 		next->prev = val->prev;
@@ -216,7 +217,7 @@ static void upval_unlink(struct cpu* cpu, struct upval* val) {
 
 static void close_upvals(struct cpu* cpu, struct value* frame, int base) {
 	struct upval* val;
-	for (val = cpu->upval_open; val && readptr(val->val) >= frame;) {
+	for (val = readptr(cpu->upval_open); val && readptr(val->val) >= frame;) {
 		struct value* v = readptr(val->val);
 		struct upval* next = readptr(val->next);
 		if (v - frame >= base) {
@@ -328,15 +329,15 @@ void cpu_execute(struct cpu* cpu, struct funcobj* func) {
 		case op_tab: retval = value_tab(cpu, tab_new(cpu)); break;
 		case op_fget: retval = fget(cpu, lval, rval); break;
 		case op_fset: fset(cpu, retval, lval, rval); break;
-		case op_gget: retval = tab_get(cpu, cpu->globals, lvalstr); break;
-		case op_gset: tab_set(cpu, cpu->globals, retvalstr, lval); break;
+		case op_gget: retval = tab_get(cpu, (struct tabobj*)readptr(cpu->globals), lvalstr); break;
+		case op_gset: tab_set(cpu, (struct tabobj*)readptr(cpu->globals), retvalstr, lval); break;
 		case op_uget: retval = *(struct value*)readptr(((struct upval*)readptr(func->upval[ins->op2]))->val); break;
 		case op_uset: *(struct value*)readptr(((struct upval*)readptr(func->upval[ins->op1]))->val) = lval; break;
 		case op_j: pc += ins->imm; break;
 		case op_jtrue: if (retvalbool) pc += ins->imm; break;
 		case op_jfalse: if (!retvalbool) pc += ins->imm; break;
 		case op_func: {
-			struct code* code = &cpu->code[ins->imm];
+			struct code* code = &((struct code*)readptr(cpu->code))[ins->imm];
 			struct funcobj* f = (struct funcobj*)gc_alloc(cpu, t_func,
 				sizeof(struct funcobj) + sizeof(struct upval) * code->upval_cnt);
 			f->code = writeptr(code);
@@ -345,7 +346,7 @@ void cpu_execute(struct cpu* cpu, struct funcobj* func) {
 				struct updef* def = &defs[i];
 				if (def->in_stack) {
 					/* find existing open upvalue */
-					struct upval* val = cpu->upval_open;
+					struct upval* val = readptr(cpu->upval_open);
 					while (val) {
 						struct value* v = readptr(val->val);
 						if (v >= frame) {
@@ -362,11 +363,11 @@ void cpu_execute(struct cpu* cpu, struct funcobj* func) {
 						val = (struct upval*)gc_alloc(cpu, t_upval, sizeof(struct upval));
 						val->val = writeptr(&frame[def->idx]);
 						val->prev = writeptr(NULL);
-						val->next = writeptr(cpu->upval_open);
+						val->next = cpu->upval_open;
 						struct upval* next = readptr(val->next);
 						if (next)
 							next->prev = writeptr(val);
-						cpu->upval_open = val;
+						cpu->upval_open = writeptr(val);
 						f->upval[i] = writeptr(val);
 					}
 				}
@@ -461,7 +462,7 @@ static char* dump_operand(enum operand_type ot, int value, char* buf) {
 
 #define CHECKSPACE() do { if (cur - buf + 80 > buflen) return (int)(cur - buf); } while(0)
 static int dump_func(struct cpu* cpu, int func_id, char* buf, int buflen) {
-	struct code* code = &cpu->code[func_id];
+	struct code* code = &((struct code*)readptr(cpu->code))[func_id];
 	char* cur = buf;
 	CHECKSPACE();
 	*cur++ = 'F';

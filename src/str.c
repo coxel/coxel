@@ -107,9 +107,10 @@ int str_vsprintf(char* buf, const char* format, va_list args) {
 void strtab_init(struct cpu* cpu) {
 	cpu->strtab_cnt = 0;
 	cpu->strtab_size = INITIAL_STRTAB_SIZE;
-	cpu->strtab = (ptr_t*)mem_malloc(cpu->alloc, cpu->strtab_size * sizeof(ptr_t));
+	ptr(struct strobj)* strtab = (ptr_t*)mem_malloc(cpu->alloc, cpu->strtab_size * sizeof(ptr_t));
 	for (int i = 0; i < cpu->strtab_size; i++)
-		cpu->strtab[i] = writeptr(NULL);
+		strtab[i] = writeptr(NULL);
+	cpu->strtab = writeptr(strtab);
 }
 
 static void strtab_grow(struct cpu* cpu) {
@@ -119,7 +120,8 @@ static void strtab_grow(struct cpu* cpu) {
 void str_destroy(struct cpu* cpu, struct strobj* str) {
 	/* Remove from intern table */
 	uint32_t bucket = str->hash % cpu->strtab_size;
-	ptr_t* prev = &cpu->strtab[bucket];
+	ptr(struct strobj)* strtab = (ptr(struct strobj)*)readptr(cpu->strtab);
+	ptr_t* prev = &strtab[bucket];
 	for (struct strobj* p = readptr(*prev); p; prev = &p->next, p = readptr(*prev)) {
 		if (p == str) {
 			*prev = p->next;
@@ -133,13 +135,15 @@ void str_destroy(struct cpu* cpu, struct strobj* str) {
 static struct strobj* str_intern_impl(struct cpu* cpu, const char* str, int len, int nogc) {
 	uint32_t hash = str_hash(str, len);
 	uint32_t bucket = hash % cpu->strtab_size;
-	for (struct strobj* p = readptr(cpu->strtab[bucket]); p; p = readptr(p->next)) {
+	ptr(struct strobj)* strtab = (ptr(struct strobj)*)readptr(cpu->strtab);
+	for (struct strobj* p = readptr(strtab[bucket]); p; p = readptr(p->next)) {
 		if (str_equal(p->data, p->len, str, len))
 			return p;
 	}
 	if (cpu->strtab_cnt * 4 >= cpu->strtab_size * 3) { /* >75% load? */
 		/* rehash */
 		strtab_grow(cpu);
+		strtab = (ptr(struct strobj)*)readptr(cpu->strtab);
 		bucket = hash % cpu->strtab_size;
 	}
 	struct strobj* obj;
@@ -150,8 +154,8 @@ static struct strobj* str_intern_impl(struct cpu* cpu, const char* str, int len,
 	obj->hash = hash;
 	obj->len = len;
 	memcpy(obj->data, str, len);
-	obj->next = cpu->strtab[bucket];
-	cpu->strtab[bucket] = writeptr(obj);
+	obj->next = strtab[bucket];
+	strtab[bucket] = writeptr(obj);
 	return obj;
 }
 

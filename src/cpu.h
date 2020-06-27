@@ -259,16 +259,16 @@ struct cpu {
 	void* base;
 	/* code objects */
 	int code_cnt, code_cap;
-	struct code* code;
+	ptr(struct code) code;
 
 	/* main function object */
-	struct funcobj* topfunc;
+	ptr(struct funcobj) topfunc;
 	int parent;
 	int top_executed;
 	int stopped;
 
 	/* interned string hash table */
-	ptr(struct strobj)* strtab;
+	ptr(ptr(struct strobj)) strtab;
 	int strtab_size, strtab_cnt;
 
 	/* interned string literals */
@@ -278,7 +278,7 @@ struct cpu {
 #undef X
 
 	/* global table object (strong ref) */
-	struct tabobj* globals;
+	ptr(struct tabobj) globals;
 
 	/* garbage collection */
 	ptr(struct obj) gchead;
@@ -288,7 +288,7 @@ struct cpu {
 	struct value* stack;
 
 	/* points to first open upvalue (weak ref) */
-	struct upval* upval_open;
+	ptr(struct upval) upval_open;
 
 	/* frame counter */
 	int frame;

@@ -521,7 +521,7 @@ enum value_type {
 };
 
 #define sval_in_reg(x)	((x).type == vt_value || (x).type == vt_local)
-#define topcode()		(&ctx->cpu->code[ctx->topfunc->code_id])
+#define topcode()		(&((struct code*)readptr(ctx->cpu->code))[ctx->topfunc->code_id])
 
 static struct ins* add_ins(struct context* ctx) {
 	struct cpu* cpu = ctx->cpu;
@@ -548,6 +548,7 @@ static void emit_imm(struct context* ctx, enum opcode opcode, uint8_t op1, uint1
 }
 
 static void emit_rel(struct context* ctx, enum opcode opcode, uint8_t op1, int destpc) {
+	struct cpu* cpu = ctx->cpu;
 	struct code* code = topcode();
 	struct ins* ins = add_ins(ctx);
 	ins->opcode = opcode;
@@ -556,6 +557,7 @@ static void emit_rel(struct context* ctx, enum opcode opcode, uint8_t op1, int d
 }
 
 static inline int current_pc(struct context* ctx) {
+	struct cpu* cpu = ctx->cpu;
 	return topcode()->ins_cnt;
 }
 
@@ -730,8 +732,10 @@ static void add_patch(struct context* ctx, enum patch_type type, int pc) {
 }
 
 static int add_code(struct cpu* cpu) {
-	vec_add(cpu->alloc, cpu->code, cpu->code_cnt, cpu->code_cap);
-	struct code* code = &cpu->code[cpu->code_cnt - 1];
+	struct code* codearr = readptr(cpu->code);
+	vec_add(cpu->alloc, codearr, cpu->code_cnt, cpu->code_cap);
+	cpu->code = writeptr(codearr);
+	struct code* code = &codearr[cpu->code_cnt - 1];
 	code->nargs = 0;
 	code->enclosure = -1;
 	code->ins_cnt = 0;
@@ -764,7 +768,7 @@ static int add_updef(struct context* ctx, struct functx* fctx, int level, int re
 	}
 	struct cpu* cpu = ctx->cpu;
 	/* find duplicate */
-	struct code* code = &cpu->code[fctx->code_id];
+	struct code* code = &((struct code*)readptr(cpu->code))[fctx->code_id];
 	struct updef* upvals = readptr(code->upval);
 	for (int i = 0; i < code->upval_cnt; i++) {
 		struct updef* def = &upvals[i];
@@ -781,6 +785,7 @@ static int add_updef(struct context* ctx, struct functx* fctx, int level, int re
 }
 
 static struct sval compile_function(struct context* ctx, int global) {
+	struct cpu* cpu = ctx->cpu;
 	next_token(ctx);
 	sym_push(&ctx->sym_table);
 	struct sval nval;
@@ -820,8 +825,8 @@ static struct sval compile_function(struct context* ctx, int global) {
 	require_token(ctx, tk_lbrace);
 	struct functx func;
 	func.enfunc = ctx->topfunc;
-	func.code_id = add_code(ctx->cpu);
-	struct code* code = &ctx->cpu->code[func.code_id];
+	func.code_id = add_code(cpu);
+	struct code* code = &((struct code*)readptr(cpu->code))[func.code_id];
 	code->nargs = nargs;
 	code->enclosure = ctx->topfunc->code_id;
 	func.sym_level = ctx->sym_table.level;
@@ -1542,8 +1547,9 @@ struct compile_err compile(struct cpu* cpu, const char* code, int codelen) {
 	if (setjmp(ctx.jmp_buf) == 0) {
 		compile_block(&ctx);
 		emit(&ctx, op_retu, 0, 0, 0);
-		cpu->topfunc = (struct funcobj*)mem_malloc(cpu->alloc, sizeof(struct funcobj));
-		cpu->topfunc->code = writeptr(&cpu->code[func.code_id]);
+		struct funcobj* topfunc = (struct funcobj*)mem_malloc(cpu->alloc, sizeof(struct funcobj));
+		topfunc->code = writeptr(&((struct code*)readptr(cpu->code))[func.code_id]);
+		cpu->topfunc = writeptr(topfunc);
 		mem_free(ctx.alloc, ctx.sbuf);
 	}
 
