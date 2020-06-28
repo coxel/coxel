@@ -381,7 +381,15 @@ void main() {
 		platform_error("SetCurrentDirectoryW() failed.");
 
 	g_hwnd = NULL;
-	console_init();
+	uint32_t size;
+	void* f = platform_open(STATE_PATH, &size);
+	if (f) {
+		console_deserialize_init(f);
+		platform_close(f);
+		DeleteFileA(STATE_PATH);
+	}
+	else
+		console_init();
 	ImmDisableIME(-1);
 
 	HINSTANCE instance = GetModuleHandleW(NULL);
@@ -455,6 +463,12 @@ void main() {
 	}
 
 end:
+	f = platform_create(STATE_PATH);
+	if (f) {
+		console_serialize(f);
+		platform_close(f);
+	}
+
 	SelectObject(memdc, oldbitmap);
 	DeleteObject(bitmap);
 	DeleteDC(memdc);

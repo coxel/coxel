@@ -37,7 +37,7 @@ static NORETURN void internal_error(struct cpu* cpu) {
 }
 
 struct cpu* cpu_new() {
-	struct cpu* cpu = (struct cpu*)mem_new(1048576, sizeof(struct cpu));
+	struct cpu* cpu = (struct cpu*)mem_new(CPU_MEM_SIZE, sizeof(struct cpu));
 	if (cpu == NULL)
 		return NULL;
 	cpu->gchead = writeptr(NULL);

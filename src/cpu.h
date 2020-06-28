@@ -229,6 +229,7 @@ struct funcobj {
 	ptr(struct upval) upval[];
 };
 
+#define CPU_MEM_SIZE	1048576
 #define WIDTH	160
 #define HEIGHT	144
 
@@ -282,7 +283,7 @@ struct cpu {
 	/* garbage collection */
 	ptr(struct obj) gchead;
 
-	/* stack */
+	/* stack additional info */
 	int sp, stack_cap;
 	ptr(struct value) stack;
 

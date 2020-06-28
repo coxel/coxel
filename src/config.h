@@ -4,6 +4,9 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#define COXEL_STATE_MAGIC		' xoc'
+#define COXEL_STATE_VERSION		0
+
 #if !defined(_DEBUG) && !defined(ESP_PLATFORM)
 #define RELATIVE_ADDRESSING
 #endif

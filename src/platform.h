@@ -4,6 +4,7 @@
 #include "config.h"
 
 #define FIRMWARE_PATH "_firm/firmware.cox"
+#define STATE_PATH "_firm/coxstate"
 
 NORETURN void platform_error(const char* msg);
 NORETURN void platform_exit(int code);
@@ -41,6 +42,10 @@ struct run_result console_load(const char* filename, struct cart* cart);
 struct run_result console_save(const char* filename, const struct cart* cart);
 void console_init();
 void console_factory_init();
+#ifdef RELATIVE_ADDRESSING
+struct run_result console_serialize(void* f);
+void console_deserialize_init(void* f);
+#endif
 void console_destroy();
 struct run_result console_run(const struct cart* cart);
 void console_update();

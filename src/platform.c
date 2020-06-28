@@ -142,8 +142,95 @@ void console_factory_init() {
 	console_init_internal(1);
 }
 
+static void save_cpu_state() {
+#ifdef HIERARCHICAL_MEMORY
+	memcpy(&g_cpus[g_cur_cpu]->gfx, &g_gfx, sizeof(struct gfx));
+#endif
+}
+
+static void load_cpu_state() {
+#ifdef HIERARCHICAL_MEMORY
+	memcpy(&g_gfx, &g_cpus[g_cur_cpu]->gfx, sizeof(struct gfx));
+#endif
+}
+
+#ifdef RELATIVE_ADDRESSING
+struct run_result console_serialize(void* f) {
+#define SERIALIZE(x, s) do { \
+		if (platform_write(f, (const char*)x, s) != s) { \
+			ret.err = "Write serialization data failed."; \
+			return ret; \
+		} \
+	} while (0)
+#define SERIALIZE_INT(x) do { \
+		int t = (x); \
+		SERIALIZE(&t, 4); \
+	} while (0)
+
+	struct run_result ret;
+	ret.err = NULL;
+	ret.linenum = -1;
+	save_cpu_state();
+	SERIALIZE_INT(COXEL_STATE_MAGIC);
+	SERIALIZE_INT(COXEL_STATE_VERSION);
+	int cpu_count = 0;
+	for (int i = 0; i < MAX_CPUS; i++) {
+		if (g_cpus[i])
+			cpu_count++;
+	}
+	SERIALIZE_INT(cpu_count);
+	for (int i = 0; i < MAX_CPUS; i++) {
+		if (g_cpus[i]) {
+			SERIALIZE_INT(i);
+			SERIALIZE(g_cpus[i], CPU_MEM_SIZE);
+		}
+	}
+	SERIALIZE_INT(g_cur_cpu);
+	return ret;
+}
+
+void console_deserialize_init(void* f) {
+#define DESERIALIZE(x, s) do { \
+		if (platform_read(f, (char*)x, s) != s) { \
+			critical_error("Read serialization data failed."); \
+		} \
+	} while (0)
+#define STATE_CORRUPTED() critical_error("State corrupted.")
+
+	key_init(&g_io);
+	int magic;
+	DESERIALIZE(&magic, 4);
+	if (magic != COXEL_STATE_MAGIC)
+		critical_error("State magic mismatch.");
+	int version;
+	DESERIALIZE(&version, 4);
+	if (version != COXEL_STATE_VERSION)
+		critical_error("State version mismatch.");
+	int cpu_count;
+	DESERIALIZE(&cpu_count, 4);
+	if (cpu_count > MAX_CPUS)
+		STATE_CORRUPTED();
+	int last_cpu = -1;
+	for (int i = 0; i < cpu_count; i++) {
+		int id;
+		DESERIALIZE(&id, 4);
+		if (id <= last_cpu || id >= MAX_CPUS)
+			STATE_CORRUPTED();
+		struct cpu* cpu = (struct cpu*)platform_malloc(CPU_MEM_SIZE);
+		if (cpu == NULL)
+			critical_error("Out of memory.");
+		DESERIALIZE(cpu, CPU_MEM_SIZE);
+		g_cpus[id] = cpu;
+	}
+	g_cur_cpu = -1;
+	DESERIALIZE(&g_next_cpu, 4);
+	if (g_next_cpu < 0 || g_next_cpu >= MAX_CPUS || g_cpus[g_next_cpu] == NULL)
+		STATE_CORRUPTED();
+}
+#endif
+
 void console_destroy() {
-	// Destroy all CPUs
+	/* Destroy all CPUs */
 	for (int i = 0; i < MAX_CPUS; i++) {
 		if (g_cpus[i] != NULL) {
 			cpu_destroy(g_cpus[i]);
@@ -203,18 +290,6 @@ struct run_result console_run(const struct cart* cart) {
 	g_next_cpu = slot;
 
 	return ret;
-}
-
-static void save_cpu_state() {
-#ifdef HIERARCHICAL_MEMORY
-	memcpy(&g_cpus[g_cur_cpu]->gfx, &g_gfx, sizeof(struct gfx));
-#endif
-}
-
-static void load_cpu_state() {
-#ifdef HIERARCHICAL_MEMORY
-	memcpy(&g_gfx, &g_cpus[g_cur_cpu]->gfx, sizeof(struct gfx));
-#endif
 }
 
 void console_update() {
