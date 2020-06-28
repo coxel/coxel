@@ -47,13 +47,10 @@ struct cpu* cpu_new() {
 	strtab_init(cpu);
 	struct tabobj* globals = tab_new(cpu);
 	cpu->globals = writeptr(globals);
-	cpu->sp = 0;
-	cpu->stack_cap = 0;
-	cpu->stack = NULL;
 	cpu->code = writeptr(NULL);
 	cpu->code_cnt = 0;
 	cpu->code_cap = 0;
-	cpu->stack = NULL;
+	cpu->stack = writeptr(NULL);
 	cpu->sp = 0;
 	cpu->stack_cap = 0;
 	cpu->upval_open = writeptr(NULL);
@@ -76,12 +73,13 @@ void cpu_destroy(struct cpu* cpu) {
 
 static void cpu_growstack(struct cpu* cpu) {
 	int new_cap = cpu->stack_cap == 0 ? 1024 : cpu->stack_cap * 2;
-	struct value* old_stack = cpu->stack;
-	cpu->stack = (struct value*)mem_realloc(&cpu->alloc, cpu->stack, new_cap * sizeof(struct value));
+	struct value* old_stack = (struct value*)readptr(cpu->stack);
+	struct value* new_stack = (struct value*)mem_realloc(&cpu->alloc, old_stack, new_cap * sizeof(struct value));
+	cpu->stack = writeptr(new_stack);
 	cpu->stack_cap = new_cap;
 	/* adjust open upvalues */
 	for (struct upval* val = readptr(cpu->upval_open); val; val = readptr(val->next))
-		val->val = writeptr((struct value*)readptr(val->val) - old_stack + cpu->stack);
+		val->val = writeptr((struct value*)readptr(val->val) - old_stack + new_stack);
 }
 
 int to_bool(struct cpu* cpu, struct value val) {
@@ -240,7 +238,7 @@ void upval_destroy(struct cpu* cpu, struct upval* upval) {
 #define update_stack()	do { \
 	if (cpu->sp + 256 > cpu->stack_cap) \
 		cpu_growstack(cpu); \
-		frame = &cpu->stack[cpu->sp]; \
+		frame = &((struct value*)readptr(cpu->stack))[cpu->sp]; \
 	} while (0)
 
 #define retval		frame[ins->op1]
@@ -262,10 +260,13 @@ void cpu_execute(struct cpu* cpu, struct funcobj* func) {
 	}
 	struct value* frame;
 	update_stack();
-	cpu->stack[0] = value_func(cpu, func);
-	cpu->stack[1] = value_undef(cpu);
-	cpu->stack[2] = value_undef(cpu); // call info 1
-	cpu->stack[3] = value_undef(cpu); // call info 2
+	{
+		struct value* stack = (struct value*)readptr(cpu->stack);
+		stack[0] = value_func(cpu, func);
+		stack[1] = value_undef(cpu);
+		stack[2] = value_undef(cpu); // call info 1
+		stack[3] = value_undef(cpu); // call info 2
+	}
 	struct code* code = readptr(func->code);
 	for (int pc = 0;;) {
 		struct ins* ins = &((struct ins*)readptr(code->ins))[pc++];
@@ -382,7 +383,7 @@ void cpu_execute(struct cpu* cpu, struct funcobj* func) {
 			if (retval.type == t_cfunc) {
 				int sp = cpu->sp + ins->op1;
 				cfunc func = cfunc_get(retval.cfunc);
-				cpu->stack[sp] = func(cpu, sp, ins->op2);
+				((struct value*)readptr(cpu->stack))[sp] = func(cpu, sp, ins->op2);
 			}
 			else if (retval.type == t_func) {
 				struct funcobj* f = (struct funcobj*)readptr(retval.func);
@@ -393,12 +394,13 @@ void cpu_execute(struct cpu* cpu, struct funcobj* func) {
 				int stack_size = ins->op1;
 				cpu->sp += ins->op1;
 				update_stack();
+				struct value* stack = (struct value*)readptr(cpu->stack);
 				int ci = cpu->sp + 2 + nargs;
-				cpu->stack[ci].type = t_callinfo1;
-				struct callinfo1* ci1 = &cpu->stack[ci].ci1;
+				stack[ci].type = t_callinfo1;
+				struct callinfo1* ci1 = &stack[ci].ci1;
 				ci1->func = writeptr(func);
-				cpu->stack[ci + 1].type = t_callinfo2;
-				struct callinfo2* ci2 = &cpu->stack[ci + 1].ci2;
+				stack[ci + 1].type = t_callinfo2;
+				struct callinfo2* ci2 = &stack[ci + 1].ci2;
 				ci2->pc = pc;
 				ci2->stack_size = stack_size;
 				pc = 0;

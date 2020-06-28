@@ -284,7 +284,7 @@ struct cpu {
 
 	/* stack */
 	int sp, stack_cap;
-	struct value* stack;
+	ptr(struct value) stack;
 
 	/* points to first open upvalue (weak ref) */
 	ptr(struct upval) upval_open;
@@ -312,8 +312,8 @@ struct io {
 	int mousewheel;
 };
 
-#define ARG(i)		cpu->stack[sp + 2 + (i)]
-#define THIS		cpu->stack[sp + 1]
+#define ARG(i)		((struct value*)readptr(cpu->stack))[sp + 2 + (i)]
+#define THIS		((struct value*)readptr(cpu->stack))[sp + 1]
 #define LIT(x)		((struct strobj*)readptr(cpu->_lit_##x))
 
 NORETURN void runtime_error(struct cpu* cpu, const char* msg);
