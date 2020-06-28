@@ -37,12 +37,9 @@ static NORETURN void internal_error(struct cpu* cpu) {
 }
 
 struct cpu* cpu_new() {
-	struct alloc* alloc = (struct alloc*)mem_new(1048576);
-	if (alloc == NULL)
+	struct cpu* cpu = (struct cpu*)mem_new(1048576, sizeof(struct cpu));
+	if (cpu == NULL)
 		return NULL;
-	struct cpu* cpu = mem_malloc(alloc, sizeof(struct cpu));
-	cpu->alloc = alloc;
-	cpu->base = mem_getbase(alloc);
 	cpu->gchead = writeptr(NULL);
 	cpu->parent = -1;
 	cpu->top_executed = 0;
@@ -74,13 +71,13 @@ struct cpu* cpu_new() {
 }
 
 void cpu_destroy(struct cpu* cpu) {
-	mem_destroy(cpu->alloc);
+	mem_destroy(&cpu->alloc);
 }
 
 static void cpu_growstack(struct cpu* cpu) {
 	int new_cap = cpu->stack_cap == 0 ? 1024 : cpu->stack_cap * 2;
 	struct value* old_stack = cpu->stack;
-	cpu->stack = (struct value*)mem_realloc(cpu->alloc, cpu->stack, new_cap * sizeof(struct value));
+	cpu->stack = (struct value*)mem_realloc(&cpu->alloc, cpu->stack, new_cap * sizeof(struct value));
 	cpu->stack_cap = new_cap;
 	/* adjust open upvalues */
 	for (struct upval* val = readptr(cpu->upval_open); val; val = readptr(val->next))
@@ -230,14 +227,14 @@ static void close_upvals(struct cpu* cpu, struct value* frame, int base) {
 }
 
 void func_destroy(struct cpu* cpu, struct funcobj* func) {
-	mem_free(cpu->alloc, func);
+	mem_free(&cpu->alloc, func);
 }
 
 void upval_destroy(struct cpu* cpu, struct upval* upval) {
 	/* Open upval ? unlink it */
 	if (readptr(upval->val) != &upval->val_holder)
 		upval_unlink(cpu, upval);
-	mem_free(cpu->alloc, upval);
+	mem_free(&cpu->alloc, upval);
 }
 
 #define update_stack()	do { \

@@ -7,7 +7,7 @@
 #include "tab.h"
 
 struct obj* gc_alloc(struct cpu* cpu, enum type type, uint32_t size) {
-	struct obj* obj = (struct obj*)mem_malloc(cpu->alloc, size);
+	struct obj* obj = (struct obj*)mem_malloc(&cpu->alloc, size);
 	obj->gcnext = cpu->gchead;
 	obj->type = type;
 	cpu->gchead = writeptr(obj);

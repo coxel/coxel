@@ -10,7 +10,7 @@ struct bufobj* buf_new(struct cpu* cpu, int size) {
 }
 
 void buf_destroy(struct cpu* cpu, struct bufobj* buf) {
-	mem_free(cpu->alloc, buf);
+	mem_free(&cpu->alloc, buf);
 }
 
 struct value buf_get(struct cpu* cpu, struct bufobj* buf, number index) {

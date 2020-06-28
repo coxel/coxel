@@ -9,13 +9,6 @@
 #define check(x)
 #endif
 
-#define SMALL_CHUNK_SIZE	256
-#define CHUNK_OVERHEAD		4
-#define CHUNK_GRANULARITY	8
-#define MIN_CHUNK_SIZE		16
-#define SMALL_BINS			(SMALL_CHUNK_SIZE / CHUNK_GRANULARITY)
-#define SMALL_REQUEST		(SMALL_CHUNK_SIZE - CHUNK_OVERHEAD)
-
 #if BIT64
 #define readptr(aptr)			((void*)((uint8_t*)alloc->base + (aptr)))
 #define writeptr(ptr, aptr)		((ptr) = (ptr_t)((uint8_t*)(aptr) - (uint8_t*)alloc->base))
@@ -35,44 +28,6 @@
 #define FLAG_MASK			(PUSE_BIT | CUSE_BIT)
 #define chunksize(chunk)	((chunk)->size & ~FLAG_MASK)
 #define nextchunk(c)		((struct chunk*)((uint8_t*)(c) + chunksize(c)))
-
-/* Count trailing zeros */
-#if defined(__GNUC__)
-#define leastbitidx(x)	__builtin_ctz(x)
-#elif defined(_MSC_VER)
-#include <intrin.h>
-#pragma intrinsic(_BitScanForward)
-FORCEINLINE int leastbitidx(uint32_t x) {
-	unsigned long index;
-	_BitScanForward(&index, x);
-	return (int)index;
-}
-#else
-#error Unsupported operation.
-#endif
-
-typedef uint32_t ptr_t;
-typedef uint32_t bitmap_t;
-
-struct binhdr {
-	ptr_t prev, next;
-};
-
-struct chunk {
-	uint32_t size;
-	struct binhdr b;
-};
-
-struct alloc {
-	int used_memory;
-	void* base;
-	uint32_t size;
-	struct binhdr smallbins[SMALL_BINS];
-	bitmap_t smallmap;
-	struct binhdr largebin;
-	void* top;
-	uint32_t topsize;
-};
 
 static FORCEINLINE void set_inuse_pinuse(struct alloc* alloc, struct chunk* chunk) {
 	struct chunk* next = nextchunk(chunk);
@@ -192,8 +147,8 @@ static struct binhdr* large_alloc(struct alloc* alloc, uint32_t size) {
 	return best;
 }
 
-struct alloc* mem_new(uint32_t size) {
-	struct alloc* alloc = (struct alloc*)platform_malloc(sizeof(struct alloc) + size);
+struct alloc* mem_new(uint32_t size, uint32_t reserved_size) {
+	struct alloc* alloc = (struct alloc*)platform_malloc(size);
 	if (alloc == NULL)
 		return NULL;
 	alloc->used_memory = 0;
@@ -208,9 +163,9 @@ struct alloc* mem_new(uint32_t size) {
 	struct binhdr* hdr = &alloc->largebin;
 	writeptr(hdr->prev, hdr);
 	writeptr(hdr->next, hdr);
-	alloc->top = (struct chunk*)((uint8_t*)alloc + sizeof(struct alloc));
+	alloc->top = (struct chunk*)((uint8_t*)alloc + reserved_size);
 	check((uintptr_t)alloc->top % MIN_CHUNK_SIZE == 0);
-	alloc->topsize = size;
+	alloc->topsize = size - reserved_size;
 	return alloc;
 }
 

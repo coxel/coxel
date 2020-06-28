@@ -13,15 +13,15 @@ struct tabobj* tab_new(struct cpu* cpu) {
 }
 
 void tab_destroy(struct cpu* cpu, struct tabobj* tab) {
-	mem_free(cpu->alloc, readptr(tab->entry));
-	mem_free(cpu->alloc, readptr(tab->bucket));
-	mem_free(cpu->alloc, tab);
+	mem_free(&cpu->alloc, readptr(tab->entry));
+	mem_free(&cpu->alloc, readptr(tab->bucket));
+	mem_free(&cpu->alloc, tab);
 }
 
 static void tab_grow(struct cpu* cpu, struct tabobj* tab) {
 	/* grow freelist */
 	int new_entry_cnt = tab->entry_cnt == 0 ? 4 : tab->entry_cnt * 2;
-	struct tabent* entries = (struct tabent*)mem_realloc(cpu->alloc, readptr(tab->entry), new_entry_cnt * sizeof(struct tabent));
+	struct tabent* entries = (struct tabent*)mem_realloc(&cpu->alloc, readptr(tab->entry), new_entry_cnt * sizeof(struct tabent));
 	tab->entry = writeptr(entries);
 	tab->freelist = tab->entry_cnt;
 	for (uint16_t i = tab->entry_cnt; i < new_entry_cnt; i++)
@@ -30,7 +30,7 @@ static void tab_grow(struct cpu* cpu, struct tabobj* tab) {
 	if (new_entry_cnt * 4 > tab->bucket_cnt * 3) {
 		/* grow hash table */
 		int new_bucket_cnt = tab->bucket_cnt == 0 ? 16 : tab->bucket_cnt * 2;
-		uint16_t* buckets = (uint16_t*)mem_realloc(cpu->alloc, readptr(tab->bucket), new_bucket_cnt * sizeof(uint16_t));
+		uint16_t* buckets = (uint16_t*)mem_realloc(&cpu->alloc, readptr(tab->bucket), new_bucket_cnt * sizeof(uint16_t));
 		tab->bucket = writeptr(buckets);
 		for (uint16_t i = 0; i < new_bucket_cnt; i++)
 			buckets[i] = TAB_NULL;

@@ -733,7 +733,7 @@ static void add_patch(struct context* ctx, enum patch_type type, int pc) {
 
 static int add_code(struct cpu* cpu) {
 	struct code* codearr = readptr(cpu->code);
-	vec_add(cpu->alloc, codearr, cpu->code_cnt, cpu->code_cap);
+	vec_add(&cpu->alloc, codearr, cpu->code_cnt, cpu->code_cap);
 	cpu->code = writeptr(codearr);
 	struct code* code = &codearr[cpu->code_cnt - 1];
 	code->nargs = 0;
@@ -1521,7 +1521,7 @@ static void compile_block(struct context* ctx) {
 struct compile_err compile(struct cpu* cpu, const char* code, int codelen) {
 	struct context ctx;
 	ctx.err.msg = NULL;
-	ctx.alloc = cpu->alloc;
+	ctx.alloc = &cpu->alloc;
 	ctx.cpu = cpu;
 	ctx.code = code;
 	ctx.codelen = codelen;
@@ -1548,7 +1548,7 @@ struct compile_err compile(struct cpu* cpu, const char* code, int codelen) {
 	if (setjmp(ctx.jmp_buf) == 0) {
 		compile_block(&ctx);
 		emit(&ctx, op_retu, 0, 0, 0);
-		struct funcobj* topfunc = (struct funcobj*)mem_malloc(cpu->alloc, sizeof(struct funcobj));
+		struct funcobj* topfunc = (struct funcobj*)mem_malloc(&cpu->alloc, sizeof(struct funcobj));
 		topfunc->code = writeptr(&((struct code*)readptr(cpu->code))[func.code_id]);
 		cpu->topfunc = writeptr(topfunc);
 		mem_free(ctx.alloc, ctx.sbuf);

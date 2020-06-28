@@ -10,8 +10,8 @@ struct arrobj* arr_new(struct cpu* cpu) {
 }
 
 void arr_destroy(struct cpu* cpu, struct arrobj* arr) {
-	mem_free(cpu->alloc, readptr(arr->data));
-	mem_free(cpu->alloc, arr);
+	mem_free(&cpu->alloc, readptr(arr->data));
+	mem_free(&cpu->alloc, arr);
 }
 
 struct value arr_get(struct cpu* cpu, struct arrobj* arr, number index) {
@@ -32,7 +32,7 @@ void arr_set(struct cpu* cpu, struct arrobj* arr, number index, struct value val
 
 void arr_push(struct cpu* cpu, struct arrobj* arr, struct value value) {
 	struct value* data = (struct value*)readptr(arr->data);
-	vec_add(cpu->alloc, data, arr->len, arr->cap);
+	vec_add(&cpu->alloc, data, arr->len, arr->cap);
 	arr->data = writeptr(data);
 	data[arr->len - 1] = value;
 }

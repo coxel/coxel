@@ -258,7 +258,7 @@ struct value devlib_paste(struct cpu* cpu, int sp, int nargs) {
 	if (!avail)
 		return value_str(cpu, LIT(EMPTY));
 	int len = STR_MAXLEN;
-	char* buf = mem_malloc(cpu->alloc, len);
+	char* buf = mem_malloc(&cpu->alloc, len);
 	if (buf == NULL)
 		out_of_memory_error(cpu);
 	int r = platform_paste(buf, len);
@@ -267,7 +267,7 @@ struct value devlib_paste(struct cpu* cpu, int sp, int nargs) {
 		ret = value_undef(cpu);
 	else
 		ret = value_str(cpu, str_intern(cpu, buf, r));
-	mem_free(cpu->alloc, buf);
+	mem_free(&cpu->alloc, buf);
 	return ret;
 }
 

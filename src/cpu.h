@@ -11,8 +11,8 @@
 
 #ifdef RELATIVE_ADDRESSING
 typedef uint32_t ptr_t;
-#define readptr(aptr)		(((aptr) == 0) ? NULL : (void*)((uint8_t*)cpu->base + (aptr)))
-#define writeptr(aptr)		(((aptr) == NULL) ? 0 : (ptr_t)((uint8_t*)(aptr) - (uint8_t*)cpu->base))
+#define readptr(aptr)		(((aptr) == 0) ? NULL : (void*)((uint8_t*)cpu + (aptr)))
+#define writeptr(aptr)		(((aptr) == NULL) ? 0 : (ptr_t)((uint8_t*)(aptr) - (uint8_t*)cpu))
 #define ptr(type)			ptr_t
 #else
 typedef void* ptr_t;
@@ -254,8 +254,8 @@ struct gfx {
 };
 
 struct cpu {
-	struct alloc* alloc;
-	void* base;
+	struct alloc alloc;
+
 	/* code objects */
 	int code_cnt, code_cap;
 	ptr(struct code) code;

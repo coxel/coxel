@@ -20,6 +20,7 @@
 #define FORCEINLINE	__attribute__((always_inline))
 #endif
 
+/* Bitwise rotation */
 #if defined(_MSC_VER)
 
 #include <stdlib.h>
@@ -28,12 +29,27 @@
 
 #else
 
-static inline uint32_t rotl32(uint32_t x, int8_t r) {
+static FORCEINLINE uint32_t rotl32(uint32_t x, int8_t r) {
 	return (x << r) | (x >> (32 - r));
 }
 
 #define	ROTL32(x,y)	rotl32(x,y)
 
+#endif
+
+/* Count trailing zeros */
+#if defined(__GNUC__)
+#define leastbitidx(x)	__builtin_ctz(x)
+#elif defined(_MSC_VER)
+#include <intrin.h>
+#pragma intrinsic(_BitScanForward)
+static FORCEINLINE int leastbitidx(uint32_t x) {
+	unsigned long index;
+	_BitScanForward(&index, x);
+	return (int)index;
+}
+#else
+#error Unsupported operation.
 #endif
 
 #endif
