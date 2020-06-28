@@ -9,9 +9,9 @@
 #define check(x)
 #endif
 
-#if BIT64
-#define readptr(aptr)			((void*)((uint8_t*)alloc->base + (aptr)))
-#define writeptr(ptr, aptr)		((ptr) = (ptr_t)((uint8_t*)(aptr) - (uint8_t*)alloc->base))
+#ifdef RELATIVE_ADDRESSING
+#define readptr(aptr)			((void*)((uint8_t*)alloc + (aptr)))
+#define writeptr(ptr, aptr)		((ptr) = (ptr_t)((uint8_t*)(aptr) - (uint8_t*)alloc))
 #else
 #define readptr(aptr)			((void*)(aptr))
 #define writeptr(ptr, aptr)		((ptr) = (ptr_t)(aptr))
@@ -152,7 +152,6 @@ struct alloc* mem_new(uint32_t size, uint32_t reserved_size) {
 	if (alloc == NULL)
 		return NULL;
 	alloc->used_memory = 0;
-	alloc->base = &alloc->base;
 	alloc->size = size;
 	for (int i = 0; i < SMALL_BINS; i++) {
 		struct binhdr* hdr = &alloc->smallbins[i];
@@ -163,14 +162,10 @@ struct alloc* mem_new(uint32_t size, uint32_t reserved_size) {
 	struct binhdr* hdr = &alloc->largebin;
 	writeptr(hdr->prev, hdr);
 	writeptr(hdr->next, hdr);
-	alloc->top = (struct chunk*)((uint8_t*)alloc + reserved_size);
+	writeptr(alloc->top, (struct chunk*)((uint8_t*)alloc + reserved_size));
 	check((uintptr_t)alloc->top % MIN_CHUNK_SIZE == 0);
 	alloc->topsize = size - reserved_size;
 	return alloc;
-}
-
-void* mem_getbase(struct alloc* alloc) {
-	return alloc->base;
 }
 
 void mem_destroy(struct alloc* alloc) {
@@ -222,9 +217,9 @@ void* mem_malloc(struct alloc* alloc, int size) {
 			size = alloc->topsize;
 			rsize = 0;
 		}
-		struct chunk* chunk = (struct chunk*)alloc->top;
+		struct chunk* chunk = (struct chunk*)readptr(alloc->top);
 		set_size_inuse(alloc, chunk, size);
-		alloc->top = (uint8_t*)alloc->top + size;
+		writeptr(alloc->top, (uint8_t*)chunk + size);
 		alloc->topsize = rsize;
 		return chunk2mem(chunk);
 	}
@@ -233,8 +228,8 @@ void* mem_malloc(struct alloc* alloc, int size) {
 }
 
 static void free_chunk_merge_next(struct alloc* alloc, struct chunk* chunk, uint32_t size, struct chunk* next) {
-	if (next == alloc->top) {
-		alloc->top = chunk;
+	if (next == readptr(alloc->top)) {
+		writeptr(alloc->top, chunk);
 		alloc->topsize += size;
 	}
 	else {
@@ -268,7 +263,7 @@ void* mem_realloc(struct alloc* alloc, void* ptr, int request_size) {
 	}
 	/* Try enlarge current chunk */
 	struct chunk* next = nextchunk(chunk);
-	if (next == alloc->top) {
+	if (next == readptr(alloc->top)) {
 		uint32_t totsize = chunksize(chunk) + alloc->topsize;
 		uint32_t rsize = totsize - size;
 		if (rsize < MIN_CHUNK_SIZE) {
@@ -276,7 +271,7 @@ void* mem_realloc(struct alloc* alloc, void* ptr, int request_size) {
 			rsize = 0;
 		}
 		set_size(alloc, chunk, size);
-		alloc->top = (uint8_t*)chunk + size;
+		writeptr(alloc->top, (uint8_t*)chunk + size);
 		alloc->topsize = rsize;
 		return ptr;
 	}
@@ -288,7 +283,7 @@ void* mem_realloc(struct alloc* alloc, void* ptr, int request_size) {
 			if (rsize < MIN_CHUNK_SIZE) {
 				set_size(alloc, chunk, totsize);
 				next = nextchunk(chunk);
-				if (next != alloc->top)
+				if (next != readptr(alloc->top))
 					next->size |= PUSE_BIT;
 			}
 			else {

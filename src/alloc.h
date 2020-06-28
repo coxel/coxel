@@ -26,12 +26,11 @@ struct chunk {
 
 struct alloc {
 	int used_memory;
-	void* base;
 	uint32_t size;
 	struct binhdr smallbins[SMALL_BINS];
 	bitmap_t smallmap;
 	struct binhdr largebin;
-	void* top;
+	ptr_t top;
 	uint32_t topsize;
 };
 
