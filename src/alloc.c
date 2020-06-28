@@ -148,11 +148,13 @@ static struct binhdr* large_alloc(struct alloc* alloc, uint32_t size) {
 }
 
 struct alloc* mem_new(uint32_t size, uint32_t reserved_size) {
+	reserved_size = (reserved_size + MIN_CHUNK_SIZE - 1) & ~(MIN_CHUNK_SIZE - 1);
 	struct alloc* alloc = (struct alloc*)platform_malloc(size);
 	if (alloc == NULL)
 		return NULL;
 	alloc->used_memory = 0;
 	alloc->size = size;
+	alloc->reserved_size = reserved_size;
 	for (int i = 0; i < SMALL_BINS; i++) {
 		struct binhdr* hdr = &alloc->smallbins[i];
 		writeptr(hdr->prev, hdr);
@@ -163,7 +165,7 @@ struct alloc* mem_new(uint32_t size, uint32_t reserved_size) {
 	writeptr(hdr->prev, hdr);
 	writeptr(hdr->next, hdr);
 	writeptr(alloc->top, (struct chunk*)((uint8_t*)alloc + reserved_size));
-	check((uintptr_t)alloc->top % MIN_CHUNK_SIZE == 0);
+	check((uintptr_t)readptr(alloc->top) % MIN_CHUNK_SIZE == 0);
 	alloc->topsize = size - reserved_size;
 	return alloc;
 }
@@ -328,7 +330,7 @@ static void check_free_chunk(struct alloc* alloc, struct chunk* chunk) {
 	check(*(uint32_t*)((uint8_t*)chunk + size - 4) == size);
 	struct chunk* next = nextchunk(chunk);
 	check(chunk->size & PUSE_BIT);
-	if (next != alloc->top) {
+	if (next != readptr(alloc->top)) {
 		check(next->size & CUSE_BIT);
 		check(!(next->size & PUSE_BIT));
 	}
@@ -352,12 +354,12 @@ void mem_check(struct alloc* alloc) {
 	}
 	/* Check all chunks */
 	int prev_inuse = 1;
-	for (struct chunk* chunk = (struct chunk*)((uint8_t*)alloc + sizeof(struct alloc)); chunk != alloc->top; chunk = nextchunk(chunk)) {
+	for (struct chunk* chunk = (struct chunk*)((uint8_t*)alloc + alloc->reserved_size); chunk != readptr(alloc->top); chunk = nextchunk(chunk)) {
 		if (chunk->size & CUSE_BIT) {
 			struct chunk* next = nextchunk(chunk);
 			if (prev_inuse)
 				check(chunk->size & PUSE_BIT);
-			if (next != alloc->top)
+			if (next != readptr(alloc->top))
 				check(next->size & PUSE_BIT);
 			prev_inuse = 1;
 		}

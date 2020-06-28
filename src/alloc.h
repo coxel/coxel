@@ -12,7 +12,11 @@
 #define SMALL_BINS			(SMALL_CHUNK_SIZE / CHUNK_GRANULARITY)
 #define SMALL_REQUEST		(SMALL_CHUNK_SIZE - CHUNK_OVERHEAD)
 
+#ifdef RELATIVE_ADDRESSING
 typedef uint32_t ptr_t;
+#else
+typedef void* ptr_t;
+#endif
 typedef uint32_t bitmap_t;
 
 struct binhdr {
@@ -25,8 +29,9 @@ struct chunk {
 };
 
 struct alloc {
-	int used_memory;
+	uint32_t used_memory;
 	uint32_t size;
+	uint32_t reserved_size;
 	struct binhdr smallbins[SMALL_BINS];
 	bitmap_t smallmap;
 	struct binhdr largebin;

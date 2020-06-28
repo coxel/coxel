@@ -249,7 +249,7 @@ void console_update() {
 			}
 		}
 #ifdef _DEBUG
-		mem_check(cpu->alloc);
+		mem_check(&cpu->alloc);
 #endif
 	}
 	key_postupdate(&g_io);

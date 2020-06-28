@@ -35,7 +35,7 @@ static void tab_grow(struct cpu* cpu, struct tabobj* tab) {
 		for (uint16_t i = 0; i < new_bucket_cnt; i++)
 			buckets[i] = TAB_NULL;
 		for (uint16_t i = 0; i < tab->entry_cnt; i++) {
-			struct tabent* ent = &((struct tabent*)readptr(tab->entry))[i];
+			struct tabent* ent = &entries[i];
 			uint16_t bucket = ((struct strobj*)readptr(ent->key))->hash % new_bucket_cnt;
 			ent->next = buckets[bucket];
 			buckets[bucket] = i;
