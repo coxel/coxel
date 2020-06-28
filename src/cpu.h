@@ -300,12 +300,12 @@ struct cpu {
 	uint32_t prng_s[4];
 };
 
-#define MAX_INPUT	16
+#define MAX_INPUT_CHARS	16
 struct io {
 	/* mouse/key */
 	uint8_t prev_keys[kc_cnt];
 	uint8_t keys[kc_cnt];
-	char input[MAX_INPUT];
+	char input[MAX_INPUT_CHARS];
 	int input_size;
 	enum key last_key;
 	int last_key_repeat;

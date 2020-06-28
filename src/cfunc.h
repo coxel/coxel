@@ -1,6 +1,7 @@
 #ifndef _CFUNC_H
 #define _CFUNC_H
 
+struct cpu;
 typedef struct value(*cfunc)(struct cpu* cpu, int sp, int nargs);
 
 #define CFUNC_DEFS(X) \

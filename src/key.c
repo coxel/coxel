@@ -98,7 +98,7 @@ void key_input(char ch) {
 	if (ch == 0) // TODO: Check character validity
 		return;
 	struct io* io = console_getio();
-	if (io->input_size < MAX_INPUT)
+	if (io->input_size < MAX_INPUT_CHARS)
 		io->input[io->input_size++] = ch;
 }
 

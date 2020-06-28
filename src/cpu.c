@@ -212,7 +212,7 @@ static void upval_unlink(struct cpu* cpu, struct upval* val) {
 
 static void close_upvals(struct cpu* cpu, struct value* frame, int base) {
 	struct upval* val;
-	for (val = readptr(cpu->upval_open); val && readptr(val->val) >= frame;) {
+	for (val = readptr(cpu->upval_open); val && (struct value*)readptr(val->val) >= frame;) {
 		struct value* v = readptr(val->val);
 		struct upval* next = readptr(val->next);
 		if (v - frame >= base) {
