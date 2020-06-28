@@ -3,6 +3,7 @@
 @interface MainController : UIViewController
 
 -(void)initConsole;
+-(void)serializeConsole;
 
 @end
 

@@ -15,6 +15,15 @@
 	return YES;
 }
 
+-(BOOL)application:(UIApplication *)application shouldSaveSecureApplicationState:(NSCoder *)coder {
+	[self.controller serializeConsole];
+	return YES;
+}
+
+-(BOOL)application:(UIApplication *)application shouldRestoreSecureApplicationState:(NSCoder *)coder {
+	return YES;
+}
+
 -(void)applicationWillResignActive:(UIApplication *)application {
 }
 

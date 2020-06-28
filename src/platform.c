@@ -222,10 +222,11 @@ void console_deserialize_init(void* f) {
 		DESERIALIZE(cpu, CPU_MEM_SIZE);
 		g_cpus[id] = cpu;
 	}
-	g_cur_cpu = -1;
-	DESERIALIZE(&g_next_cpu, 4);
-	if (g_next_cpu < 0 || g_next_cpu >= MAX_CPUS || g_cpus[g_next_cpu] == NULL)
+	DESERIALIZE(&g_cur_cpu, 4);
+	if (g_cur_cpu < 0 || g_cur_cpu >= MAX_CPUS || g_cpus[g_cur_cpu] == NULL)
 		STATE_CORRUPTED();
+	g_next_cpu = g_cur_cpu;
+	load_cpu_state();
 }
 #endif
 

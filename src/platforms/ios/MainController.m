@@ -108,9 +108,34 @@ MainView *mainView;
 }
 
 -(void)initConsole {
-	console_init();
+	uint32_t size;
+	void* f = platform_open(STATE_PATH, &size);
+	if (f) {
+		NSLog(@"Loading serialized state.");
+		console_deserialize_init(f);
+		platform_close(f);
+		NSFileManager *fileManager = [[NSFileManager alloc] init];
+		NSString *path = get_filepath(STATE_PATH);
+		if (![fileManager removeItemAtPath:path error:nil]) {
+			NSLog(@"Remove state file failed.");
+		}
+	}
+	else
+		console_init();
 	CADisplayLink *displayLink = [CADisplayLink displayLinkWithTarget:self selector:@selector(update:)];
 	[displayLink addToRunLoop:[NSRunLoop mainRunLoop] forMode:NSRunLoopCommonModes];
+}
+
+-(void)serializeConsole {
+	NSLog(@"Serializing console state.");
+	void *f = platform_create(STATE_PATH);
+	if (f) {
+		console_serialize(f);
+		platform_close(f);
+		NSLog(@"State serialization succeeded.");
+	}
+	else
+		NSLog(@"State serialization failed.");
 }
 
 -(void)update:(CADisplayLink *)displayLink {
