@@ -23,7 +23,7 @@ static void gc_traverse_val(struct cpu* cpu, struct value* value);
 
 static void gc_traverse_arr(struct cpu* cpu, struct arrobj* arr) {
 	for (int i = 0; i < arr->len; i++)
-		gc_traverse_val(cpu, &((struct value*)arr->data)[i]);
+		gc_traverse_val(cpu, &((struct value*)readptr(arr->data))[i]);
 }
 
 static void gc_traverse_tab(struct cpu* cpu, struct tabobj* tab) {
