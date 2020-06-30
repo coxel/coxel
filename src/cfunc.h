@@ -14,6 +14,7 @@ typedef struct value(*cfunc)(struct cpu* cpu, int sp, int nargs);
 	X(lib_line) \
 	X(lib_rect) \
 	X(lib_fillRect) \
+	X(lib_spr) \
 	X(lib_print) \
 	X(lib_abs) \
 	X(lib_max) \

@@ -117,6 +117,26 @@ struct value lib_fillRect(struct cpu* cpu, int sp, int nargs) {
 	return value_undef(cpu);
 }
 
+struct value lib_spr(struct cpu* cpu, int sp, int nargs) {
+	if (nargs < 3 || nargs > 5)
+		argument_error(cpu);
+	int n = num_int(to_number(cpu, ARG(0)));
+	int x = num_int(to_number(cpu, ARG(1)));
+	int y = num_int(to_number(cpu, ARG(2)));
+	int w = 16;
+	int h = 16;
+	if (nargs >= 4) {
+		w = num_int(num_mul(num_kint(SPRITE_WIDTH), to_number(cpu, ARG(3))));
+		if (nargs >= 5)
+			h = num_int(num_mul(num_kint(SPRITE_HEIGHT), to_number(cpu, ARG(4))));
+	}
+	int s = SPRITESHEET_WIDTH / SPRITE_WIDTH;
+	int sx = n % s * SPRITE_WIDTH;
+	int sy = n / s * SPRITE_HEIGHT;
+	gfx_spr(console_getgfx(), sx, sy, x, y, w, h);
+	return value_undef(cpu);
+}
+
 struct value lib_print(struct cpu* cpu, int sp, int nargs) {
 	if (nargs != 1 && nargs != 3 && nargs != 4)
 		argument_error(cpu);
@@ -279,10 +299,23 @@ struct value devlib_newbuf(struct cpu* cpu, int sp, int nargs) {
 }
 
 static struct cart get_cartobj(struct cpu* cpu, struct tabobj* tab) {
-	struct strobj* code = to_string(cpu, tab_get(cpu, tab, str_intern(cpu, "code", 4)));
 	struct cart cart;
+	struct value code_value = tab_get(cpu, tab, str_intern(cpu, "code", 4));
+	if (code_value.type != t_str)
+		argument_error(cpu);
+	struct strobj* code = to_string(cpu, code_value);
 	cart.code = code->data;
 	cart.codelen = code->len;
+	struct value sprite_value = tab_get(cpu, tab, str_intern(cpu, "sprite", 6));
+	if (sprite_value.type != t_buf)
+		cart.sprite = NULL;
+	else {
+		struct bufobj* buf = (struct bufobj*)readptr(sprite_value.buf);
+		if (buf->len != SPRITESHEET_BYTES)
+			cart.sprite = NULL;
+		else
+			cart.sprite = buf->data;
+	}
 	return cart;
 }
 
@@ -290,6 +323,10 @@ static struct tabobj* parse_cartobj(struct cpu* cpu, const struct cart* cart) {
 	struct tabobj* tab = tab_new(cpu);
 	struct value code_value = value_str(cpu, str_intern(cpu, cart->code, cart->codelen));
 	tab_set(cpu, tab, str_intern(cpu, "code", 4), code_value);
+	if (cart->sprite) {
+		struct value sprite_value = value_buf(cpu, buf_new_copydata(cpu, cart->sprite, SPRITESHEET_BYTES));
+		tab_set(cpu, tab, str_intern(cpu, "sprite", 6), sprite_value);
+	}
 	return tab;
 }
 
@@ -351,8 +388,11 @@ struct value devlib_load(struct cpu* cpu, int sp, int nargs) {
 	struct run_result result = console_load(get_cart_filename(cpu, filename, filename_buf, 256), &cart);
 	if (result.err != NULL)
 		return get_run_result(cpu, result);
-	else
-		return value_tab(cpu, parse_cartobj(cpu, &cart));
+	else {
+		struct tabobj* tab = parse_cartobj(cpu, &cart);
+		cart_destroy(&cart);
+		return value_tab(cpu, tab);
+	}
 }
 
 struct value devlib_fastParse(struct cpu* cpu, int sp, int nargs) {
@@ -448,6 +488,7 @@ static const struct libdef libdefs[] = {
 	{"line", cf_lib_line },
 	{"rect", cf_lib_rect },
 	{"fillRect", cf_lib_fillRect },
+	{"spr", cf_lib_spr },
 	{"print", cf_lib_print },
 	{"abs", cf_lib_abs },
 	{"max", cf_lib_max },

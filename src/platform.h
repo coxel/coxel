@@ -6,6 +6,9 @@
 #define FIRMWARE_PATH "_firm/firmware.cox"
 #define STATE_PATH "_firm/coxstate"
 
+#define SEPARATOR_MAGIC		"\n\t"
+#define SPRITESHEET_MAGIC	">sprites"
+
 NORETURN void platform_error(const char* msg);
 NORETURN void platform_exit(int code);
 void* platform_malloc(int size);
@@ -32,12 +35,14 @@ void platform_close(void* file);
 struct cart {
 	const char* code;
 	int codelen;
+	const char* sprite;
 };
 struct run_result {
 	const char* err;
 	int linenum;
 };
 NORETURN void critical_error(const char* fmt, ...);
+void cart_destroy(struct cart* cart);
 struct run_result console_load(const char* filename, struct cart* cart);
 struct run_result console_save(const char* filename, const struct cart* cart);
 void console_init();

@@ -28,7 +28,12 @@ static int g_cur_cpu, g_next_cpu;
 static struct gfx g_gfx;
 #endif
 
-#define SEPARATOR_MAGIC		"\n~!@#$%^&*()_"
+void cart_destroy(struct cart* cart) {
+	if (cart->code)
+		platform_free_fast((void*)cart->code);
+	if (cart->sprite)
+		platform_free_fast((void*)cart->sprite);
+}
 
 struct parse_context {
 	void* file;
@@ -52,39 +57,113 @@ static void next_char(struct parse_context* ctx) {
 	}
 }
 
-static struct cart parse_cart(void* file, uint32_t filesize) {
+static inline int is_allowed_char(char ch) {
+	return (ch >= 32 && ch <= 126) || (ch == '\n');
+}
+
+static struct run_result parse_cart(void* file, uint32_t filesize, struct cart* cart) {
+#define TEMP_BUF_SIZE	16
 	struct parse_context ctx;
 	ctx.file = file;
 	ctx.filesize = filesize;
 	ctx.p = 0;
 	ctx.len = 0;
-	struct cart cart;
-	char* code_buf = (char*)platform_malloc(65536);
-	cart.code = code_buf;
-	cart.codelen = 0;
+	char temp_buf[TEMP_BUF_SIZE];
+	char* code_buf = (char*)platform_malloc_fast(MAX_CODE_SIZE + 1);
+	cart->code = code_buf;
+	cart->codelen = 0;
+	struct run_result ret;
+	ret.err = NULL;
+	ret.linenum = -1;
 	/* Read code section */
-	int sep = 0;
 	for (;;) {
 		next_char(&ctx);
+		if (ctx.ch == '\t' && cart->codelen > 0 && code_buf[cart->codelen - 1] == '\n') {
+			cart->codelen--;
+			break;
+		}
 		if (ctx.ch == 0)
-			return cart;
-		if (ctx.ch == SEPARATOR_MAGIC[sep]) {
-			// TODO: Code too big detection
-			sep++;
-			if (sep == sizeof(SEPARATOR_MAGIC)) {
-				cart.codelen -= sizeof(SEPARATOR_MAGIC);
-				break;
+			break;
+		if (ctx.ch == '\r')
+			continue;
+		if (!is_allowed_char(ctx.ch)) {
+			ret.err = "Invalid character in cart file.";
+			goto fail;
+		}
+		if (cart->codelen == MAX_CODE_SIZE + 1)
+			break;
+		code_buf[cart->codelen++] = ctx.ch;
+	}
+	if (cart->codelen > MAX_CODE_SIZE) {
+		ret.err = "Code section too large.";
+		goto fail;
+	}
+	/* Read auxiliary sections */
+	cart->sprite = NULL;
+	while (ctx.ch != 0) {
+		if (ctx.ch == '\r' || ctx.ch == '\n') {
+			next_char(&ctx);
+			continue;
+		}
+		while (ctx.ch == '\t') {
+			next_char(&ctx);
+			int name_len = 0;
+			while (name_len < TEMP_BUF_SIZE && ctx.ch != 0 && ctx.ch != '\n') {
+				if (ctx.ch == '\r')
+					continue;
+				temp_buf[name_len++] = ctx.ch;
+				next_char(&ctx);
+			}
+			if (ctx.ch == 0) {
+				ret.err = "Unexpected end of file.";
+				goto fail;
+			}
+			if (ctx.ch != '\n') {
+				ret.err = "Invalid section name.";
+				goto fail;
+			}
+			next_char(&ctx);
+			if (str_equal(temp_buf, name_len, SPRITESHEET_MAGIC, sizeof(SPRITESHEET_MAGIC) - 1)) {
+				char* sprite = (char*)platform_malloc_fast(SPRITESHEET_BYTES);
+				cart->sprite = sprite;
+				int t = 0;
+				int ok;
+				for (int i = 0; i < SPRITESHEET_HEIGHT; i++) {
+					if (ctx.ch == '\t' || ctx.ch == 0)
+						break;
+					for (int j = 0; j < SPRITESHEET_WIDTH; j += 2) {
+						int low = from_hex(ctx.ch, &ok);
+						if (!ok) {
+							ret.err = "Malformed cart data.";
+							goto fail;
+						}
+						next_char(&ctx);
+						int high = from_hex(ctx.ch, &ok);
+						if (!ok) {
+							ret.err = "Malformed cart data.";
+							goto fail;
+						}
+						next_char(&ctx);
+						sprite[t++] = low + (high << 4);
+					}
+					/* Skip EOLs */
+					while (ctx.ch == '\r' || ctx.ch == '\n')
+						next_char(&ctx);
+				}
+				/* Fill remaining data with zero */
+				memset(sprite + t, 0, SPRITESHEET_BYTES - t);
+			}
+			else {
+				ret.err = "Invalid section name.";
+				goto fail;
 			}
 		}
-		else if (ctx.ch == SEPARATOR_MAGIC[0])
-			sep = 1;
-		else
-			sep = 0;
-		// TODO: Check for other invalid characters
-		if (ctx.ch != '\r')
-			code_buf[cart.codelen++] = ctx.ch;
 	}
-	platform_error("Unimplemented.");
+	return ret;
+
+fail:
+	cart_destroy(cart);
+	return ret;
 }
 
 struct run_result console_load(const char* filename, struct cart* cart) {
@@ -97,20 +176,57 @@ struct run_result console_load(const char* filename, struct cart* cart) {
 		res.err = "Open cartridge file failed.";
 		return res;
 	}
-	*cart = parse_cart(file, filesize);
-	return res;
+	return parse_cart(file, filesize, cart);
+}
+
+static int get_buf_len(const char* buf, int maxlen) {
+	if (buf != NULL) {
+		for (int i = maxlen - 1; i >= 0; i--)
+			if (buf[i] != 0)
+				return i + 1;
+	}
+	return 0;
 }
 
 struct run_result console_save(const char* filename, const struct cart* cart) {
+#define WRITE(x, s) do { \
+		if (platform_write(file, (const char*)x, s) != s) { \
+			platform_close(file); \
+			ret.err = "Write cart file failed."; \
+			return ret; \
+		} \
+	} while (0)
+#define WRITE_CHAR(x) do { \
+		char __v = (x); \
+		WRITE(&__v, 1); \
+	} while (0)
+
 	struct run_result ret;
 	ret.err = NULL;
 	ret.linenum = -1;
 	void* file = platform_create(filename);
-	if (file == NULL)
-		ret.err = "Create file failed.";
+	if (file == NULL) {
+		ret.err = "Create cart file failed.";
+		return ret;
+	}
 	else {
-		if (platform_write(file, cart->code, cart->codelen) != cart->codelen)
-			ret.err = "Write file failed.";
+		WRITE(cart->code, cart->codelen);
+		int spritesheet_len = get_buf_len(cart->sprite, SPRITESHEET_BYTES);
+		if (spritesheet_len > 0) {
+			WRITE(SEPARATOR_MAGIC, sizeof(SEPARATOR_MAGIC) - 1);
+			WRITE(SPRITESHEET_MAGIC, sizeof(SPRITESHEET_MAGIC) - 1);
+			WRITE_CHAR('\n');
+			int lines = (spritesheet_len + (SPRITESHEET_WIDTH / 2 - 1)) / (SPRITESHEET_WIDTH / 2);
+			int t = 0;
+			for (int i = 0; i < lines; i++) {
+				for (int j = 0; j < SPRITESHEET_WIDTH; j += 2) {
+					WRITE_CHAR(to_hex((unsigned char)cart->sprite[t] & 15));
+					WRITE_CHAR(to_hex((unsigned char)cart->sprite[t] >> 4));
+					t++;
+				}
+				WRITE_CHAR('\n');
+			}
+		}
 		platform_close(file);
 	}
 	return ret;
@@ -130,6 +246,7 @@ static void console_init_internal(int factory_firmware) {
 	if (res.err != NULL)
 		critical_error("Firmware load error:\n%s", res.err);
 	res = console_run(&cart);
+	cart_destroy(&cart);
 	if (res.err != NULL)
 		critical_error("Firmware compilation error:\nLine %d: %s", res.linenum + 1, res.err);
 }
@@ -258,19 +375,18 @@ struct run_result console_run(const struct cart* cart) {
 	}
 	
 	/* Initialize CPU */
-	g_cpus[slot] = cpu_new();
-	if (g_cpus[slot] == NULL) {
+	struct cpu* cpu = cpu_new();
+	if (cpu == NULL) {
 		ret.err = "Out of memory.";
 		return ret;
 	}
 
 	/* Compile cart code */
-	struct compile_err err = compile(g_cpus[slot], cart->code, cart->codelen);
+	struct compile_err err = compile(cpu, cart->code, cart->codelen);
 	if (err.msg != NULL) {
 		ret.err = err.msg;
 		ret.linenum = err.linenum;
-		cpu_destroy(g_cpus[slot]);
-		g_cpus[slot] = NULL;
+		cpu_destroy(cpu);
 		return ret;
 	}
 
@@ -285,7 +401,14 @@ struct run_result console_run(const struct cart* cart) {
 	platform_free(buf);
 #endif
 
-	g_cpus[slot]->parent = g_cur_cpu;
+	/* Copy spritesheet */
+	if (cart->sprite)
+		memcpy(&cpu->gfx.sprite, cart->sprite, SPRITESHEET_BYTES);
+	else
+		memset(&cpu->gfx.sprite, 0, SPRITESHEET_BYTES);
+
+	cpu->parent = g_cur_cpu;
+	g_cpus[slot] = cpu;
 
 	/* Set cpu to be run */
 	g_next_cpu = slot;

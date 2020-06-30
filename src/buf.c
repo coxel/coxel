@@ -9,6 +9,13 @@ struct bufobj* buf_new(struct cpu* cpu, int size) {
 	return buf;
 }
 
+struct bufobj* buf_new_copydata(struct cpu* cpu, const void* data, int size) {
+	struct bufobj* buf = (struct bufobj*)gc_alloc(cpu, t_buf, sizeof(struct bufobj) + size);
+	buf->len = size;
+	memcpy(buf->data, data, size);
+	return buf;
+}
+
 void buf_destroy(struct cpu* cpu, struct bufobj* buf) {
 	mem_free(&cpu->alloc, buf);
 }

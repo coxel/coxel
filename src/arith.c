@@ -206,3 +206,23 @@ int int_format(int num, char* output) {
 		*output++ = buf[len - 1 - i];
 	return neg + len;
 }
+
+static const char hex[16] = "0123456789abcdef";
+char to_hex(int ch) {
+	return hex[ch];
+}
+
+int from_hex(char ch, int* ok) {
+	if (ch >= 'a' && ch <= 'f') {
+		*ok = 1;
+		return 10 + (ch - 'a');
+	}
+	else if (ch >= '0' && ch <= '9') {
+		*ok = 1;
+		return ch - '0';
+	}
+	else {
+		*ok = 0;
+		return 0;
+	}
+}

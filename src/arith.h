@@ -103,5 +103,7 @@ int num_parse(const char* begin, const char* end, number* outnum);
 /* positive and negative numbers ok, return number of characters, no terminating NULL */
 int num_format(number num, int frac_digits, char* output);
 int int_format(int num, char* output);
+char to_hex(int ch);
+int from_hex(char ch, int* ok);
 
 #endif

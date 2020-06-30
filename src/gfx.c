@@ -116,6 +116,18 @@ void gfx_fill_rect(struct gfx* gfx, int x, int y, int w, int h, int c) {
 			gfx_setpixel(gfx, x + j, y + i, c);
 }
 
+void gfx_spr(struct gfx* gfx, int sx, int sy, int x, int y, int w, int h) {
+	for (int i = 0; i < h && sy + i < SPRITESHEET_HEIGHT; i++)
+		for (int j = 0; j < w && sx + j < SPRITESHEET_WIDTH; j++) {
+			int c = gfx->sprite[(i * SPRITESHEET_WIDTH + j) / 2];
+			if (j % 2 == 0)
+				c = c & 0xF;
+			else
+				c = c >> 4;
+			gfx_setpixel(gfx, x + j, y + i, c);
+		}
+}
+
 extern const char font[][3];
 
 static void gfx_vscroll(struct gfx* gfx, int up_amount) {

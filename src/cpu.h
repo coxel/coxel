@@ -9,6 +9,13 @@
 
 #include <stdint.h>
 
+#define SPRITE_WIDTH		8
+#define SPRITE_HEIGHT		8
+#define SPRITESHEET_WIDTH	64
+#define SPRITESHEET_HEIGHT	256
+#define SPRITESHEET_BYTES	(SPRITESHEET_WIDTH * SPRITESHEET_HEIGHT / 2)
+#define MAX_CODE_SIZE		65535
+
 #ifdef RELATIVE_ADDRESSING
 typedef uint32_t ptr_t;
 #define readptr(aptr)		(((aptr) == 0) ? NULL : (void*)((uint8_t*)cpu + (aptr)))
@@ -249,6 +256,7 @@ struct funcobj {
 
 struct gfx {
 	uint8_t screen[WIDTH * HEIGHT / 2];
+	uint8_t sprite[SPRITESHEET_BYTES];
 	int color; /* foreground color */
 	int cx, cy; /* cursor location */
 	int cam_x, cam_y; /* camera location */
