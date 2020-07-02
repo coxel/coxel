@@ -118,22 +118,29 @@ struct value lib_fillRect(struct cpu* cpu, int sp, int nargs) {
 }
 
 struct value lib_spr(struct cpu* cpu, int sp, int nargs) {
-	if (nargs < 3 || nargs > 5)
+	if (nargs < 3 || nargs > 6)
 		argument_error(cpu);
 	int n = num_int(to_number(cpu, ARG(0)));
 	int x = num_int(to_number(cpu, ARG(1)));
 	int y = num_int(to_number(cpu, ARG(2)));
-	int w = 16;
-	int h = 16;
+	int w = SPRITE_WIDTH;
+	int h = SPRITE_HEIGHT;
+	int r = 0;
 	if (nargs >= 4) {
 		w = num_int(num_mul(num_kint(SPRITE_WIDTH), to_number(cpu, ARG(3))));
-		if (nargs >= 5)
+		if (nargs >= 5) {
 			h = num_int(num_mul(num_kint(SPRITE_HEIGHT), to_number(cpu, ARG(4))));
+			if (nargs >= 6) {
+				r = num_int(to_number(cpu, ARG(5)));
+				if (r % 90 != 0)
+					argument_error(cpu);
+			}
+		}
 	}
 	int s = SPRITESHEET_WIDTH / SPRITE_WIDTH;
 	int sx = n % s * SPRITE_WIDTH;
 	int sy = n / s * SPRITE_HEIGHT;
-	gfx_spr(console_getgfx(), sx, sy, x, y, w, h);
+	gfx_spr(console_getgfx(), sx, sy, x, y, w, h, r);
 	return value_undef(cpu);
 }
 
