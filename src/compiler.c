@@ -1547,6 +1547,10 @@ struct compile_err compile(struct cpu* cpu, const char* code, int codelen) {
 	ctx.patch_cap = 0;
 	if (setjmp(ctx.jmp_buf) == 0) {
 		compile_block(&ctx);
+		if (ctx.token == tk_rbrace)
+			compile_error(&ctx, "Unexpected right brace.");
+		if (ctx.token != tk_eof)
+			compile_error(&ctx, "Unexpected token.");
 		emit(&ctx, op_retu, 0, 0, 0);
 		struct funcobj* topfunc = (struct funcobj*)mem_malloc(&cpu->alloc, sizeof(struct funcobj));
 		topfunc->code = writeptr(&((struct code*)readptr(cpu->code))[func.code_id]);
