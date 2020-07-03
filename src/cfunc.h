@@ -37,6 +37,7 @@ typedef struct value(*cfunc)(struct cpu* cpu, int sp, int nargs);
 	X(devlib_load) \
 	X(libarr_pop) \
 	X(libarr_push) \
+	X(libarr_slice) \
 	X(libstr_indexOf) \
 	X(libstr_lastIndexOf) \
 	X(libstr_substr)

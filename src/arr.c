@@ -59,6 +59,38 @@ struct value libarr_pop(struct cpu* cpu, int sp, int nargs) {
 	return arr_pop(cpu, arr);
 }
 
+static inline int normalize_index(int index, int len) {
+	if (index < 0)
+		index += len;
+	if (index < 0)
+		return 0;
+	else if (index >= len)
+		return len;
+	else
+		return index;
+}
+
+struct value libarr_slice(struct cpu* cpu, int sp, int nargs) {
+	if (nargs > 2)
+		argument_error(cpu);
+	struct arrobj* arr = to_arr(cpu, THIS);
+	int start = 0;
+	int end = arr->len;
+	if (nargs >= 1) {
+		start = num_int(to_number(cpu, ARG(0)));
+		start = normalize_index(start, arr->len);
+		if (nargs == 2) {
+			end = num_int(to_number(cpu, ARG(1)));
+			end = normalize_index(end, arr->len);
+		}
+	}
+	struct value* values = (struct value*)readptr(arr->data);
+	struct arrobj* narr = arr_new(cpu);
+	for (int i = start; i < end; i++)
+		arr_push(cpu, narr, values[i]);
+	return value_arr(cpu, narr);
+}
+
 struct value arr_fget(struct cpu* cpu, struct arrobj* arr, struct strobj* key) {
 	if (key == LIT(pop))
 		return value_cfunc(cpu, cf_libarr_pop);
@@ -66,6 +98,8 @@ struct value arr_fget(struct cpu* cpu, struct arrobj* arr, struct strobj* key) {
 		return value_cfunc(cpu, cf_libarr_push);
 	else if (key == LIT(length))
 		return value_num(cpu, num_kuint(arr->len));
+	else if (key == LIT(slice))
+		return value_cfunc(cpu, cf_libarr_slice);
 	else
 		return value_undef(cpu);
 }

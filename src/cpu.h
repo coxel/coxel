@@ -250,6 +250,7 @@ struct funcobj {
 	X(onframe) \
 	X(pop) \
 	X(push) \
+	X(slice) \
 	X(substr) \
 	X(true) \
 	X(undefined)
