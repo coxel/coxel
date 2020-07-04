@@ -381,6 +381,7 @@ void main() {
 		platform_error("SetCurrentDirectoryW() failed.");
 
 	g_hwnd = NULL;
+#ifdef RELATIVE_ADDRESSING
 	uint32_t size;
 	void* f = platform_open(STATE_PATH, &size);
 	if (f) {
@@ -389,6 +390,7 @@ void main() {
 		DeleteFileA(STATE_PATH);
 	}
 	else
+#endif
 		console_init();
 	ImmDisableIME(-1);
 
@@ -463,11 +465,13 @@ void main() {
 	}
 
 end:
+#ifdef RELATIVE_ADDRESSING
 	f = platform_create(STATE_PATH);
 	if (f) {
 		console_serialize(f);
 		platform_close(f);
 	}
+#endif
 
 	SelectObject(memdc, oldbitmap);
 	DeleteObject(bitmap);
