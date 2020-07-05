@@ -15,6 +15,7 @@
 #define SPRITESHEET_HEIGHT	256
 #define SPRITESHEET_BYTES	(SPRITESHEET_WIDTH * SPRITESHEET_HEIGHT / 2)
 #define MAX_CODE_SIZE		65535
+#define SYM_MAX_LEN			256
 
 #ifdef RELATIVE_ADDRESSING
 typedef uint32_t ptr_t;
@@ -226,6 +227,7 @@ struct licmd {
 struct code {
 	int nargs;
 	int enclosure;
+	ptr(struct strobj) name;
 	/* instructions */
 	int ins_cnt, ins_cap;
 	ptr(struct ins) ins;

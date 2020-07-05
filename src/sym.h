@@ -2,7 +2,6 @@
 #define _SYM_H
 
 #include <stdint.h>
-#define SYM_MAX_LEN		256
 
 struct sym {
 	uint8_t reg;

@@ -825,11 +825,13 @@ static struct sval compile_function(struct context* ctx, int global) {
 	next_token(ctx);
 	sym_push(&ctx->sym_table);
 	struct sval nval;
+	struct strobj* name = NULL;
 	if (global) {
 		if (ctx->topfunc->enfunc != NULL) // TODO: Wrong hoisting semantics
 			compile_error(ctx, "Global function definition must appear at toplevel.");
 		check_token(ctx, tk_ident);
-		nval = sval_tkstr(ctx);
+		name = str_intern_nogc(ctx->cpu, ctx->token_str_begin, (int)(ctx->token_str_end - ctx->token_str_begin));
+		nval = sval_str(ctx, name);
 		next_token(ctx);
 	}
 	else if (ctx->token == tk_ident) {
@@ -838,6 +840,7 @@ static struct sval compile_function(struct context* ctx, int global) {
 		if (!sym_emplace(&ctx->sym_table, ctx->sym_table.level,
 			ctx->token_str_begin, ctx->token_str_end - ctx->token_str_begin, &sym))
 			internal_error(ctx);
+		name = str_intern_nogc(ctx->cpu, ctx->token_str_begin, (int)(ctx->token_str_end - ctx->token_str_begin));
 		sym->reg = 0;
 		next_token(ctx);
 	}
@@ -865,6 +868,7 @@ static struct sval compile_function(struct context* ctx, int global) {
 	struct code* code = &((struct code*)readptr(cpu->code))[func.code_id];
 	code->nargs = nargs;
 	code->enclosure = ctx->topfunc->code_id;
+	code->name = writeptr(name);
 	func.sym_level = ctx->sym_table.level;
 	ctx->topfunc = &func;
 	int old_sp = ctx->sp;

@@ -467,7 +467,7 @@ static char* dump_operand(enum operand_type ot, int value, char* buf) {
 static int dump_func(struct cpu* cpu, const char* codebuf, int codelen, int func_id, char* buf, int buflen) {
 	struct code* code = &((struct code*)readptr(cpu->code))[func_id];
 	char* cur = buf;
-	CHECKSPACE();
+	CHECKSPACEN(80 + SYM_MAX_LEN);
 	*cur++ = 'F';
 	*cur++ = 'u';
 	*cur++ = 'n';
@@ -475,6 +475,15 @@ static int dump_func(struct cpu* cpu, const char* codebuf, int codelen, int func
 	*cur++ = ' ';
 	*cur++ = '#';
 	cur += int_format(func_id, cur);
+	struct strobj* name = (struct strobj*)readptr(code->name);
+	if (name) {
+		*cur++ = ':';
+		*cur++ = ' ';
+		memcpy(cur, name->data, name->len);
+		cur += name->len;
+		*cur++ = '(';
+		*cur++ = ')';
+	}
 	*cur++ = ' ';
 	*cur++ = 'n';
 	*cur++ = 'a';
