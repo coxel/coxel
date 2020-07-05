@@ -143,6 +143,8 @@ struct context {
 	const char* code;
 	int codelen;
 	int codep;
+	int lastlinenum;
+	int lastlineins;
 	int linenum;
 	enum token_type token;
 	number token_num;
@@ -178,17 +180,17 @@ static NORETURN void internal_error(struct context* ctx) {
 static void next_char(struct context* ctx) {
 	if (ctx->codep == ctx->codelen)
 		ctx->ch = 0;
-	else {
+	else
 		ctx->ch = ctx->code[ctx->codep++];
-		if (ctx->ch == '\n')
-			++ctx->linenum;
-	}
 }
 
 static void next_token(struct context* ctx) {
 start:
-	while (ctx->ch == ' ' || ctx->ch == '\t' || ctx->ch == '\r' || ctx->ch == '\n')
+	while (ctx->ch == ' ' || ctx->ch == '\t' || ctx->ch == '\r' || ctx->ch == '\n') {
+		if (ctx->ch == '\n')
+			ctx->linenum++;
 		next_char(ctx);
+	}
 	if ((ctx->ch >= 'a' && ctx->ch <= 'z')
 		|| (ctx->ch >= 'A' && ctx->ch <= 'Z')
 		|| (ctx->ch == '$' || ctx->ch == '_')) {
@@ -523,13 +525,44 @@ enum value_type {
 #define sval_in_reg(x)	((x).type == vt_value || (x).type == vt_local)
 #define topcode()		(&((struct code*)readptr(ctx->cpu->code))[ctx->topfunc->code_id])
 
+static void add_lineinfo(struct context* ctx, enum licmdtype type, int delta) {
+	if (delta < 0)
+		internal_error(ctx);
+	struct cpu* cpu = ctx->cpu;
+	struct code* code = topcode();
+	struct licmd* lineinfo = readptr(code->lineinfo);
+	while (delta) {
+		vec_add(ctx->alloc, lineinfo, code->lineinfo_cnt, code->lineinfo_cap);
+		struct licmd* cmd = &lineinfo[code->lineinfo_cnt - 1];
+		cmd->type = type;
+		if (delta < 128) {
+			cmd->delta = delta;
+			break;
+		}
+		else {
+			cmd->delta = 127;
+			delta -= 127;
+		}
+	}
+	code->lineinfo = writeptr(lineinfo);
+}
+
 static struct ins* add_ins(struct context* ctx) {
 	struct cpu* cpu = ctx->cpu;
 	struct code* code = topcode();
 	struct ins* ins = readptr(code->ins);
 	vec_add(ctx->alloc, ins, code->ins_cnt, code->ins_cap);
 	code->ins = writeptr(ins);
-	return &ins[code->ins_cnt - 1];
+	int ins_id = code->ins_cnt - 1;
+	if (ctx->linenum != ctx->lastlinenum) {
+		if (ins_id != ctx->lastlineins) {
+			add_lineinfo(ctx, li_ins, ins_id - ctx->lastlineins);
+			ctx->lastlineins = ins_id;
+		}
+		add_lineinfo(ctx, li_line, ctx->linenum - ctx->lastlinenum);
+		ctx->lastlinenum = ctx->linenum;
+	}
+	return &ins[ins_id];
 }
 
 static void emit(struct context* ctx, enum opcode opcode, uint8_t op1, uint8_t op2, uint8_t op3) {
@@ -741,6 +774,9 @@ static int add_code(struct cpu* cpu) {
 	code->ins_cnt = 0;
 	code->ins_cap = 0;
 	code->ins = writeptr(NULL);
+	code->lineinfo_cnt = 0;
+	code->lineinfo_cap = 0;
+	code->lineinfo = writeptr(NULL);
 	code->k_cnt = 0;
 	code->k_cap = 0;
 	code->k = writeptr(NULL);
@@ -833,13 +869,19 @@ static struct sval compile_function(struct context* ctx, int global) {
 	ctx->topfunc = &func;
 	int old_sp = ctx->sp;
 	int old_local_sp = ctx->local_sp;
+	int old_lastlinenum = ctx->lastlinenum;
+	int old_lastlineins = ctx->lastlineins;
 	ctx->sp = 2 + nargs + 2;
 	ctx->local_sp = ctx->sp;
+	ctx->lastlinenum = 0;
+	ctx->lastlineins = 0;
 	compile_block(ctx);
 	require_token(ctx, tk_rbrace);
 	emit(ctx, op_retu, 0, 0, 0);
 	ctx->sp = old_sp;
 	ctx->local_sp = old_local_sp;
+	ctx->lastlinenum = old_lastlinenum;
+	ctx->lastlineins = old_lastlineins;
 	ctx->topfunc = func.enfunc;
 	sym_pop(&ctx->sym_table);
 	emit_imm(ctx, op_func, ctx->sp, func.code_id);
@@ -1526,6 +1568,8 @@ struct compile_err compile(struct cpu* cpu, const char* code, int codelen) {
 	ctx.code = code;
 	ctx.codelen = codelen;
 	ctx.codep = 0;
+	ctx.lastlinenum = 0;
+	ctx.lastlineins = 0;
 	ctx.linenum = 0;
 	ctx.sp = 4;
 	ctx.local_sp = 4;

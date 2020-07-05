@@ -392,7 +392,7 @@ struct run_result console_run(const struct cart* cart) {
 
 #ifdef _DEBUG
 	char* buf = (char*)platform_malloc(65536);
-	int len = cpu_dump_code(cpu, buf, 65536);
+	int len = cpu_dump_code(cpu, cart->code, cart->codelen, buf, 65536);
 	void* dumpfile = platform_create("debug_asm.txt");
 	if (dumpfile) {
 		platform_write(dumpfile, buf, len);

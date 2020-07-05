@@ -107,7 +107,7 @@ int str_vsprintf(char* buf, const char* format, va_list args) {
 void strtab_init(struct cpu* cpu) {
 	cpu->strtab_cnt = 0;
 	cpu->strtab_size = INITIAL_STRTAB_SIZE;
-	ptr(struct strobj)* strtab = (ptr_t*)mem_malloc(&cpu->alloc, cpu->strtab_size * sizeof(ptr_t));
+	ptr(struct strobj)* strtab = (ptr(struct strobj)*)mem_malloc(&cpu->alloc, cpu->strtab_size * sizeof(ptr_t));
 	for (int i = 0; i < cpu->strtab_size; i++)
 		strtab[i] = writeptr(NULL);
 	cpu->strtab = writeptr(strtab);

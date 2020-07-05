@@ -202,12 +202,36 @@ struct updef {
 	uint8_t idx;
 };
 
+/* Line info VM format
+ * Every byte is a command in a simple line info state machine.
+ * The state machine has two state: instruction pointer and line pointer.
+ * Then it executes a series of VM commands to determine which source code line.
+ * each instruction corresponds to.
+ * 0uuuuuuu:  Instruction delta: add current instruction pointer by delta.
+ * All instructions in this range maps to current line pointer.
+ * 1uuuuuuu:  Line delta: add current line pointer by delta.
+ * Deltas larger than 7-bits are simply splitted into multiple independent instructions,
+ * no complex variable-byte encoding are used as this should not happen often in practice.
+ */
+enum licmdtype {
+	li_ins,
+	li_line,
+};
+
+struct licmd {
+	unsigned int delta : 7;
+	unsigned int type : 1;
+};
+
 struct code {
 	int nargs;
 	int enclosure;
 	/* instructions */
 	int ins_cnt, ins_cap;
 	ptr(struct ins) ins;
+	/* line info */
+	int lineinfo_cnt, lineinfo_cap;
+	ptr(struct licmd) lineinfo;
 	/* constants */
 	int k_cnt, k_cap;
 	ptr(struct value) k;
@@ -332,7 +356,7 @@ NORETURN void out_of_memory_error(struct cpu* cpu);
 struct cpu* cpu_new();
 void cpu_destroy(struct cpu* cpu);
 void cpu_execute(struct cpu* cpu, struct funcobj* func);
-int cpu_dump_code(struct cpu* cpu, char* buf, int buflen);
+int cpu_dump_code(struct cpu* cpu, const char* codebuf, int codelen, char* buf, int buflen);
 
 int to_bool(struct cpu* cpu, struct value val);
 number to_number(struct cpu* cpu, struct value val);

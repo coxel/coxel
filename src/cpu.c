@@ -462,8 +462,9 @@ static char* dump_operand(enum operand_type ot, int value, char* buf) {
 	return buf + int_format(value, buf);
 }
 
-#define CHECKSPACE() do { if (cur - buf + 80 > buflen) return (int)(cur - buf); } while(0)
-static int dump_func(struct cpu* cpu, int func_id, char* buf, int buflen) {
+#define CHECKSPACEN(n) do { if (cur - buf + (n) > buflen) return (int)(cur - buf); } while(0)
+#define CHECKSPACE() CHECKSPACEN(80)
+static int dump_func(struct cpu* cpu, const char* codebuf, int codelen, int func_id, char* buf, int buflen) {
 	struct code* code = &((struct code*)readptr(cpu->code))[func_id];
 	char* cur = buf;
 	CHECKSPACE();
@@ -508,8 +509,41 @@ static int dump_func(struct cpu* cpu, int func_id, char* buf, int buflen) {
 		cur += int_format(upval->idx, cur);
 		*cur++ = '\n';
 	}
-	struct ins* inss = readptr(code->ins);
+	struct ins* inss = (struct ins*)readptr(code->ins);
+	int output_linenum = 0;
+	int linenum = 0;
+	int next_lineinfo_pc = 0;
+	int lineinfo_id = 0;
+	struct licmd* lineinfo = (struct licmd*)readptr(code->lineinfo);
+	int linepos = 0;
 	for (int pc = 0; pc < code->ins_cnt;) {
+		if (pc == next_lineinfo_pc) {
+			while (lineinfo_id < code->lineinfo_cnt) {
+				struct licmd* cmd = &lineinfo[lineinfo_id++];
+				if (cmd->type == li_line) {
+					linenum += cmd->delta;
+					for (int i = 0; i < cmd->delta; i++) {
+						while (codebuf[linepos++] != '\n')
+							continue;
+					}
+				}
+				else if (cmd->type == li_ins) {
+					next_lineinfo_pc += cmd->delta;
+					break;
+				}
+			}
+		}
+		if (linenum >= output_linenum) {
+			/* Dump current line */
+			int lineend = linepos;
+			while (lineend < codelen && codebuf[lineend] != '\n')
+				lineend++;
+			CHECKSPACEN(lineend - linepos + 1);
+			memcpy(cur, &codebuf[linepos], lineend - linepos);
+			cur += lineend - linepos;
+			*cur++ = '\n';
+			output_linenum = linenum + 1;
+		}
 		CHECKSPACE();
 		struct ins* ins = &inss[pc];
 		cur += int_format(pc++, cur);
@@ -580,10 +614,10 @@ static int dump_func(struct cpu* cpu, int func_id, char* buf, int buflen) {
 	return (int)(cur - buf);
 }
 
-int cpu_dump_code(struct cpu* cpu, char* buf, int buflen) {
+int cpu_dump_code(struct cpu* cpu, const char* codebuf, int codelen, char* buf, int buflen) {
 	int totlen = 0;
 	for (int i = 0; i < cpu->code_cnt; i++) {
-		totlen += dump_func(cpu, i, buf + totlen, buflen - totlen);
+		totlen += dump_func(cpu, codebuf, codelen, i, buf + totlen, buflen - totlen);
 		if (totlen < buflen)
 			buf[totlen++] = '\n';
 	}
