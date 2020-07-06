@@ -1155,7 +1155,7 @@ static struct sval compile_binary_subexp(struct context* ctx, struct sval lval) 
 				emit_imm(ctx, op_jtrue, lval.reg, 0);
 			sval_pop(ctx, lval);
 			struct sval rval = compile_unary(ctx);
-			if (token_precedence[ctx->token] > precedence || (op == op_exp && ctx->token == tk_exp))
+			while (token_precedence[ctx->token] > precedence || (op == op_exp && ctx->token == tk_exp))
 				rval = compile_binary_subexp(ctx, rval);
 			rval = sval_force_extract(ctx, rval);
 			sval_pop(ctx, rval);
@@ -1164,7 +1164,7 @@ static struct sval compile_binary_subexp(struct context* ctx, struct sval lval) 
 		}
 		else {
 			struct sval rval = compile_unary(ctx);
-			if (token_precedence[ctx->token] > precedence || (op == op_exp && ctx->token == tk_exp))
+			while (token_precedence[ctx->token] > precedence || (op == op_exp && ctx->token == tk_exp))
 				rval = compile_binary_subexp(ctx, rval);
 			rval = sval_extract(ctx, rval);
 			sval_pop(ctx, rval);
