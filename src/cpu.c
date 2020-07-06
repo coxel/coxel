@@ -13,6 +13,23 @@
 #include <string.h>
 
 static jmp_buf g_jmp_buf;
+static int g_pc;
+static struct code* g_code;
+
+static void print_name(struct cpu* cpu, struct code* code) {
+	struct gfx* gfx = console_getgfx();
+	if (code->enclosure > 0) {
+		print_name(cpu, &((struct code*)readptr(cpu->code))[code->enclosure]);
+		gfx_print_simple(gfx, ":", 1, 14);
+	}
+	struct strobj* name = (struct strobj*)readptr(code->name);
+	if (name)
+		gfx_print_simple(gfx, name->data, name->len, 14);
+	else if (code->enclosure == -1)
+		gfx_print_simple(gfx, "<top>", 5, 14);
+	else
+		gfx_print_simple(gfx, "<anon>", 6, 14);
+}
 
 NORETURN void runtime_error(struct cpu* cpu, const char* msg) {
 	struct gfx* gfx = console_getgfx();
@@ -21,6 +38,43 @@ NORETURN void runtime_error(struct cpu* cpu, const char* msg) {
 	gfx->cy = 0;
 	gfx_print(gfx, "RUNTIME ERROR", 13, -1, -1, 2);
 	gfx_print(gfx, msg, (int)strlen(msg), -1, -1, 2);
+	gfx_print(gfx, "Stack trace:", 12, -1, -1, 14);
+	struct code* code = g_code;
+	int pc = g_pc;
+	int sp = cpu->sp;
+	for (int depth = 0; depth < MAX_STACKTRACE; depth++) {
+		pc--;
+		print_name(cpu, code);
+		struct licmd* lineinfo = (struct licmd*)readptr(code->lineinfo);
+		int line = 0;
+		int ins_id = 0;
+		for (int i = 0; i < code->lineinfo_cnt; i++) {
+			struct licmd* cmd = &lineinfo[i];
+			if (cmd->type == li_line)
+				line += cmd->delta;
+			else if (cmd->type == li_ins) {
+				ins_id += cmd->delta;
+				if (pc < ins_id)
+					break;
+			}
+		}
+		char linestr[10];
+		gfx_print_simple(gfx, ":", 1, 14);
+		gfx_print_simple(gfx, linestr, int_format(line + 1, linestr), 14);
+		gfx_print_simple(gfx, "\n", 1, 14);
+		if (sp == 0)
+			break;
+
+		struct value* frame = &((struct value*)readptr(cpu->stack))[sp];
+		struct callinfo1 ci1 = frame[2 + code->nargs].ci1;
+		struct callinfo2 ci2 = frame[3 + code->nargs].ci2;
+		struct funcobj* func = readptr(ci1.func);
+		pc = ci2.pc;
+		sp -= ci2.stack_size;
+		code = (struct code*)readptr(func->code);
+	}
+	if (sp != 0)
+		gfx_print_simple(gfx, "...", 3, 14);
 	longjmp(g_jmp_buf, 1);
 }
 
@@ -267,23 +321,23 @@ void cpu_execute(struct cpu* cpu, struct funcobj* func) {
 		stack[2] = value_undef(cpu); // call info 1
 		stack[3] = value_undef(cpu); // call info 2
 	}
-	struct code* code = readptr(func->code);
-	for (int pc = 0;;) {
-		struct ins* ins = &((struct ins*)readptr(code->ins))[pc++];
+	g_code = readptr(func->code);
+	for (g_pc = 0;;) {
+		struct ins* ins = &((struct ins*)readptr(g_code->ins))[g_pc++];
 		switch (ins->opcode) {
 		case op_kundef: retval = value_undef(cpu); break;
 		case op_knull: retval = value_null(cpu); break;
 		case op_kfalse: retval = value_bool(cpu, 0); break;
 		case op_ktrue: retval = value_bool(cpu, 1); break;
 		case op_knum: {
-			struct ins* next = &((struct ins*)readptr(code->ins))[pc++];
+			struct ins* next = &((struct ins*)readptr(g_code->ins))[g_pc++];
 			uint16_t low = ins->imm;
 			uint16_t high = next->imm;
 			number num = (number)low + ((number)high << 16);
 			retval = value_num(cpu, num);
 			break;
 		}
-		case op_kobj: retval = ((struct value*)readptr(code->k))[ins->imm]; break;
+		case op_kobj: retval = ((struct value*)readptr(g_code->k))[ins->imm]; break;
 		case op_mov: retval = lval; break;
 		case op_xchg: {
 			struct value tmp = retval;
@@ -331,9 +385,9 @@ void cpu_execute(struct cpu* cpu, struct funcobj* func) {
 		case op_gset: tab_set(cpu, (struct tabobj*)readptr(cpu->globals), retvalstr, lval); break;
 		case op_uget: retval = *(struct value*)readptr(((struct upval*)readptr(func->upval[ins->op2]))->val); break;
 		case op_uset: *(struct value*)readptr(((struct upval*)readptr(func->upval[ins->op1]))->val) = lval; break;
-		case op_j: pc += ins->imm; break;
-		case op_jtrue: if (retvalbool) pc += ins->imm; break;
-		case op_jfalse: if (!retvalbool) pc += ins->imm; break;
+		case op_j: g_pc += ins->imm; break;
+		case op_jtrue: if (retvalbool) g_pc += ins->imm; break;
+		case op_jfalse: if (!retvalbool) g_pc += ins->imm; break;
 		case op_func: {
 			struct code* code = &((struct code*)readptr(cpu->code))[ins->imm];
 			struct funcobj* f = (struct funcobj*)gc_alloc(cpu, t_func,
@@ -401,11 +455,11 @@ void cpu_execute(struct cpu* cpu, struct funcobj* func) {
 				ci1->func = writeptr(func);
 				stack[ci + 1].type = t_callinfo2;
 				struct callinfo2* ci2 = &stack[ci + 1].ci2;
-				ci2->pc = pc;
+				ci2->pc = g_pc;
 				ci2->stack_size = stack_size;
-				pc = 0;
+				g_pc = 0;
 				func = f;
-				code = readptr(func->code);
+				g_code = readptr(func->code);
 			}
 			else
 				runtime_error(cpu, "Not callable object.");
@@ -424,10 +478,10 @@ void cpu_execute(struct cpu* cpu, struct funcobj* func) {
 			else
 				frame[0] = retval;
 			func = readptr(ci1.func);
-			pc = ci2.pc;
+			g_pc = ci2.pc;
 			cpu->sp -= ci2.stack_size;
 			update_stack();
-			code = readptr(func->code);
+			g_code = readptr(func->code);
 			break;
 		}
 		default: internal_error(cpu);

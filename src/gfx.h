@@ -13,6 +13,7 @@ void gfx_rect(struct gfx* gfx, int x, int y, int w, int h, int c);
 void gfx_fill_rect(struct gfx* gfx, int x, int y, int w, int h, int c);
 void gfx_spr(struct gfx* gfx, int sx, int sy, int x, int y, int w, int h, int r);
 void gfx_print(struct gfx* gfx, const char* str, int len, int x, int y, int c);
+void gfx_print_simple(struct gfx* gfx, const char* str, int len, int c);
 void gfx_setpixel(struct gfx* gfx, int x, int y, int c);
 int gfx_getpixel(struct gfx* gfx, int x, int y);
 

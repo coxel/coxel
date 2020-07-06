@@ -9,6 +9,7 @@
 
 #include <stdint.h>
 
+#define MAX_STACKTRACE		10
 #define SPRITE_WIDTH		8
 #define SPRITE_HEIGHT		8
 #define SPRITESHEET_WIDTH	64

@@ -143,7 +143,7 @@ static void gfx_vscroll(struct gfx* gfx, int up_amount) {
 	memset(&gfx->screen[(HEIGHT - up_amount) * WIDTH / 2], 0, up_amount * WIDTH / 2);
 }
 
-void gfx_print(struct gfx* gfx, const char* str, int len, int x, int y, int c) {
+static void gfx_print_internal(struct gfx* gfx, const char* str, int len, int x, int y, int c, int newline) {
 	if (c == -1)
 		c = gfx->color;
 	int use_cursor = 0;
@@ -153,9 +153,10 @@ void gfx_print(struct gfx* gfx, const char* str, int len, int x, int y, int c) {
 		use_cursor = 1;
 	}
 	for (int i = 0; i < len; i++) {
+		char ch = str[i];
 		/* cursor movement */
 		if (use_cursor) {
-			if (x + 3 > WIDTH) {
+			if (x + 3 > WIDTH || ch == '\n') {
 				x = 0;
 				y += 7;
 			}
@@ -164,7 +165,6 @@ void gfx_print(struct gfx* gfx, const char* str, int len, int x, int y, int c) {
 				y -= 7;
 			}
 		}
-		char ch = str[i];
 		if (ch < 32 || ch >= 127)
 			continue;
 		for (int fx = 0; fx < 3; fx++) {
@@ -179,13 +179,23 @@ void gfx_print(struct gfx* gfx, const char* str, int len, int x, int y, int c) {
 		x += 4;
 	}
 	if (use_cursor) {
-		x = 0;
-		y += 7;
-		if (y + 7 > HEIGHT) {
-			gfx_vscroll(gfx, 7);
-			y -= 7;
+		if (newline) {
+			x = 0;
+			y += 7;
+			if (y + 7 > HEIGHT) {
+				gfx_vscroll(gfx, 7);
+				y -= 7;
+			}
 		}
 		gfx->cx = x;
 		gfx->cy = y;
 	}
+}
+
+void gfx_print(struct gfx* gfx, const char* str, int len, int x, int y, int c) {
+	gfx_print_internal(gfx, str, len, x, y, c, 1);
+}
+
+void gfx_print_simple(struct gfx* gfx, const char* str, int len, int c) {
+	gfx_print_internal(gfx, str, len, -1, -1, c, 0);
 }
