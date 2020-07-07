@@ -1291,7 +1291,8 @@ static void compile_let(struct context* ctx) {
 	} while (ctx->token == tk_comma);
 }
 
-static void patch_break_continue(struct context* ctx, int patch_base, int break_pc, int continue_pc) {
+static void patch_break_continue(struct context* ctx, int patch_base, int break_pc, int continue_pc, int close_sp) {
+	struct cpu* cpu = ctx->cpu;
 	int j = patch_base;
 	for (int i = patch_base; i < ctx->patch_cnt; i++) {
 		struct patch* patch = &ctx->patch[i];
@@ -1306,6 +1307,11 @@ static void patch_break_continue(struct context* ctx, int patch_base, int break_
 				ctx->patch[j++] = *patch;
 			else
 				patch_rel(ctx, patch->pc, continue_pc);
+		}
+		if (close_sp != -1) {
+			struct ins* ins = &((struct ins*)readptr(topcode()->ins))[patch->pc];
+			ins->opcode = op_closej;
+			ins->op1 = close_sp;
 		}
 	}
 	ctx->patch_cnt = j;
@@ -1350,6 +1356,7 @@ static void compile_statement(struct context* ctx) {
 		return;
 	}
 	case tk_switch: {
+		int old_sp = ctx->sp;
 		int old_canbreak = ctx->canbreak;
 		int patch_base = ctx->patch_cnt;
 		ctx->canbreak = 1;
@@ -1391,7 +1398,7 @@ static void compile_statement(struct context* ctx) {
 		if (passthrough_pc != -1)
 			patch_rel(ctx, passthrough_pc, current_pc(ctx));
 		require_token(ctx, tk_rbrace);
-		patch_break_continue(ctx, patch_base, current_pc(ctx), -1);
+		patch_break_continue(ctx, patch_base, current_pc(ctx), -1, old_sp);
 		ctx->canbreak = old_canbreak;
 		return;
 	}
@@ -1456,10 +1463,11 @@ static void compile_statement(struct context* ctx) {
 		ctx->local_sp = old_localsp;
 		ctx->canbreak = old_canbreak;
 		ctx->cancontinue = old_cancontinue;
-		patch_break_continue(ctx, patch_base, current_pc(ctx), continue_pc);
+		patch_break_continue(ctx, patch_base, current_pc(ctx), continue_pc, old_sp);
 		return;
 	}
 	case tk_while: {
+		int old_sp = ctx->sp;
 		int old_canbreak = ctx->canbreak;
 		int old_cancontinue = ctx->cancontinue;
 		int patch_base = ctx->patch_cnt;
@@ -1479,10 +1487,11 @@ static void compile_statement(struct context* ctx) {
 		patch_rel(ctx, cond_pc, current_pc(ctx));
 		ctx->canbreak = old_canbreak;
 		ctx->cancontinue = old_cancontinue;
-		patch_break_continue(ctx, patch_base, current_pc(ctx), loop_pc);
+		patch_break_continue(ctx, patch_base, current_pc(ctx), loop_pc, old_sp);
 		return;
 	}
 	case tk_do: {
+		int old_sp = ctx->sp;
 		int old_canbreak = ctx->canbreak;
 		int old_cancontinue = ctx->cancontinue;
 		int patch_base = ctx->patch_cnt;
@@ -1501,7 +1510,7 @@ static void compile_statement(struct context* ctx) {
 		require_token(ctx, tk_rparen);
 		ctx->canbreak = old_canbreak;
 		ctx->cancontinue = old_cancontinue;
-		patch_break_continue(ctx, patch_base, current_pc(ctx), cond_pc);
+		patch_break_continue(ctx, patch_base, current_pc(ctx), cond_pc, old_sp);
 		break;
 	}
 	case tk_break: {

@@ -386,6 +386,11 @@ void cpu_execute(struct cpu* cpu, struct funcobj* func) {
 		case op_uget: retval = *(struct value*)readptr(((struct upval*)readptr(func->upval[ins->op2]))->val); break;
 		case op_uset: *(struct value*)readptr(((struct upval*)readptr(func->upval[ins->op1]))->val) = lval; break;
 		case op_j: g_pc += ins->imm; break;
+		case op_closej: {
+			close_upvals(cpu, frame, ins->op1);
+			g_pc += ins->imm; break;
+			break;
+		}
 		case op_jtrue: if (retvalbool) g_pc += ins->imm; break;
 		case op_jfalse: if (!retvalbool) g_pc += ins->imm; break;
 		case op_func: {

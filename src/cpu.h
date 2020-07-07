@@ -172,6 +172,7 @@ struct tabobj {
 	X(op_uset, "uset", IMM8, REG, _) \
 	/* control flow */ \
 	X(op_j, "j", _, REL, _) \
+	X(op_closej, "closej", REG, REL, _) \
 	X(op_jtrue, "jtrue", REG, REL, _) \
 	X(op_jfalse, "jfalse", REG, REL, _) \
 	/* function */ \
