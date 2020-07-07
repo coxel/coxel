@@ -57,10 +57,6 @@ static void next_char(struct parse_context* ctx) {
 	}
 }
 
-static inline int is_allowed_char(char ch) {
-	return (ch >= 32 && ch <= 126) || (ch == '\n');
-}
-
 static struct run_result parse_cart(void* file, uint32_t filesize, struct cart* cart) {
 #define TEMP_BUF_SIZE	16
 	struct parse_context ctx;

@@ -289,11 +289,7 @@ struct value devlib_paste(struct cpu* cpu, int sp, int nargs) {
 	if (buf == NULL)
 		out_of_memory_error(cpu);
 	int r = platform_paste(buf, len);
-	struct value ret;
-	if (r < 0)
-		ret = value_undef(cpu);
-	else
-		ret = value_str(cpu, str_intern(cpu, buf, r));
+	struct value ret = value_str(cpu, str_intern(cpu, buf, r));
 	mem_free(&cpu->alloc, buf);
 	return ret;
 }

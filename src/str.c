@@ -7,6 +7,18 @@
 
 #include <string.h>
 
+int is_allowed_char(char ch) {
+	return (ch >= 32 && ch <= 126) || (ch == '\n');
+}
+
+int copy_allowed_chars(char* dest, int destlen, const char* src, int srclen) {
+	int n = 0;
+	for (int i = 0; i < srclen && n < destlen; i++)
+		if (is_allowed_char(src[i]))
+			dest[n++] = src[i];
+	return n;
+}
+
 /* murmurhash3 x86_32 */
 uint32_t str_hash(const void* key, int len) {
 	const uint8_t* data = (const uint8_t*)key;

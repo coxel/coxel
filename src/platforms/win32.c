@@ -1,6 +1,7 @@
 #include "../gfx.h"
 #include "../key.h"
 #include "../platform.h"
+#include "../str.h"
 
 #define WIN32_LEAN_AND_MEAN
 #include <Windows.h>
@@ -148,14 +149,9 @@ int platform_paste(char* ptr, int len) {
 		char* buf = (char*)GlobalLock(mem);
 		if (buf != NULL) {
 			size_t size = GlobalSize(mem);
-			if (size > 0 && buf[size] == 0)
-				--size;
-			if (size > len)
-				r = -1;
-			else {
-				r = (int)size;
-				memcpy(ptr, buf, r);
-			}
+			if (size > INT_MAX)
+				size = INT_MAX;
+			r = copy_allowed_chars(ptr, len, buf, (int)size);
 			GlobalUnlock(mem);
 		}
 	}

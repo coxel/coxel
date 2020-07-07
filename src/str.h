@@ -7,6 +7,8 @@
 
 #define STR_MAXLEN      65535
 
+int is_allowed_char(char ch);
+int copy_allowed_chars(char* dest, int destlen, const char* src, int srclen);
 uint32_t str_hash(const void* key, int len);
 int str_equal(const void* key1, int len1, const void* key2, int len2);
 /* Supported formats:
