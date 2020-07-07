@@ -4,6 +4,7 @@
 #import "MainView.h"
 #include "../../platform.h"
 #include "../../key.h"
+#include "../../str.h"
 #include <sys/stat.h>
 
 NORETURN void platform_error(const char *msg) {
@@ -26,10 +27,19 @@ void platform_free(void* ptr) {
 }
 
 void platform_copy(const char* ptr, int len) {
+	NSString* str = [[NSString alloc] initWithBytes:ptr length:len encoding:NSASCIIStringEncoding];
+	[[UIPasteboard generalPasteboard] setString:str];
 }
 
 int platform_paste(char* ptr, int len) {
-	return 0;
+	NSString* str = [[UIPasteboard generalPasteboard] string];
+	if (str == nil)
+		return 0;
+	const char* buf = [str UTF8String];
+	size_t size = strlen(buf);
+	if (size > INT_MAX)
+		size = INT_MAX;
+	return copy_allowed_chars(ptr, len, buf, (int)size);
 }
 
 uint32_t platform_seed() {
