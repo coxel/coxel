@@ -95,7 +95,7 @@ void key_setstate(enum key key, int pressed) {
 }
 
 void key_input(char ch) {
-	if (ch == 0) // TODO: Check character validity
+	if (!is_allowed_char(ch))
 		return;
 	struct io* io = console_getio();
 	if (io->input_size < MAX_INPUT_CHARS)
