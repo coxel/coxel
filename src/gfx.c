@@ -117,6 +117,8 @@ void gfx_fill_rect(struct gfx* gfx, int x, int y, int w, int h, int c) {
 }
 
 void gfx_spr(struct gfx* gfx, int sx, int sy, int x, int y, int w, int h, int r) {
+	x -= gfx->cam_x;
+	y -= gfx->cam_y;
 	for (int i = 0; i < h && sy + i < SPRITESHEET_HEIGHT; i++)
 		for (int j = 0; j < w && sx + j < SPRITESHEET_WIDTH; j++) {
 			int c = gfx->sprite[((sy + i) * SPRITESHEET_WIDTH + (sx + j)) / 2];
