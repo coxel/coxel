@@ -37,9 +37,9 @@ let kwSet = makeChMap(kws, true);
 let tokEnd, tokColor;
 function initParse(pr) {
   if (pr.token == "comment")
-    tokColor = 5;
+    tokColor = 4;
   else if (pr.token == "string")
-    tokColor = 3;
+    tokColor = 5;
   else
     tokColor = 14;
   tokEnd = pr.tokenEnd;
@@ -307,6 +307,16 @@ function downRows(rows) {
 }
 
 let findText = "";
+function findNext() {
+  let p = code.indexOf(findText, cend);
+  if (p == -1)
+    p = code.indexOf(findText);
+  if (p != -1) {
+    move(p + findText.length);
+    cbeg = p;
+  }
+}
+
 function find() {
   statInput("Find:", function(text) {
     if (text == undefined)
@@ -314,12 +324,35 @@ function find() {
     findText = text;
     if (text == "")
       return;
-    let p = code.indexOf(text, cend);
-    if (p != -1) {
-      move(p + text.length);
-      cbeg = p;
-    }
+    findNext();
   }, findText);
+}
+
+function goto() {
+  statInput("Goto line:", function(t) {
+    if (t == "" || t == undefined)
+      return;
+    let line = t >>> 0;
+    if (line == 0)
+      return;
+    let c = findLine(line - 1);
+    move(c);
+    cbeg = cend;
+  }, "", function(c) {
+    return c >= "0" && c <= "9";
+  });
+}
+
+function getIndent(p) {
+  let s = 1 + code.lastIndexOf("\n", p);
+  let ret = 0;
+  for (let i = s; i<code.length; i++) {
+    if (code[i] == " ")
+      ret++;
+    else
+      break;
+  }
+  return ret;
 }
 
 function onframe_codeEditor() {
@@ -333,8 +366,14 @@ function onframe_codeEditor() {
     else
       insert("  ");
   }
-  else if (dev_keyp("return"))
+  else if (dev_keyp("return")) {
     insert("\n");
+    let indent = getIndent(cend - 2);
+    let t = "";
+    for (let i = 0; i < indent; i++)
+      t += " ";
+    insert(t);
+  }
   else if (dev_keyp("backspace")) {
     if (cbeg == cend && cbeg != 0)
       cbeg--;
@@ -365,6 +404,12 @@ function onframe_codeEditor() {
     let p = code.indexOf("\n", cend);
     move(p == -1 ? code.length : p);
   }
+  else if (dev_keyp("f3")) {
+    if (findText)
+      findNext();
+    else
+      find();
+  }
   else if (dev_key("ctrl")) {
     // Ctrl- shortcuts
     if (dev_keyp("a"))
@@ -386,6 +431,8 @@ function onframe_codeEditor() {
     }
     else if (dev_keyp("f"))
       find();
+    else if (dev_keyp("g"))
+      goto();
     else if (dev_keyp("y"))
       redo();
     else if (dev_keyp("z")) {
@@ -591,38 +638,99 @@ function statRes(res) {
   }
 }
 
-function statInput(prompt, f, text) {
+function statInput(prompt, f, text, v) {
   if (text == undefined)
     text = "";
+  if (v == undefined)
+    v = function(ch) { return true; };
   let old = onframe;
   let blinkTimer = 0;
+  let sbeg = 0;
+  let send = text.length;
+  let move = function(x) {
+    if (dev_key("shift"))
+      send = x;
+    else
+      sbeg = send = x;
+    blinkTimer = 0;
+  };
+  let insert = function(t) {
+    let vt = "";
+    for (let i = 0; i < t.length; i++)
+      if (v(t[i]))
+        vt += t[i];
+    let l = min(sbeg, send);
+    let r = max(sbeg, send);
+    text = text.substr(0, l)
+      + vt + text.substr(r);
+    sbeg = send = l + vt.length;
+    blinkTimer = 0;
+  };
   onframe = function() {
     fillRect(0, 136, 160, 8, 15);
     print(prompt, 1, 138, 2);
+    let l = min(sbeg, send);
+    let r = max(sbeg, send);
     let x = 1 + prompt.length * 4;
-    print(text, x, 138, 9);
-    x += text.length * 4;
-    if (blinkTimer < 30)
+    print(text.substr(0,l),x,138,9);
+    x += l * 4;
+    fillRect(x,137,(r-l)*4,7,8);
+    print(text.substr(l,r-l),x,138,7);
+    x += (r - l) * 4;
+    print(text.substr(r),x,138,9);
+    if (blinkTimer < 30) {
+      let x = (prompt.length+send)*4;
       line(x, 137, x, 143, 9);
+    }
     blinkTimer = (blinkTimer + 1) % 60;
 
     let input = dev_input();
-    if (input) {
-      text += input;
-      blinkTimer = 0;
-    }
+    if (input)
+      insert(input);
     else if (dev_keyp("backspace")) {
-      if (text)
-        text = text.substr(0,
-          text.length - 1);
+      if (sbeg != send)
+        insert("");
+      else if (send > 0) {
+        sbeg--;
+        insert("");
+      }
     }
-    else if (dev_key("esc")) {
+    else if (dev_keyp("delete")) {
+      if (sbeg != send)
+        insert("");
+      else if (send < text.length) {
+        sbeg++;
+        insert("");
+      }
+    }
+    else if (dev_keyp("left"))
+      move(max(0, send - 1));
+    else if (dev_keyp("right"))
+      move(min(send + 1, text.length));
+    else if (dev_keyp("home"))
+      move(0);
+    else if (dev_keyp("end"))
+      move(text.length);
+    else if (dev_keyp("esc")) {
       f();
       onframe = old;
     }
-    else if (dev_key("return")) {
+    else if (dev_keyp("return")) {
       f(text);
       onframe = old;
+    }
+    else if (dev_key("ctrl")) {
+      if (dev_keyp("a")) {
+        sbeg = 0;
+        send = text.length;
+      }
+      else if (dev_keyp("c")) {
+        let l = min(sbeg, send);
+        let r = max(sbeg, send);
+        dev_copy(text.substr(l, r - l));
+      }
+      else if (dev_keyp("v"))
+        insert(dev_paste());
     }
   };
 }
