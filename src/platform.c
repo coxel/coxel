@@ -105,9 +105,8 @@ static struct run_result parse_cart(void* file, uint32_t filesize, struct cart* 
 			next_char(&ctx);
 			int name_len = 0;
 			while (name_len < TEMP_BUF_SIZE && ctx.ch != 0 && ctx.ch != '\n') {
-				if (ctx.ch == '\r')
-					continue;
-				temp_buf[name_len++] = ctx.ch;
+				if (ctx.ch != '\r')
+					temp_buf[name_len++] = ctx.ch;
 				next_char(&ctx);
 			}
 			if (ctx.ch == 0) {
