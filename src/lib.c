@@ -51,6 +51,38 @@ struct value lib_camera(struct cpu* cpu, int sp, int nargs) {
 	return value_undef(cpu);
 }
 
+struct value lib_pal(struct cpu* cpu, int sp, int nargs) {
+	if (nargs != 0 && nargs != 2)
+		argument_error(cpu);
+	struct gfx* gfx = console_getgfx();
+	if (nargs == 0) {
+		gfx_reset_pal(gfx);
+		gfx_reset_palt(gfx);
+	}
+	else {
+		int c = num_int(to_number(cpu, ARG(0)));
+		int c1 = num_int(to_number(cpu, ARG(1)));
+		if (c >= 0 && c <= 15 && c1 >= 0 && c1 <= 15)
+			gfx_pal(gfx, c, c1);
+	}
+	return value_undef(cpu);
+}
+
+struct value lib_palt(struct cpu* cpu, int sp, int nargs) {
+	if (nargs != 0 && nargs != 2)
+		argument_error(cpu);
+	struct gfx* gfx = console_getgfx();
+	if (nargs == 0)
+		gfx_reset_palt(gfx);
+	else {
+		int c = num_int(to_number(cpu, ARG(0)));
+		int t = to_bool(cpu, ARG(1));
+		if (c >= 0 && c <= 15)
+			gfx_palt(gfx, c, t);
+	}
+	return value_undef(cpu);
+}
+
 struct value lib_pget(struct cpu* cpu, int sp, int nargs) {
 	if (nargs != 2)
 		argument_error(cpu);
@@ -486,6 +518,8 @@ static const struct libdef libdefs[] = {
 	{"btnp", cf_lib_btnp },
 	{"cls", cf_lib_cls },
 	{"camera", cf_lib_camera },
+	{"pal", cf_lib_pal },
+	{"palt", cf_lib_palt },
 	{"pget", cf_lib_pget },
 	{"pset", cf_lib_pset },
 	{"line", cf_lib_line },

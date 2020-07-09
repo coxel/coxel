@@ -25,6 +25,7 @@ uint32_t palette[16] = {
 void gfx_setpixel(struct gfx* gfx, int x, int y, int c) {
 	if (x < 0 || x >= WIDTH || y < 0 || y >= HEIGHT)
 		return;
+	c = gfx->pal[c];
 	int i = (y * WIDTH + x) / 2;
 	if (x % 2)
 		gfx->screen[i] = (gfx->screen[i] & 0x0F) + (c << 4);
@@ -47,6 +48,8 @@ void gfx_init(struct gfx* gfx) {
 	gfx->cam_x = 0;
 	gfx->cam_y = 0;
 	memset(gfx->screen, 0, sizeof(gfx->screen));
+	gfx_reset_pal(gfx);
+	gfx_reset_palt(gfx);
 }
 
 void gfx_cls(struct gfx* gfx, int c) {
@@ -60,6 +63,25 @@ void gfx_cls(struct gfx* gfx, int c) {
 void gfx_camera(struct gfx* gfx, int x, int y) {
 	gfx->cam_x = x;
 	gfx->cam_y = y;
+}
+
+void gfx_reset_pal(struct gfx* gfx) {
+	for (int i = 0; i < 16; i++)
+		gfx->pal[i] = i;
+}
+
+void gfx_pal(struct gfx* gfx, int c, int c1) {
+	gfx->pal[c] = c1;
+}
+
+void gfx_reset_palt(struct gfx* gfx) {
+	for (int i = 0; i < 16; i++)
+		gfx->palt[i] = 0;
+	gfx->palt[0] = 1;
+}
+
+void gfx_palt(struct gfx* gfx, int c, int t) {
+	gfx->palt[c] = t;
 }
 
 void gfx_line(struct gfx* gfx, int x1, int y1, int x2, int y2, int c) {
@@ -126,6 +148,8 @@ void gfx_spr(struct gfx* gfx, int sx, int sy, int x, int y, int w, int h, int r)
 				c = c & 0xF;
 			else
 				c = c >> 4;
+			if (gfx->palt[c])
+				continue;
 			if (r == 0)
 				gfx_setpixel(gfx, x + j, y + i, c);
 			else if (r == 90)

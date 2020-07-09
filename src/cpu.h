@@ -289,6 +289,8 @@ struct gfx {
 	int color; /* foreground color */
 	int cx, cy; /* cursor location */
 	int cam_x, cam_y; /* camera location */
+	uint8_t pal[16];
+	uint8_t palt[16];
 };
 
 struct cpu {

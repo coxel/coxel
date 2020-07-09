@@ -34,6 +34,9 @@ static void print_name(struct cpu* cpu, struct code* code) {
 NORETURN void runtime_error(struct cpu* cpu, const char* msg) {
 	struct gfx* gfx = console_getgfx();
 	gfx_cls(gfx, 0);
+	gfx_reset_pal(gfx);
+	gfx_reset_palt(gfx);
+	gfx_camera(gfx, 0, 0);
 	gfx->cx = 0;
 	gfx->cy = 0;
 	gfx_print(gfx, "RUNTIME ERROR", 13, -1, -1, 2);

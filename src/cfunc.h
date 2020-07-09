@@ -9,6 +9,8 @@ typedef struct value(*cfunc)(struct cpu* cpu, int sp, int nargs);
 	X(lib_btnp) \
 	X(lib_cls) \
 	X(lib_camera) \
+	X(lib_pal) \
+	X(lib_palt) \
 	X(lib_pget) \
 	X(lib_pset) \
 	X(lib_line) \
