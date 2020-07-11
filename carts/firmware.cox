@@ -397,12 +397,21 @@ function onframe_codeEditor() {
   else if (dev_keyp("pgdn"))
     downRows(18);
   else if (dev_keyp("home")) {
-    let p = code.lastIndexOf("\n", cend - 1);
-    move(p == -1 ? 0 : p + 1);
+    if (dev_key("ctrl"))
+      move(0);
+    else {
+      let p = code.lastIndexOf("\n",
+        cend - 1);
+      move(p == -1 ? 0 : p + 1);
+    }
   }
   else if (dev_keyp("end")) {
-    let p = code.indexOf("\n", cend);
-    move(p == -1 ? code.length : p);
+    if (dev_key("ctrl"))
+      move(code.length);
+    else {
+      let p = code.indexOf("\n", cend);
+      move(p == -1 ? code.length : p);
+    }
   }
   else if (dev_keyp("f3")) {
     if (findText)
@@ -425,8 +434,6 @@ function onframe_codeEditor() {
     }
     else if (dev_keyp("v")) {
       let p = dev_paste();
-      if (p == undefined)
-        showWarning("Text too long.");
       insert(p);
     }
     else if (dev_keyp("f"))
@@ -454,21 +461,45 @@ function onframe_codeEditor() {
 }
 
 let sprite = dev_newbuf(8192);
+let sprVy = 0;
 let sprId = 0;
 let sprSize = 8;
 let color = 0;
+let mcpos = { x:-1, y:-1 };
+let mcsprVy = 0;
 
 function onframe_spriteEditor() {
   let mpos = dev_mpos();
+  if (dev_keyp("mleft"))
+    mcpos = mpos;
   if (dev_key("ctrl") && dev_keyp("tab"))
     onframe = onframe_codeEditor;
 
   cls();
   fillRect(0, 8, 160, 128, 8);
-  drawToolbar();
+  
+  // Draw sprite sheet scrollbar
+  fillRect(64, 8, 4, 128, 4);
+  let dc = 9;
+  if (mpos.x >= 64 && mpos.x < 68
+    && mpos.y >= 8+6*sprVy
+    && mpos.y < 40+6*sprVy) {
+    dc = 10;
+    if (dev_keyp("mleft"))
+      mcsprVy = sprVy;
+  }
+  if (dev_key("mleft")
+    && mcpos.x >= 64 && mcpos.x < 68
+    && mcpos.y >= 8 && mcpos.y < 136) {
+    sprVy = floor((mpos.y-mcpos.y)/6)
+      + mcsprVy;
+    sprVy = max(0, min(sprVy, 16));
+    dc = 9;
+  }
+  fillRect(64, 8+6*sprVy, 4, 32, dc);
 
   // Draw sprite sheet picker
-  let p = 0;
+  let p = sprVy * 8 * 32;
   for (let i = 0; i < 128; i++) {
     for (let j = 0; j < 64; j += 2) {
       pset(j,8+i,sprite[p]&15);
@@ -492,14 +523,15 @@ function onframe_spriteEditor() {
     && mpos.y>=8 && mpos.y<136) {
     let id = floor(mpos.x/8)
       + 8*floor((mpos.y-8)/8);
-    sprId = id;
+    sprId = sprVy * 8 + id;
   }
-  sprId = (sprId & -8)
+  sprId = min(sprId & -8, 256-sprSize)
     + min(sprId % 8, (64-sprSize)/8);
   let row = floor(sprId / 8);
   let col = sprId % 8;
   // First pixel position in buffer
   let firstp = (row*512+col*8)>>1;
+  row -= sprVy;
   rect(col*8,8+row*8,sprSize,sprSize,15);
 
   // Draw canvas
@@ -517,20 +549,26 @@ function onframe_spriteEditor() {
       p++;
     }
   }
+  // Draw helpers
+  let setPixel = function(x,y,c) {
+    let p = firstp+floor(y*32+floor(x/2));
+    if (x % 2 == 0)
+      sprite[p]=(sprite[p]&0xF0)+c;
+    else
+      sprite[p]=(sprite[p]&0xF)+c*16;
+  };
   if (dev_key("mleft")
     && mpos.x>=80 && mpos.x<144
     && mpos.y>=18 && mpos.y<82) {
     let x = floor((mpos.x - 80) / ps);
     let y = floor((mpos.y - 18) / ps);
-    let p = firstp+floor(y*32+floor(x/2));
-    if (x % 2 == 0)
-      sprite[p]=(sprite[p]&0xF0)+color;
-    else
-      sprite[p]=(sprite[p]&0xF)+color*16;
-    //print(color, 30, 30);
-    //print(p, 30, 40);
-    //print(sprite[p], 30, 50);
+    setPixel(x, y, color);
   }
+
+  // Draw tools
+  let cset = [ 14, 6, 15];
+  iconBtn(8, 90, 84, cset);
+  iconBtn(9, 98, 84, cset);
 
   // Draw color picker
   rect(119, 95, 34, 34, 0);
@@ -550,7 +588,9 @@ function onframe_spriteEditor() {
   rect(119+(color%4)*8,
     95+floor(color/4)*8,10,10,15);
 
-//  rect(mpos.x, mpos.y, 1, 1, 5);
+  stat(sprId + "  "
+    + sprSize + "x" + sprSize);
+  drawToolbar();
 }
 
 function getCart() {
@@ -558,6 +598,24 @@ function getCart() {
     code: code,
     sprite: sprite,
   };
+}
+
+function iconBtn(id,x,y,cset,f,sel) {
+  let pos = dev_mpos();
+  let c = cset[0];
+  if (sel)
+    c = cset[2];
+  if (pos.x >= x && pos.y >= y
+    && pos.x < x+8 && pos.y < y+8) {
+    c = cset[1];
+    if (dev_key("mleft"))
+      c = cset[2];
+    if (dev_keyp("mleft") && f)
+      f();
+  }
+  pal(15, c);
+  spr(id, x, y);
+  pal();
 }
 
 let filename;
@@ -616,9 +674,16 @@ function drawToolbar() {
       }
     );
   }
-  fillRect(0, 0, 160, 8, 15);
-  fillRect(0, 136, 160, 8, 15);
-  if (statMsg)
+  fillRect(0, 0, 160, 8, 14);
+  fillRect(0, 136, 160, 8, 14);
+  let tcset = [15, 7, 6];
+  iconBtn(0, 0, 0, tcset, function() {
+    onframe = onframe_codeEditor;
+  }, onframe == onframe_codeEditor);
+  iconBtn(1, 8, 0, tcset, function() {
+    onframe = onframe_spriteEditor;
+  }, onframe == onframe_spriteEditor);
+  if (statMsg != "")
     print(statMsg,1,138,statColor);
 }
 
@@ -736,3 +801,21 @@ function statInput(prompt, f, text, v) {
 }
 
 onframe = onframe_codeEditor;
+
+	>sprites
+0000000000000000000000000000000000000000000000000000000000000000
+00f00f0000ffff00000000000000000000000000000000000000000000000000
+0f0000f00ff00ff0000000000000000000000000000000000000000000000000
+0f0000f00f0000f0000000000000000000000000000000000000000000000000
+0f0000f000ffff00000000000000000000000000000000000000000000000000
+0f0000f00ff00ff0000000000000000000000000000000000000000000000000
+00f00f0000f00f00000000000000000000000000000000000000000000000000
+0000000000000000000000000000000000000000000000000000000000000000
+0000000000000000000000000000000000000000000000000000000000000000
+0000f00000f00000000000000000000000000000000000000000000000000000
+000fff000f0f0000000000000000000000000000000000000000000000000000
+00fffff0f000f000000000000000000000000000000000000000000000000000
+0fffff000f000f00000000000000000000000000000000000000000000000000
+f0fff00000fffff0000000000000000000000000000000000000000000000000
+f00f0000f00fff00000000000000000000000000000000000000000000000000
+fff00000f000f000000000000000000000000000000000000000000000000000
