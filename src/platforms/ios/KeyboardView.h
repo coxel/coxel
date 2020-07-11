@@ -2,4 +2,6 @@
 
 @interface KeyboardView: UIStackView
 
+-(enum key)extractDelayedReleaseKey;
+
 @end

@@ -85,6 +85,7 @@ bool ctrlToggled = NO;
 bool symbolHold = NO;
 bool symbolToggled = NO;
 bool keyPressedDuringHold = NO;
+enum key delayedReleaseKey = kc_none;
 NSMutableArray *btnArray = nil;
 UIButton *spaceBtn = nil;
 
@@ -297,7 +298,7 @@ UIButton *spaceBtn = nil;
 		[self updateButtonTitles];
 	}
 	else if (ctrlToggled) {
-		key_release(kc_ctrl);
+		delayedReleaseKey = kc_ctrl;
 		ctrlToggled = NO;
 		[self updateButtonTitles];
 	}
@@ -363,6 +364,12 @@ UIButton *spaceBtn = nil;
 	}
 	if (key < kc_cnt)
 		key_release(key);
+}
+
+-(enum key)extractDelayedReleaseKey {
+	enum key key = delayedReleaseKey;
+	delayedReleaseKey = kc_none;
+	return key;
 }
 
 @end

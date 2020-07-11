@@ -151,6 +151,9 @@ MainView *mainView;
 -(void)update:(CADisplayLink *)displayLink {
 	btn_standard_update();
 	console_update();
+	enum key key = [keyboardView extractDelayedReleaseKey];
+	if (key != kc_none)
+		key_release(key);
 	[mainView setNeedsDisplay];
 }
 
