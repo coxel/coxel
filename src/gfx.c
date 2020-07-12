@@ -138,13 +138,17 @@ void gfx_fill_rect(struct gfx* gfx, int x, int y, int w, int h, int c) {
 			gfx_setpixel(gfx, x + j, y + i, c);
 }
 
-void gfx_spr(struct gfx* gfx, int sx, int sy, int x, int y, int w, int h, int r) {
+void gfx_spr(struct gfx* gfx, int sx, int sy, int sw, int sh, int x, int y, int w, int h, int r) {
 	x -= gfx->cam_x;
 	y -= gfx->cam_y;
-	for (int i = 0; i < h && sy + i < SPRITESHEET_HEIGHT; i++)
-		for (int j = 0; j < w && sx + j < SPRITESHEET_WIDTH; j++) {
-			int c = gfx->sprite[((sy + i) * SPRITESHEET_WIDTH + (sx + j)) / 2];
-			if ((sx + j) % 2 == 0)
+	for (int i = 0; i < h; i++)
+		for (int j = 0; j < w; j++) {
+			int ty = sy + i * sh / h;
+			int tx = sx + j * sw / w;
+			if (ty >= SPRITESHEET_HEIGHT || tx >= SPRITESHEET_WIDTH)
+				continue;
+			int c = gfx->sprite[(ty * SPRITESHEET_WIDTH + tx) / 2];
+			if (tx % 2 == 0)
 				c = c & 0xF;
 			else
 				c = c >> 4;

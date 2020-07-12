@@ -158,21 +158,43 @@ struct value lib_spr(struct cpu* cpu, int sp, int nargs) {
 	int w = SPRITE_WIDTH;
 	int h = SPRITE_HEIGHT;
 	int r = 0;
-	if (nargs >= 4) {
+	if (nargs >= 4)
 		w = num_int(num_mul(num_kint(SPRITE_WIDTH), to_number(cpu, ARG(3))));
-		if (nargs >= 5) {
-			h = num_int(num_mul(num_kint(SPRITE_HEIGHT), to_number(cpu, ARG(4))));
-			if (nargs >= 6) {
-				r = num_int(to_number(cpu, ARG(5)));
-				if (r % 90 != 0)
-					argument_error(cpu);
-			}
-		}
+	if (nargs >= 5)
+		h = num_int(num_mul(num_kint(SPRITE_HEIGHT), to_number(cpu, ARG(4))));
+	if (nargs >= 6) {
+		r = num_int(to_number(cpu, ARG(5)));
+		if (r % 90 != 0)
+			argument_error(cpu);
 	}
 	int s = SPRITESHEET_WIDTH / SPRITE_WIDTH;
 	int sx = n % s * SPRITE_WIDTH;
 	int sy = n / s * SPRITE_HEIGHT;
-	gfx_spr(console_getgfx(), sx, sy, x, y, w, h, r);
+	gfx_spr(console_getgfx(), sx, sy, w, h, x, y, w, h, r);
+	return value_undef(cpu);
+}
+
+struct value lib_sspr(struct cpu* cpu, int sp, int nargs) {
+	if (nargs < 6 || nargs > 8)
+		argument_error(cpu);
+	int sx = num_int(to_number(cpu, ARG(0)));
+	int sy = num_int(to_number(cpu, ARG(1)));
+	int sw = num_int(to_number(cpu, ARG(2)));
+	int sh = num_int(to_number(cpu, ARG(3)));
+	int x = num_int(to_number(cpu, ARG(4)));
+	int y = num_int(to_number(cpu, ARG(5)));
+	int w = sw, h = sh;
+	int r = 0;
+	if (nargs >= 7)
+		w = num_int(to_number(cpu, ARG(6)));
+	if (nargs >= 8)
+		h = num_int(to_number(cpu, ARG(7)));
+	if (nargs >= 9) {
+		r = num_int(to_number(cpu, ARG(8)));
+		if (r % 90 != 0)
+			argument_error(cpu);
+	}
+	gfx_spr(console_getgfx(), sx, sy, sw, sh, x, y, w, h, r);
 	return value_undef(cpu);
 }
 
@@ -526,6 +548,7 @@ static const struct libdef libdefs[] = {
 	{"rect", cf_lib_rect },
 	{"fillRect", cf_lib_fillRect },
 	{"spr", cf_lib_spr },
+	{"sspr", cf_lib_sspr },
 	{"print", cf_lib_print },
 	{"abs", cf_lib_abs },
 	{"max", cf_lib_max },
