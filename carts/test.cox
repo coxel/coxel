@@ -506,6 +506,24 @@ test("For-upvalue", function() {
   check(funcs[4](), 5);
 });
 
+test("For-of", function() {
+  let a = [1, 2, 3];
+  let sum = 0;
+  for (let t of a)
+    sum += t;
+  check(sum, 6);
+  a.push(3);
+  sum = 0;
+  let q;
+  for (q of a)
+    sum += q;
+  check(sum, 9);
+  sum = 0;
+  for (a[1] of a)
+    sum += a[1];
+  check(sum, 8);
+});
+
 test("While", function() {
   let i = 0, sum = 0;
   while (i <= 100) {

@@ -57,6 +57,13 @@ static void gc_traverse_val(struct cpu* cpu, struct value* value) {
 		gc_mark(str);
 		return;
 	}
+	case t_striter: {
+		struct striterobj* striter = (struct striterobj*)readptr(value->striter);
+		check_mark(striter);
+		struct strobj* str = (struct strobj*)readptr(striter->str);
+		gc_mark(str);
+		return;
+	}
 	case t_buf: {
 		struct bufobj* buf = (struct bufobj*)readptr(value->buf);
 		gc_mark(buf);
@@ -64,6 +71,14 @@ static void gc_traverse_val(struct cpu* cpu, struct value* value) {
 	}
 	case t_arr: {
 		struct arrobj* arr = (struct arrobj*)readptr(value->arr);
+		check_mark(arr);
+		gc_traverse_arr(cpu, arr);
+		return;
+	}
+	case t_arriter: {
+		struct arriterobj* arriter = (struct arriterobj*)readptr(value->arriter);
+		check_mark(arriter);
+		struct arrobj* arr = (struct arrobj*)readptr(arriter->arr);
 		check_mark(arr);
 		gc_traverse_arr(cpu, arr);
 		return;
@@ -87,8 +102,10 @@ static void gc_traverse_val(struct cpu* cpu, struct value* value) {
 void gc_free(struct cpu* cpu, struct obj* obj) {
 	switch (obj->type) {
 	case t_str: str_destroy(cpu, (struct strobj*)obj); return;
+	case t_striter: mem_free(cpu, obj); return;
 	case t_buf: buf_destroy(cpu, (struct bufobj*)obj); return;
 	case t_arr: arr_destroy(cpu, (struct arrobj*)obj); return;
+	case t_arriter: mem_free(cpu, obj); return;
 	case t_tab: tab_destroy(cpu, (struct tabobj*)obj); return;
 	case t_func: func_destroy(cpu, (struct funcobj*)obj); return;
 	case t_upval: upval_destroy(cpu, (struct upval*)obj); return;

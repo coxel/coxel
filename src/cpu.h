@@ -40,8 +40,10 @@ enum type {
 	t_bool,
 	t_num,
 	t_str,
+	t_striter,
 	t_buf,
 	t_arr,
+	t_arriter,
 	t_tab,
 	t_func,
 	t_cfunc,
@@ -66,8 +68,10 @@ struct value {
 		number num;
 		ptr(struct obj) obj;
 		ptr(struct strobj) str;
+		ptr(struct striterobj) striter;
 		ptr(struct bufobj) buf;
 		ptr(struct arrobj) arr;
+		ptr(struct arriterobj) arriter;
 		ptr(struct tabobj) tab;
 		ptr(struct funcobj) func;
 		enum cfuncname cfunc;
@@ -89,6 +93,13 @@ struct strobj {
 	char data[];
 };
 
+struct striterobj {
+	OBJ_HEADER;
+	ptr(struct strobj) str;
+	uint32_t i;
+	uint32_t end;
+};
+
 struct bufobj {
 	OBJ_HEADER;
 	uint32_t len;
@@ -99,6 +110,13 @@ struct arrobj {
 	OBJ_HEADER;
 	uint32_t len, cap;
 	ptr(struct value) data;
+};
+
+struct arriterobj {
+	OBJ_HEADER;
+	ptr(struct arrobj) arr;
+	uint32_t i;
+	uint32_t end;
 };
 
 #define TAB_NULL		((uint16_t)-1)
@@ -170,6 +188,9 @@ struct tabobj {
 	/* upvalue access */ \
 	X(op_uget, "uget", REG, IMM8, _) \
 	X(op_uset, "uset", IMM8, REG, _) \
+	/* iterator */ \
+	X(op_iter, "iter", REG, REG, _) \
+	X(op_next, "next", REG, REG, REG) \
 	/* control flow */ \
 	X(op_j, "j", _, REL, _) \
 	X(op_closej, "closej", REG, REL, _) \
@@ -405,6 +426,13 @@ static inline struct value value_str(struct cpu* cpu, struct strobj* str) {
 	return val;
 }
 
+static inline struct value value_striter(struct cpu* cpu, struct striterobj* striter) {
+	struct value val;
+	val.type = t_striter;
+	val.striter = writeptr(striter);
+	return val;
+}
+
 static inline struct value value_buf(struct cpu* cpu, struct bufobj* buf) {
 	struct value val;
 	val.type = t_buf;
@@ -416,6 +444,13 @@ static inline struct value value_arr(struct cpu* cpu, struct arrobj* arr) {
 	struct value val;
 	val.type = t_arr;
 	val.arr = writeptr(arr);
+	return val;
+}
+
+static inline struct value value_arriter(struct cpu* cpu, struct arriterobj* arriter) {
+	struct value val;
+	val.type = t_arriter;
+	val.arriter = writeptr(arriter);
 	return val;
 }
 

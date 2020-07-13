@@ -281,6 +281,69 @@ static void close_upvals(struct cpu* cpu, struct value* frame, int base) {
 	}
 }
 
+static struct value get_iter(struct cpu* cpu, struct value val) {
+	switch (val.type) {
+	case t_str: {
+		struct strobj* str = (struct strobj*)readptr(val.str);
+		struct striterobj* striter = (struct striterobj*)gc_alloc(cpu, t_striter, sizeof(struct striterobj));
+		striter->str = writeptr(str);
+		striter->i = 0;
+		striter->end = str->len;
+		return value_striter(cpu, striter);
+	}
+
+	case t_arr: {
+		struct arrobj* arr = (struct arrobj*)readptr(val.arr);
+		struct arriterobj* arriter = (struct arriterobj*)gc_alloc(cpu, t_arriter, sizeof(struct arriterobj));
+		arriter->arr = writeptr(arr);
+		arriter->i = 0;
+		arriter->end = arr->len;
+		return value_arriter(cpu, arriter);
+	}
+
+	default:
+		runtime_error(cpu, "The object does not have built-in iterator support.");
+	}
+}
+
+static int iter_next(struct cpu* cpu, struct value iterval, struct value* val) {
+	switch (iterval.type) {
+	case t_striter: {
+		struct striterobj* striter = (struct striterobj*)readptr(iterval.striter);
+		struct strobj* str = (struct strobj*)readptr(striter->str);
+		if (striter->i == -1 || striter->i >= str->len) {
+			striter->i = -1;
+			*val = value_undef(cpu);
+			return 1;
+		}
+		else {
+			*val = value_str(cpu, str_intern(cpu, &str->data[striter->i], 1));
+			if (++striter->i == str->len)
+				striter->i = -1;
+			return 0;
+		}
+	}
+	case t_arriter: {
+		struct arriterobj* arriter = (struct arriterobj*)readptr(iterval.arriter);
+		struct arrobj* arr = (struct arrobj*)readptr(arriter->arr);
+		if (arriter->i == -1 || arriter->i >= arr->len) {
+			arriter->i = -1;
+			*val = value_undef(cpu);
+			return 1;
+		}
+		else {
+			struct arrobj* arr = (struct arrobj*)readptr(arriter->arr);
+			*val = ((struct value*)readptr(arr->data))[arriter->i];
+			if (++arriter->i == arr->len)
+				arriter->i = -1;
+			return 0;
+		}
+	}
+	default:
+		runtime_error(cpu, "Not an iterator object.");
+	}
+}
+
 void func_destroy(struct cpu* cpu, struct funcobj* func) {
 	mem_free(&cpu->alloc, func);
 }
@@ -388,6 +451,8 @@ void cpu_execute(struct cpu* cpu, struct funcobj* func) {
 		case op_gset: tab_set(cpu, (struct tabobj*)readptr(cpu->globals), retvalstr, lval); break;
 		case op_uget: retval = *(struct value*)readptr(((struct upval*)readptr(func->upval[ins->op2]))->val); break;
 		case op_uset: *(struct value*)readptr(((struct upval*)readptr(func->upval[ins->op1]))->val) = lval; break;
+		case op_iter: retval = get_iter(cpu, lval); break;
+		case op_next: retval = value_bool(cpu, iter_next(cpu, rval, &lval)); break;
 		case op_j: g_pc += ins->imm; break;
 		case op_closej: {
 			close_upvals(cpu, frame, ins->op1);

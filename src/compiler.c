@@ -29,6 +29,7 @@
 	_(tk_in, "in", op_in, 8) \
 	_(tk_let, "let", 0, 0) \
 	_(tk_null, "null", 0, 0) \
+	_(tk_of, "of", 0, 0) \
 	_(tk_return, "return", 0, 0) \
 	_(tk_switch, "switch", 0, 0) \
 	_(tk_this, "this", 0, 0) \
@@ -515,6 +516,7 @@ static void require_token(struct context* ctx, enum token_type token) {
 }
 
 enum value_type {
+	vt_null, /* null value */
 	vt_value, /* generic in-reg value */
 	vt_local, /* local variable */
 	vt_global, /* global variable */
@@ -604,6 +606,12 @@ struct sval {
 	uint8_t reg;
 	uint8_t field;
 };
+
+static inline struct sval sval_null(uint8_t reg) {
+	struct sval val;
+	val.type = vt_null;
+	return val;
+}
 
 static inline struct sval sval_value(uint8_t reg) {
 	struct sval val;
@@ -1266,7 +1274,8 @@ static struct sval compile_expression(struct context* ctx) {
 	return val;
 }
 
-static void compile_let(struct context* ctx) {
+static void compile_let(struct context* ctx, struct sval* single_sval) {
+	int cnt = 0;
 	do {
 		next_token(ctx);
 		check_token(ctx, tk_ident);
@@ -1286,9 +1295,16 @@ static void compile_let(struct context* ctx) {
 			sval_pop(ctx, val);
 			sval_set(ctx, sval_local(sym->reg), val);
 		}
+		else if (single_sval && cnt == 0 && ctx->token != tk_comma) {
+			*single_sval = sval_local(sym->reg);
+			return;
+		}
 		else
 			emit(ctx, op_kundef, sym->reg, 0, 0);
+		++cnt;
 	} while (ctx->token == tk_comma);
+	if (single_sval)
+		*single_sval = sval_null(ctx);
 }
 
 static void patch_break_continue(struct context* ctx, int patch_base, int break_pc, int continue_pc, int close_sp) {
@@ -1330,7 +1346,7 @@ static void compile_case_block(struct context* ctx) {
 static void compile_statement(struct context* ctx) {
 	switch (ctx->token) {
 	case tk_let: {
-		compile_let(ctx);
+		compile_let(ctx, NULL);
 		break;
 	}
 	case tk_if: {
@@ -1413,51 +1429,85 @@ static void compile_statement(struct context* ctx) {
 		next_token(ctx);
 		require_token(ctx, tk_lparen);
 		sym_push(&ctx->sym_table);
+		struct sval for_val = sval_null(ctx);
 		if (ctx->token == tk_let)
-			compile_let(ctx);
-		else if (ctx->token != tk_semicolon) {
-			struct sval val = compile_expression(ctx);
-			sval_pop(ctx, val);
-		}
-		require_token(ctx, tk_semicolon);
-		int cond_pc = -1, cond_false_pc = -1, cond_true_pc = -1;
-		if (ctx->token == tk_semicolon)
-			next_token(ctx);
-		else {
-			cond_pc = current_pc(ctx);
-			struct sval cond = compile_expression(ctx);
-			require_token(ctx, tk_semicolon);
-			cond = sval_extract(ctx, cond);
-			sval_pop(ctx, cond);
-			cond_false_pc = current_pc(ctx);
-			emit_imm(ctx, op_jfalse, cond.reg, 0);
-		}
-		int update_pc = -1;
-		if (ctx->token != tk_rparen) {
-			cond_true_pc = current_pc(ctx);
-			emit_imm(ctx, op_j, 0, 0);
-			update_pc = current_pc(ctx);
-			struct sval update = compile_expression(ctx);
-			sval_pop(ctx, update);
-			if (cond_pc != -1)
-				emit_rel(ctx, op_j, 0, cond_pc);
-			patch_rel(ctx, cond_true_pc, current_pc(ctx));
-		}
-		require_token(ctx, tk_rparen);
-		int loop_pc = current_pc(ctx);
-		compile_statement(ctx);
-		if (sym_level_needclose(&ctx->sym_table))
-			emit(ctx, op_close, old_sp, 0, 0);
+			compile_let(ctx, &for_val);
+		else if (ctx->token != tk_semicolon)
+			for_val = compile_expression(ctx);
 		int continue_pc;
-		if (update_pc != -1)
-			continue_pc = update_pc;
-		else if (cond_pc != -1)
-			continue_pc = cond_pc;
+		if (ctx->token == tk_semicolon) {
+			// Regular for loop
+			if (for_val.type != vt_null)
+				sval_pop(ctx, for_val);
+			next_token(ctx);
+			int cond_pc = -1, cond_false_pc = -1, cond_true_pc = -1;
+			if (ctx->token == tk_semicolon)
+				next_token(ctx);
+			else {
+				cond_pc = current_pc(ctx);
+				struct sval cond = compile_expression(ctx);
+				require_token(ctx, tk_semicolon);
+				cond = sval_extract(ctx, cond);
+				sval_pop(ctx, cond);
+				cond_false_pc = current_pc(ctx);
+				emit_imm(ctx, op_jfalse, cond.reg, 0);
+			}
+			int update_pc = -1;
+			if (ctx->token != tk_rparen) {
+				cond_true_pc = current_pc(ctx);
+				emit_imm(ctx, op_j, 0, 0);
+				update_pc = current_pc(ctx);
+				struct sval update = compile_expression(ctx);
+				sval_pop(ctx, update);
+				if (cond_pc != -1)
+					emit_rel(ctx, op_j, 0, cond_pc);
+				patch_rel(ctx, cond_true_pc, current_pc(ctx));
+			}
+			require_token(ctx, tk_rparen);
+			int loop_pc = current_pc(ctx);
+			compile_statement(ctx);
+			if (sym_level_needclose(&ctx->sym_table))
+				emit(ctx, op_close, old_sp, 0, 0);
+			if (update_pc != -1)
+				continue_pc = update_pc;
+			else if (cond_pc != -1)
+				continue_pc = cond_pc;
+			else
+				continue_pc = loop_pc;
+			emit_rel(ctx, op_j, 0, continue_pc);
+			if (cond_false_pc != -1)
+				patch_rel(ctx, cond_false_pc, current_pc(ctx));
+		}
+		else if (ctx->token == tk_of && for_val.type != vt_null) {
+			// for...of loop
+			next_token(ctx);
+			struct sval iterable = compile_expression(ctx);
+			iterable = sval_extract(ctx, iterable);
+			sval_pop(ctx, iterable);
+			int iterable_reg = ctx->sp++;
+			emit(ctx, op_iter, iterable_reg, iterable.reg, 0);
+			int done = ctx->sp++;
+			ctx->local_sp += 2;
+			continue_pc = current_pc(ctx);
+			if (for_val.type == vt_local)
+				emit(ctx, op_next, done, for_val.reg, iterable_reg);
+			else {
+				struct sval val = sval_local(ctx->sp++);
+				emit(ctx, op_next, done, val.reg, iterable_reg);
+				sval_set(ctx, for_val, val);
+				sval_pop(ctx, val);
+			}
+			int cond_pc = current_pc(ctx);
+			emit_rel(ctx, op_jtrue, done, 0);
+			require_token(ctx, tk_rparen);
+			compile_statement(ctx);
+			if (sym_level_needclose(&ctx->sym_table))
+				emit(ctx, op_close, old_sp, 0, 0);
+			emit_rel(ctx, op_j, 0, continue_pc);
+			patch_rel(ctx, cond_pc, current_pc(ctx));
+		}
 		else
-			continue_pc = loop_pc;
-		emit_rel(ctx, op_j, 0, continue_pc);
-		if (cond_false_pc != -1)
-			patch_rel(ctx, cond_false_pc, current_pc(ctx));
+			compile_error(ctx, "Unexpected token.");
 		sym_pop(&ctx->sym_table);
 		ctx->sp = old_sp;
 		ctx->local_sp = old_localsp;

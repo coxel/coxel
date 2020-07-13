@@ -25,6 +25,7 @@ let kws = [
   "in",
   "let",
   "null",
+  "of",
   "return",
   "switch",
   "this",
