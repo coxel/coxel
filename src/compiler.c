@@ -607,7 +607,7 @@ struct sval {
 	uint8_t field;
 };
 
-static inline struct sval sval_null(uint8_t reg) {
+static inline struct sval sval_null() {
 	struct sval val;
 	val.type = vt_null;
 	return val;
@@ -1304,7 +1304,7 @@ static void compile_let(struct context* ctx, struct sval* single_sval) {
 		++cnt;
 	} while (ctx->token == tk_comma);
 	if (single_sval)
-		*single_sval = sval_null(ctx);
+		*single_sval = sval_null();
 }
 
 static void patch_break_continue(struct context* ctx, int patch_base, int break_pc, int continue_pc, int close_sp) {
@@ -1429,7 +1429,7 @@ static void compile_statement(struct context* ctx) {
 		next_token(ctx);
 		require_token(ctx, tk_lparen);
 		sym_push(&ctx->sym_table);
-		struct sval for_val = sval_null(ctx);
+		struct sval for_val = sval_null();
 		if (ctx->token == tk_let)
 			compile_let(ctx, &for_val);
 		else if (ctx->token != tk_semicolon)
