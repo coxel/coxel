@@ -203,10 +203,12 @@ struct value str_get(struct cpu* cpu, struct strobj* str, number index) {
 }
 
 struct value libstr_indexOf(struct cpu* cpu, int sp, int nargs) {
+	// TODO: Use better string matching algorithm
 	if (nargs != 1 && nargs != 2)
 		argument_error(cpu);
 	struct strobj* str = to_string(cpu, THIS);
 	struct strobj* pat = to_string(cpu, ARG(0));
+	cpu->cycles += CYCLES_CHARS(str->len * pat->len);
 	int start = 0;
 	if (nargs == 2)
 		start = num_uint(to_number(cpu, ARG(1)));
@@ -239,10 +241,12 @@ struct value libstr_indexOf(struct cpu* cpu, int sp, int nargs) {
 }
 
 struct value libstr_lastIndexOf(struct cpu* cpu, int sp, int nargs) {
+	// TODO: Use better string matching algorithm
 	if (nargs != 1 && nargs != 2)
 		argument_error(cpu);
 	struct strobj* str = to_string(cpu, THIS);
 	struct strobj* pat = to_string(cpu, ARG(0));
+	cpu->cycles += CYCLES_CHARS(str->len * pat->len);
 	int start = str->len - pat->len;
 	if (nargs == 2)
 		start = num_uint(to_number(cpu, ARG(1)));
@@ -279,6 +283,7 @@ struct value libstr_substr(struct cpu* cpu, int sp, int nargs) {
 	int count = nargs == 1 ? str->len - start : num_uint(to_number(cpu, ARG(1)));
 	if (start + count > str->len)
 		count = str->len - start;
+	cpu->cycles += CYCLES_CHARS(count);
 	return value_str(cpu, str_intern(cpu, str->data + start, count));
 }
 

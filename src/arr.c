@@ -49,6 +49,7 @@ struct value libarr_push(struct cpu* cpu, int sp, int nargs) {
 		argument_error(cpu);
 	struct arrobj* arr = to_arr(cpu, THIS);
 	arr_push(cpu, arr, ARG(0));
+	cpu->cycles += CYCLES_ALLOC;
 	return value_undef(cpu);
 }
 
@@ -88,6 +89,7 @@ struct value libarr_slice(struct cpu* cpu, int sp, int nargs) {
 	struct arrobj* narr = arr_new(cpu);
 	for (int i = start; i < end; i++)
 		arr_push(cpu, narr, values[i]);
+	cpu->cycles += CYCLES_ALLOC + CYCLES_VALUES(end - start);
 	return value_arr(cpu, narr);
 }
 

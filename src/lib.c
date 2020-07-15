@@ -35,6 +35,7 @@ struct value lib_cls(struct cpu* cpu, int sp, int nargs) {
 	if (nargs == 1)
 		c = num_int(to_number(cpu, ARG(0)));
 	gfx_cls(console_getgfx(), c);
+	cpu->cycles += CYCLES_PIXELS(WIDTH * HEIGHT);
 	return value_undef(cpu);
 }
 
@@ -118,6 +119,7 @@ struct value lib_line(struct cpu* cpu, int sp, int nargs) {
 	if (nargs == 5)
 		c = num_int(to_number(cpu, ARG(4)));
 	gfx_line(console_getgfx(), x1, y1, x2, y2, c);
+	cpu->cycles += CYCLES_PIXELS(abs(x1 - x2) + abs(y1 - y2) + 1);
 	return value_undef(cpu);
 }
 
@@ -132,6 +134,7 @@ struct value lib_rect(struct cpu* cpu, int sp, int nargs) {
 	if (nargs == 5)
 		c = num_int(to_number(cpu, ARG(4)));
 	gfx_rect(console_getgfx(), x, y, w, h, c);
+	cpu->cycles += CYCLES_PIXELS(2 * (w + h));
 	return value_undef(cpu);
 }
 
@@ -146,6 +149,7 @@ struct value lib_fillRect(struct cpu* cpu, int sp, int nargs) {
 	if (nargs == 5)
 		c = num_int(to_number(cpu, ARG(4)));
 	gfx_fill_rect(console_getgfx(), x, y, w, h, c);
+	cpu->cycles += CYCLES_PIXELS(w * h);
 	return value_undef(cpu);
 }
 
@@ -171,6 +175,7 @@ struct value lib_spr(struct cpu* cpu, int sp, int nargs) {
 	int sx = n % s * SPRITE_WIDTH;
 	int sy = n / s * SPRITE_HEIGHT;
 	gfx_spr(console_getgfx(), sx, sy, w, h, x, y, w, h, r);
+	cpu->cycles += CYCLES_PIXELS(w * h);
 	return value_undef(cpu);
 }
 
@@ -195,6 +200,7 @@ struct value lib_sspr(struct cpu* cpu, int sp, int nargs) {
 			argument_error(cpu);
 	}
 	gfx_spr(console_getgfx(), sx, sy, sw, sh, x, y, w, h, r);
+	cpu->cycles += CYCLES_PIXELS(w * h);
 	return value_undef(cpu);
 }
 
@@ -212,6 +218,7 @@ struct value lib_print(struct cpu* cpu, int sp, int nargs) {
 	if (nargs == 4)
 		c = num_int(to_number(cpu, ARG(3)));
 	gfx_print(console_getgfx(), str->data, str->len, x, y, c);
+	cpu->cycles += CYCLES_PIXELS(16 * str->len);
 	return value_undef(cpu);
 }
 
@@ -280,6 +287,13 @@ struct value lib_rand(struct cpu* cpu, int sp, int nargs) {
 		argument_error(cpu);
 }
 
+struct value lib_stat_cpu(struct cpu* cpu, int sp, int nargs) {
+	if (nargs != 0)
+		argument_error(cpu);
+	number usage = (number)(((int64_t)cpu->cycles << FRAC_BITS) / (int64_t)CYCLES_PER_FRAME);
+	return value_num(cpu, usage);
+}
+
 struct value devlib_key(struct cpu* cpu, int sp, int nargs) {
 	if (nargs != 1)
 		argument_error(cpu);
@@ -303,6 +317,7 @@ struct value devlib_mpos(struct cpu* cpu, int sp, int nargs) {
 	struct io* io = console_getio();
 	tab_set(cpu, tab, str_intern(cpu, "x", 1), value_num(cpu, io->mousex));
 	tab_set(cpu, tab, str_intern(cpu, "y", 1), value_num(cpu, io->mousey));
+	cpu->cycles += CYCLES_ALLOC + CYCLES_LOOKUP * 2;
 	return value_tab(cpu, tab);
 }
 
@@ -320,6 +335,7 @@ struct value devlib_input(struct cpu* cpu, int sp, int nargs) {
 		str = LIT(EMPTY);
 	else
 		str = str_intern(cpu, io->input, io->input_size);
+	cpu->cycles += CYCLES_CHARS(io->input_size);
 	return value_str(cpu, str);
 }
 
@@ -328,6 +344,7 @@ struct value devlib_copy(struct cpu* cpu, int sp, int nargs) {
 		argument_error(cpu);
 	struct strobj* str = to_string(cpu, ARG(0));
 	platform_copy(str->data, str->len);
+	cpu->cycles += CYCLES_CHARS(str->len);
 	return value_undef(cpu);
 }
 
@@ -345,6 +362,7 @@ struct value devlib_paste(struct cpu* cpu, int sp, int nargs) {
 	int r = platform_paste(buf, len);
 	struct value ret = value_str(cpu, str_intern(cpu, buf, r));
 	mem_free(&cpu->alloc, buf);
+	cpu->cycles += CYCLES_CHARS(r);
 	return ret;
 }
 
@@ -352,6 +370,7 @@ struct value devlib_newbuf(struct cpu* cpu, int sp, int nargs) {
 	if (nargs != 1)
 		argument_error(cpu);
 	int size = num_uint(to_number(cpu, ARG(0)));
+	cpu->cycles += CYCLES_ALLOC;
 	return value_buf(cpu, buf_new(cpu, size));
 }
 
@@ -422,6 +441,7 @@ struct value devlib_run(struct cpu* cpu, int sp, int nargs) {
 	struct tabobj* tab = to_tab(cpu, ARG(0));
 	struct cart cart = get_cartobj(cpu, tab);
 	struct run_result result = console_run(&cart);
+	cpu->cycles += CYCLES_CARTIO;
 	return get_run_result(cpu, result);
 }
 
@@ -433,6 +453,7 @@ struct value devlib_save(struct cpu* cpu, int sp, int nargs) {
 	struct cart cart = get_cartobj(cpu, tab);
 	char filename_buf[256];
 	struct run_result result = console_save(get_cart_filename(cpu, filename, filename_buf, 256), &cart);
+	cpu->cycles += CYCLES_CARTIO;
 	return get_run_result(cpu, result);
 }
 
@@ -443,6 +464,7 @@ struct value devlib_load(struct cpu* cpu, int sp, int nargs) {
 	char filename_buf[256];
 	struct cart cart;
 	struct run_result result = console_load(get_cart_filename(cpu, filename, filename_buf, 256), &cart);
+	cpu->cycles += CYCLES_CARTIO;
 	if (result.err != NULL)
 		return get_run_result(cpu, result);
 	else {
@@ -527,6 +549,7 @@ struct value devlib_fastParse(struct cpu* cpu, int sp, int nargs) {
 	tab_set(cpu, tab, str_intern(cpu, "token", 5), value_str(cpu, token_str));
 	tab_set(cpu, tab, str_intern(cpu, "tokenEnd", 8), value_num(cpu, num_kuint(token_end)));
 	tab_set(cpu, tab, str_intern(cpu, "lineStart", 9), value_num(cpu, num_kuint(line_start)));
+	cpu->cycles += CYCLES_CHARS(str->len) + CYCLES_ALLOC + CYCLES_LOOKUP * 3;
 	return value_tab(cpu, tab);
 }
 
@@ -557,6 +580,7 @@ static const struct libdef libdefs[] = {
 	{"floor", cf_lib_floor },
 	{"srand", cf_lib_srand },
 	{"rand", cf_lib_rand },
+	{"stat_cpu", cf_lib_stat_cpu },
 	{ NULL, 0 },
 };
 

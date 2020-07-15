@@ -160,6 +160,7 @@ number to_number(struct cpu* cpu, struct value val) {
 		struct strobj* str = (struct strobj*)readptr(val.str);
 		if (!num_parse(str->data, str->data + str->len, &num))
 			runtime_error(cpu, "Invalid number.");
+		cpu->cycles += CYCLES_STR2NUM;
 		return num;
 	}
 	default: runtime_error(cpu, "Cannot convert to number.");
@@ -179,6 +180,7 @@ struct strobj* to_string(struct cpu* cpu, struct value val) {
 	case t_num: {
 		char buf[20];
 		int len = num_format(val.num, 4, buf);
+		cpu->cycles += CYCLES_NUM2STR;
 		return str_intern(cpu, buf, len);
 	}
 	case t_str: return (struct strobj*)readptr(val.str);
@@ -251,7 +253,7 @@ static void fset(struct cpu* cpu, struct value obj, struct value field, struct v
 	switch (obj.type) {
 	case t_buf: buf_set(cpu, (struct bufobj*)readptr(obj.buf), to_number(cpu, field), value); break;
 	case t_arr: arr_set(cpu, (struct arrobj*)readptr(obj.arr), to_number(cpu, field), value); break;
-	case t_tab: tab_set(cpu, (struct tabobj*)readptr(obj.tab), to_string(cpu, field), value); break;
+	case t_tab: tab_set(cpu, (struct tabobj*)readptr(obj.tab), to_string(cpu, field), value); cpu->cycles += CYCLES_LOOKUP;  break;
 	default: runtime_error(cpu, "Not an object.");
 	}
 }
@@ -269,6 +271,7 @@ static void upval_unlink(struct cpu* cpu, struct upval* val) {
 
 static void close_upvals(struct cpu* cpu, struct value* frame, int base) {
 	struct upval* val;
+	int cnt = 0;
 	for (val = readptr(cpu->upval_open); val && (struct value*)readptr(val->val) >= frame;) {
 		struct value* v = readptr(val->val);
 		struct upval* next = readptr(val->next);
@@ -278,7 +281,9 @@ static void close_upvals(struct cpu* cpu, struct value* frame, int base) {
 			val->val = writeptr(&val->val_holder);
 		}
 		val = next;
+		cnt++;
 	}
+	cpu->cycles += CYCLES_UPVALUES(cnt);
 }
 
 static struct value get_iter(struct cpu* cpu, struct value val) {
@@ -388,8 +393,10 @@ void cpu_execute(struct cpu* cpu, struct funcobj* func) {
 		stack[3] = value_undef(cpu); // call info 2
 	}
 	g_code = readptr(func->code);
+	cpu->cycles = 0;
 	for (g_pc = 0;;) {
 		struct ins* ins = &((struct ins*)readptr(g_code->ins))[g_pc++];
+		cpu->cycles += CYCLES_BASE;
 		switch (ins->opcode) {
 		case op_kundef: retval = value_undef(cpu); break;
 		case op_knull: retval = value_null(cpu); break;
@@ -412,8 +419,12 @@ void cpu_execute(struct cpu* cpu, struct funcobj* func) {
 			break;
 		}
 		case op_add: {
-			if (lval.type == t_str || rval.type == t_str)
-				retval = value_str(cpu, str_concat(cpu, lvalstr, rvalstr));
+			if (lval.type == t_str || rval.type == t_str) {
+				struct strobj* l = lvalstr;
+				struct strobj* r = rvalstr;
+				retval = value_str(cpu, str_concat(cpu, l, r));
+				cpu->cycles += CYCLES_CHARS(l->len + r->len) + CYCLES_ALLOC;
+			}
 			else
 				retval = value_num(cpu, num_add(lvalnum, rvalnum)); break;
 			break;
@@ -442,16 +453,16 @@ void cpu_execute(struct cpu* cpu, struct funcobj* func) {
 		case op_gt: retval = value_bool(cpu, (int32_t)lvalnum > (int32_t)rvalnum); break;
 		case op_ge: retval = value_bool(cpu, (int32_t)lvalnum >= (int32_t)rvalnum); break;
 		case op_in: retval = value_bool(cpu, tab_in(cpu, to_tab(cpu, rval), lvalstr)); break;
-		case op_arr: retval = value_arr(cpu, arr_new(cpu)); break;
-		case op_apush: arr_push(cpu, to_arr(cpu, retval), lval); break;
-		case op_tab: retval = value_tab(cpu, tab_new(cpu)); break;
-		case op_fget: retval = fget(cpu, lval, rval); break;
+		case op_arr: retval = value_arr(cpu, arr_new(cpu)); cpu->cycles += CYCLES_ALLOC; break;
+		case op_apush: arr_push(cpu, to_arr(cpu, retval), lval); cpu->cycles += CYCLES_ALLOC; break;
+		case op_tab: retval = value_tab(cpu, tab_new(cpu)); cpu->cycles += CYCLES_ALLOC; break;
+		case op_fget: retval = fget(cpu, lval, rval); cpu->cycles += CYCLES_LOOKUP; break;
 		case op_fset: fset(cpu, retval, lval, rval); break;
-		case op_gget: retval = tab_get(cpu, (struct tabobj*)readptr(cpu->globals), lvalstr); break;
-		case op_gset: tab_set(cpu, (struct tabobj*)readptr(cpu->globals), retvalstr, lval); break;
+		case op_gget: retval = tab_get(cpu, (struct tabobj*)readptr(cpu->globals), lvalstr); cpu->cycles += CYCLES_LOOKUP; break;
+		case op_gset: tab_set(cpu, (struct tabobj*)readptr(cpu->globals), retvalstr, lval); cpu->cycles += CYCLES_LOOKUP; break;
 		case op_uget: retval = *(struct value*)readptr(((struct upval*)readptr(func->upval[ins->op2]))->val); break;
 		case op_uset: *(struct value*)readptr(((struct upval*)readptr(func->upval[ins->op1]))->val) = lval; break;
-		case op_iter: retval = get_iter(cpu, lval); break;
+		case op_iter: retval = get_iter(cpu, lval); cpu->cycles += CYCLES_ALLOC; break;
 		case op_next: retval = value_bool(cpu, iter_next(cpu, rval, &lval)); break;
 		case op_j: g_pc += ins->imm; break;
 		case op_closej: {
@@ -500,6 +511,7 @@ void cpu_execute(struct cpu* cpu, struct funcobj* func) {
 					f->upval[i] = func->upval[def->idx];
 			}
 			retval = value_func(cpu, f);
+			cpu->cycles += CYCLES_ALLOC * (1 + code->upval_cnt);
 			break;
 		}
 		case op_close: {
@@ -518,6 +530,7 @@ void cpu_execute(struct cpu* cpu, struct funcobj* func) {
 				int nargs = ((struct code*)readptr(f->code))->nargs;
 				for (int i = ins->op2; i < nargs; i++)
 					frame[ins->op1 + 2 + i] = value_undef(cpu);
+				cpu->cycles += CYCLES_BASE * (nargs - ins->op2);
 				int stack_size = ins->op1;
 				cpu->sp += ins->op1;
 				update_stack();
