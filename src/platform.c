@@ -430,17 +430,20 @@ void console_update() {
 		if (!cpu->top_executed) {
 			cpu_execute(cpu, (struct funcobj*)readptr(cpu->topfunc));
 			cpu->top_executed = 1;
-			gc_collect(cpu);
 		}
 		else {
-			struct value fval = tab_get(cpu, (struct tabobj*)readptr(cpu->globals), LIT(onframe));
-			if (fval.type == t_func) {
-				struct funcobj* fobj = readptr(fval.func);
-				cpu_execute(cpu, fobj);
-				cpu->frame++;
-				if (cpu->frame % 60 == 0)
-					gc_collect(cpu);
+			if (cpu->paused)
+				cpu_continue(cpu);
+			else {
+				struct value fval = tab_get(cpu, (struct tabobj*)readptr(cpu->globals), LIT(onframe));
+				if (fval.type == t_func) {
+					struct funcobj* fobj = readptr(fval.func);
+					cpu_execute(cpu, fobj);
+				}
 			}
+			cpu->frame++;
+			if (!cpu->paused && cpu->frame % 60 == 0)
+				gc_collect(cpu);
 		}
 #ifdef _DEBUG
 		mem_check(&cpu->alloc);

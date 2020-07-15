@@ -100,6 +100,7 @@ struct cpu* cpu_new() {
 	cpu->gchead = writeptr(NULL);
 	cpu->parent = -1;
 	cpu->top_executed = 0;
+	cpu->paused = 0;
 	cpu->stopped = 0;
 	strtab_init(cpu);
 	struct tabobj* globals = tab_new(cpu);
@@ -379,10 +380,6 @@ void upval_destroy(struct cpu* cpu, struct upval* upval) {
 #define rvalstr		to_string(cpu, rval)
 
 void cpu_execute(struct cpu* cpu, struct funcobj* func) {
-	if (setjmp(g_jmp_buf) != 0) {
-		cpu->stopped = 1;
-		return;
-	}
 	struct value* frame;
 	update_stack();
 	{
@@ -392,9 +389,30 @@ void cpu_execute(struct cpu* cpu, struct funcobj* func) {
 		stack[2] = value_undef(cpu); // call info 1
 		stack[3] = value_undef(cpu); // call info 2
 	}
-	g_code = readptr(func->code);
+	cpu->curfunc = writeptr(func);
+	cpu->curpc = 0;
 	cpu->cycles = 0;
-	for (g_pc = 0;;) {
+	cpu_continue(cpu);
+}
+
+void cpu_continue(struct cpu* cpu) {
+	if (setjmp(g_jmp_buf) != 0) {
+		cpu->stopped = 1;
+		return;
+	}
+	struct value* frame;
+	struct funcobj* func = (struct funcobj*)readptr(cpu->curfunc);
+	g_code = (struct code*)readptr(func->code);
+	g_pc = cpu->curpc;
+	update_stack();
+	for (;;) {
+		if (cpu->cycles >= CYCLES_PER_FRAME) {
+			cpu->cycles -= CYCLES_PER_FRAME;
+			cpu->curfunc = writeptr(func);
+			cpu->curpc = g_pc;
+			cpu->paused = 1;
+			return;
+		}
 		struct ins* ins = &((struct ins*)readptr(g_code->ins))[g_pc++];
 		cpu->cycles += CYCLES_BASE;
 		switch (ins->opcode) {
@@ -554,8 +572,10 @@ void cpu_execute(struct cpu* cpu, struct funcobj* func) {
 		case op_retu:
 		case op_ret: {
 			close_upvals(cpu, frame, 0);
-			if (cpu->sp == 0)
+			if (cpu->sp == 0) {
+				cpu->paused = 0;
 				return;
+			}
 			int nargs = ((struct code*)readptr(func->code))->nargs;
 			struct callinfo1 ci1 = frame[2 + nargs].ci1;
 			struct callinfo2 ci2 = frame[3 + nargs].ci2;

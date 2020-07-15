@@ -324,9 +324,14 @@ struct cpu {
 	/* main function object */
 	ptr(struct funcobj) topfunc;
 	int parent;
+
+	/* execution state */
 	int top_executed;
 	int cycles;
+	int paused;
 	int stopped;
+	ptr(struct funcobj) curfunc;
+	int curpc;
 
 	/* interned string hash table */
 	ptr(ptr(struct strobj)) strtab;
@@ -384,6 +389,7 @@ NORETURN void out_of_memory_error(struct cpu* cpu);
 struct cpu* cpu_new();
 void cpu_destroy(struct cpu* cpu);
 void cpu_execute(struct cpu* cpu, struct funcobj* func);
+void cpu_continue(struct cpu* cpu);
 int cpu_dump_code(struct cpu* cpu, const char* codebuf, int codelen, char* buf, int buflen);
 
 int to_bool(struct cpu* cpu, struct value val);
