@@ -29,6 +29,7 @@ set(SOURCES
 	rand.h
 	str.c
 	str.h
+	strstr.h
 	sym.c
 	sym.h
 	tab.c

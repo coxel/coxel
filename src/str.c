@@ -202,13 +202,32 @@ struct value str_get(struct cpu* cpu, struct strobj* str, number index) {
 		return value_str(cpu, str_intern(cpu, &str->data[idx], 1));
 }
 
+#define SUFFIX
+#define CMP(x, xlen, i, y, ylen, j) (x[i] - y[j])
+#include "strstr.h"
+#undef CMP
+#undef SUFFIX
+
+#define SUFFIX _rev
+#define CMP(x, xlen, i, y, ylen, j) (x[xlen - 1 - (i)] - y[ylen - 1 - (j)])
+#include "strstr.h"
+#undef CMP
+#undef SUFFIX
+
+static int get_index_of_cycles(int start, int len, int pos, int patlen) {
+	if (pos == -1)
+		pos = len;
+	else
+		pos += patlen;
+	int chars = (pos - start) + 3 * patlen;
+	return CYCLES_CHARS(chars);
+}
+
 struct value libstr_indexOf(struct cpu* cpu, int sp, int nargs) {
-	// TODO: Use better string matching algorithm
 	if (nargs != 1 && nargs != 2)
 		argument_error(cpu);
 	struct strobj* str = to_string(cpu, THIS);
 	struct strobj* pat = to_string(cpu, ARG(0));
-	cpu->cycles += CYCLES_CHARS(str->len * pat->len);
 	int start = 0;
 	if (nargs == 2)
 		start = num_uint(to_number(cpu, ARG(1)));
@@ -218,35 +237,18 @@ struct value libstr_indexOf(struct cpu* cpu, int sp, int nargs) {
 		int ret = start <= str->len ? start : str->len;
 		return value_num(cpu, num_kuint(ret));
 	}
-	else if (start < str->len) {
-		if (pat->len == 1) {
-			void* p = memchr(str->data + start, pat->data[0], str->len - start);
-			if (p != NULL)
-				return value_num(cpu, num_kuint((char*)p - str->data));
-		}
-		else {
-			for (int i = start; i <= str->len - pat->len; i++) {
-				int ok = 1;
-				for (int j = 0; j < pat->len; j++)
-					if (str->data[i + j] != pat->data[j]) {
-						ok = 0;
-						break;
-					}
-				if (ok)
-					return value_num(cpu, num_kuint(i));
-			}
-		}
+	else {
+		int pos = index_of(str->data, str->len, pat->data, pat->len, start);
+		cpu->cycles += get_index_of_cycles(start, str->len, pos, pat->len);
+		return value_num(cpu, num_kuint(pos));
 	}
-	return value_num(cpu, num_kint(-1));
 }
 
 struct value libstr_lastIndexOf(struct cpu* cpu, int sp, int nargs) {
-	// TODO: Use better string matching algorithm
 	if (nargs != 1 && nargs != 2)
 		argument_error(cpu);
 	struct strobj* str = to_string(cpu, THIS);
 	struct strobj* pat = to_string(cpu, ARG(0));
-	cpu->cycles += CYCLES_CHARS(str->len * pat->len);
 	int start = str->len - pat->len;
 	if (nargs == 2)
 		start = num_uint(to_number(cpu, ARG(1)));
@@ -257,20 +259,15 @@ struct value libstr_lastIndexOf(struct cpu* cpu, int sp, int nargs) {
 		return value_num(cpu, num_kuint(ret));
 	}
 	else {
-		if (start > str->len - pat->len)
-			start = str->len - pat->len;
-		for (int i = start; i >= 0; i--) {
-			int ok = 1;
-			for (int j = 0; j < pat->len; j++)
-				if (str->data[i + j] != pat->data[j]) {
-					ok = 0;
-					break;
-				}
-			if (ok)
-				return value_num(cpu, num_kuint(i));
-		}
+		int rev_start = str->len - pat->len - start;
+		if (rev_start < 0)
+			rev_start = 0;
+		int pos = index_of_rev(str->data, str->len, pat->data, pat->len, rev_start);
+		cpu->cycles += get_index_of_cycles(rev_start, str->len, pos, pat->len);
+		if (pos >= 0)
+			pos = str->len - pat->len - pos;
+		return value_num(cpu, num_kuint(pos));
 	}
-	return value_num(cpu, num_kint(-1));
 }
 
 struct value libstr_substr(struct cpu* cpu, int sp, int nargs) {
