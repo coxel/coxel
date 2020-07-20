@@ -63,6 +63,7 @@ struct callinfo2 {
 };
 
 struct value {
+	enum type type;
 	union {
 		int b;
 		number num;
@@ -78,7 +79,6 @@ struct value {
 		struct callinfo1 ci1;
 		struct callinfo2 ci2;
 	};
-	enum type type : 8;
 };
 
 struct obj {
@@ -357,7 +357,9 @@ struct cpu {
 	ptr(struct upval) upval_open;
 
 	/* frame counter */
-	int frame;
+	int completed_frames;
+	int delayed_frames;
+	int last_delayed_frames;
 
 	/* gfx state */
 	struct gfx gfx;

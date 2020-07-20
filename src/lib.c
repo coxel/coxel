@@ -287,10 +287,11 @@ struct value lib_rand(struct cpu* cpu, int sp, int nargs) {
 		argument_error(cpu);
 }
 
-struct value lib_stat_cpu(struct cpu* cpu, int sp, int nargs) {
+struct value lib_statCpu(struct cpu* cpu, int sp, int nargs) {
 	if (nargs != 0)
 		argument_error(cpu);
 	number usage = (number)(((int64_t)cpu->cycles << FRAC_BITS) / (int64_t)CYCLES_PER_FRAME);
+	usage = num_add(usage, num_kint(cpu->delayed_frames));
 	return value_num(cpu, usage);
 }
 
@@ -580,7 +581,7 @@ static const struct libdef libdefs[] = {
 	{"floor", cf_lib_floor },
 	{"srand", cf_lib_srand },
 	{"rand", cf_lib_rand },
-	{"stat_cpu", cf_lib_stat_cpu },
+	{"statCpu", cf_lib_statCpu },
 	{ NULL, 0 },
 };
 

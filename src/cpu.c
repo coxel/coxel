@@ -112,7 +112,9 @@ struct cpu* cpu_new() {
 	cpu->sp = 0;
 	cpu->stack_cap = 0;
 	cpu->upval_open = writeptr(NULL);
-	cpu->frame = 0;
+	cpu->completed_frames = 0;
+	cpu->delayed_frames = 0;
+	cpu->last_delayed_frames = 0;
 
 	cpu->_lit_EMPTY = writeptr(str_intern_nogc(cpu, "", 0));
 #define X(s) cpu->_lit_##s = writeptr(str_intern_nogc(cpu, #s, (sizeof #s) - 1));
@@ -140,7 +142,7 @@ static void cpu_growstack(struct cpu* cpu) {
 		val->val = writeptr((struct value*)readptr(val->val) - old_stack + new_stack);
 }
 
-int to_bool(struct cpu* cpu, struct value val) {
+FORCEINLINE int to_bool(struct cpu* cpu, struct value val) {
 	switch (val.type) {
 	case t_undef: return 0;
 	case t_null: return 0;
@@ -151,7 +153,7 @@ int to_bool(struct cpu* cpu, struct value val) {
 	}
 }
 
-number to_number(struct cpu* cpu, struct value val) {
+FORCEINLINE number to_number(struct cpu* cpu, struct value val) {
 	switch (val.type) {
 	case t_null: return num_kint(0);
 	case t_bool: return num_kint(val.b);
@@ -168,7 +170,7 @@ number to_number(struct cpu* cpu, struct value val) {
 	}
 }
 
-struct strobj* to_string(struct cpu* cpu, struct value val) {
+FORCEINLINE struct strobj* to_string(struct cpu* cpu, struct value val) {
 	switch (val.type) {
 	case t_undef: return LIT(undefined);
 	case t_null: return LIT(null);
@@ -362,7 +364,7 @@ void upval_destroy(struct cpu* cpu, struct upval* upval) {
 }
 
 #define update_stack()	do { \
-	if (cpu->sp + 256 > cpu->stack_cap) \
+	if (unlikely(cpu->sp + 256 > cpu->stack_cap)) \
 		cpu_growstack(cpu); \
 		frame = &((struct value*)readptr(cpu->stack))[cpu->sp]; \
 	} while (0)
@@ -406,7 +408,7 @@ void cpu_continue(struct cpu* cpu) {
 	g_pc = cpu->curpc;
 	update_stack();
 	for (;;) {
-		if (cpu->cycles >= CYCLES_PER_FRAME) {
+		if (unlikely(cpu->cycles >= CYCLES_PER_FRAME)) {
 			cpu->cycles -= CYCLES_PER_FRAME;
 			cpu->curfunc = writeptr(func);
 			cpu->curpc = g_pc;

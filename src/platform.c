@@ -441,9 +441,16 @@ void console_update() {
 					cpu_execute(cpu, fobj);
 				}
 			}
-			cpu->frame++;
-			if (!cpu->paused && cpu->frame % 60 == 0)
-				gc_collect(cpu);
+			if (cpu->paused)
+				cpu->delayed_frames++;
+			else {
+				cpu->last_delayed_frames = cpu->delayed_frames;
+				cpu->delayed_frames = 0;
+				if (++cpu->completed_frames == 60) {
+					cpu->completed_frames = 0;
+					gc_collect(cpu);
+				}
+			}
 		}
 #ifdef _DEBUG
 		mem_check(&cpu->alloc);
