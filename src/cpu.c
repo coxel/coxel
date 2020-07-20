@@ -686,9 +686,9 @@ static const struct opcode_desc opcode_desc[] = {
 };
 #undef X
 
-static char* dump_operand(struct code* code, enum operand_type ot, int value, char* buf) {
+static char* dump_operand(uint32_t* k, enum operand_type ot, int value, char* buf) {
 	if (ot == ot_NUM) {
-		number num = (number)((uint32_t*)readptr(code->k))[value];
+		number num = (number)k[value];
 		return buf + num_format(num, 4, buf);
 	}
 	if (ot == ot_REG)
@@ -799,7 +799,7 @@ static int dump_func(struct cpu* cpu, const char* codebuf, int codelen, int func
 			*cur++ = ' ';
 		int comma = 0;
 		if (desc->op1 != ot__) {
-			cur = dump_operand(code, desc->op1, ins->op1, cur);
+			cur = dump_operand((uint32_t*)readptr(code->k), desc->op1, ins->op1, cur);
 			comma = 1;
 		}
 		if (desc->op2 != ot__) {
@@ -839,11 +839,11 @@ static int dump_func(struct cpu* cpu, const char* codebuf, int codelen, int func
 				break;
 			}
 			default: {
-				cur = dump_operand(code, desc->op2, ins->op2, cur);
+				cur = dump_operand((uint32_t*)readptr(code->k), desc->op2, ins->op2, cur);
 				if (desc->op3 != ot__) {
 					*cur++ = ',';
 					*cur++ = ' ';
-					cur = dump_operand(code, desc->op3, ins->op3, cur);
+					cur = dump_operand((uint32_t*)readptr(code->k), desc->op3, ins->op3, cur);
 				}
 			}
 			}
