@@ -9,115 +9,137 @@
 #include <stdarg.h>
 #include <string.h>
 
-#define TOKEN_TYPE_DEF(_) \
-	_(tk_eof, "<eof>", 0, 0) \
-	_(tk_ident, "<identifier>", 0, 0) \
-	_(tk_num, "<number>", 0, 0) \
-	_(tk_str, "<string>", 0, 0) \
+#define TOKEN_TYPE_DEF(X) \
+	X(tk_eof, "<eof>", _, _, _, _, _) \
+	X(tk_ident, "<identifier>", _, _, _, _, _) \
+	X(tk_num, "<number>", _, _, _, _, _) \
+	X(tk_str, "<string>", _, _, _, _, _) \
 	/* keywords */ \
-	_(tk_keyword_begin, "", 0, 0) \
-	_(tk_break, "break", 0, 0) \
-	_(tk_case, "case", 0, 0) \
-	_(tk_continue, "continue", 0, 0) \
-	_(tk_default, "default", 0, 0) \
-	_(tk_do, "do", 0, 0) \
-	_(tk_else, "else", 0, 0) \
-	_(tk_false, "false", 0, 0) \
-	_(tk_for, "for", 0, 0) \
-	_(tk_function, "function", 0, 0) \
-	_(tk_if, "if", 0, 0) \
-	_(tk_in, "in", op_in, 8) \
-	_(tk_let, "let", 0, 0) \
-	_(tk_null, "null", 0, 0) \
-	_(tk_of, "of", 0, 0) \
-	_(tk_return, "return", 0, 0) \
-	_(tk_switch, "switch", 0, 0) \
-	_(tk_this, "this", 0, 0) \
-	_(tk_true, "true", 0, 0) \
-	_(tk_undefined, "undefined", 0, 0) \
-	_(tk_while, "while", 0, 0) \
-	_(tk_keyword_end, "", 0, 0) \
+	X(tk_keyword_begin, _, _, _, _, _, _) \
+	X(tk_break, "break", _, _, _, _, _) \
+	X(tk_case, "case", _, _, _, _, _) \
+	X(tk_continue, "continue", _, _, _, _, _) \
+	X(tk_default, "default", _, _, _, _, _) \
+	X(tk_do, "do", _, _, _, _, _) \
+	X(tk_else, "else", _, _, _, _, _) \
+	X(tk_false, "false", _, _, _, _, _) \
+	X(tk_for, "for", _, _, _, _, _) \
+	X(tk_function, "function", _, _, _, _, _) \
+	X(tk_if, "if", _, _, _, _, _) \
+	X(tk_in, "in", op_in, _, _, _, 8) \
+	X(tk_let, "let", _, _, _, _, _) \
+	X(tk_null, "null", _, _, _, _, _) \
+	X(tk_of, "of", _, _, _, _, _) \
+	X(tk_return, "return", _, _, _, _, _) \
+	X(tk_switch, "switch", _, _, _, _, _) \
+	X(tk_this, "this", _, _, _, _, _) \
+	X(tk_true, "true", _, _, _, _, _) \
+	X(tk_undefined, "undefined", _, _, _, _, _) \
+	X(tk_while, "while", _, _, _, _, _) \
+	X(tk_keyword_end, _, _, _, _, _, _) \
 	/* binary operators */ \
-	_(tk_add, "+", op_add, 10) \
-	_(tk_sub, "-", op_sub, 10) \
-	_(tk_mul, "*", op_mul, 11) \
-	_(tk_div, "/", op_div, 11) \
-	_(tk_mod, "%", op_mod, 11) \
-	_(tk_exp, "**", op_exp, 12) \
+	X(tk_add, "+", op_add, op_addrn, op_addnr, fold_add, 10) \
+	X(tk_sub, "-", op_sub, op_subrn, op_subnr, fold_sub, 10) \
+	X(tk_mul, "*", op_mul, op_mulrn, op_mulnr, fold_mul, 11) \
+	X(tk_div, "/", op_div, op_divrn, op_divnr, fold_div, 11) \
+	X(tk_mod, "%", op_mod, op_modrn, op_modnr, fold_mod, 11) \
+	X(tk_exp, "**", op_exp, op_exprn, op_expnr, fold_exp, 12) \
 	/* prefix/postfix operators */ \
-	_(tk_inc, "++", op_inc, 0) \
-	_(tk_dec, "--", op_dec, 0) \
+	X(tk_inc, "++", op_inc, _, _, _, _) \
+	X(tk_dec, "--", op_dec, _, _, _, _) \
 	/* logical operators */ \
-	_(tk_and, "&&", 0, 2) \
-	_(tk_or, "||", 0, 1) \
-	_(tk_not, "!", 0, 0) \
+	X(tk_and, "&&", _, _, _, _, 2) \
+	X(tk_or, "||", _, _, _, _, 1) \
+	X(tk_not, "!", _, _, _, _, _) \
 	/* bitwise logical operators */ \
-	_(tk_band, "&", op_band, 6) \
-	_(tk_bor, "|", op_bor, 4) \
-	_(tk_bxor, "^", op_bxor, 5) \
-	_(tk_bnot, "~", 0, 0) \
-	_(tk_shl, "<<", op_shl, 9) \
-	_(tk_shr, ">>", op_shr, 9) \
-	_(tk_ushr, ">>>", op_ushr, 9) \
+	X(tk_band, "&", op_band, op_bandrn, op_bandnr, fold_band, 6) \
+	X(tk_bor, "|", op_bor, op_borrn, op_bornr, fold_bor, 4) \
+	X(tk_bxor, "^", op_bxor, op_bxorrn, op_bxornr, fold_bxor, 5) \
+	X(tk_bnot, "~", _, _, _, _, _) \
+	X(tk_shl, "<<", op_shl, op_shlrn, op_shlnr, fold_shl, 9) \
+	X(tk_shr, ">>", op_shr, op_shrrn, op_shrnr, fold_shr, 9) \
+	X(tk_ushr, ">>>", op_ushr, op_ushrrn, op_ushrnr, fold_ushr, 9) \
 	/* comparison operators */ \
-	_(tk_eq, "==", op_eq, 7) \
-	_(tk_ne, "!=", op_ne, 7) \
-	_(tk_lt, "<", op_lt, 8) \
-	_(tk_le, "<=", op_le, 8) \
-	_(tk_gt, ">", op_gt, 8) \
-	_(tk_ge, ">=", op_ge, 8) \
+	X(tk_eq, "==", op_eq, op_eqrn, op_eqnr, fold_eq, 7) \
+	X(tk_ne, "!=", op_ne, op_nern, op_nenr, fold_ne, 7) \
+	X(tk_lt, "<", op_lt, op_ltrn, op_ltnr, fold_lt, 8) \
+	X(tk_le, "<=", op_le, op_lern, op_lenr, fold_le, 8) \
+	X(tk_gt, ">", op_gt, op_gtrn, op_gtnr, fold_gt, 8) \
+	X(tk_ge, ">=", op_ge, op_gern, op_genr, fold_ge, 8) \
 	/* assignment operators */ \
-	_(tk_assign_begin, "", 0, 0) \
-	_(tk_assign, "=", op_mov, 0) \
-	_(tk_add_assign, "+=", op_add, 0) \
-	_(tk_sub_assign, "-=", op_sub, 0) \
-	_(tk_mul_assign, "*=", op_mul, 0) \
-	_(tk_div_assign, "/=", op_div, 0) \
-	_(tk_mod_assign, "%=", op_mod, 0) \
-	_(tk_exp_assign, "**=", op_exp, 0) \
-	_(tk_band_assign, "&=", op_band, 0) \
-	_(tk_bor_assign, "|=", op_bor, 0) \
-	_(tk_bxor_assign, "^=", op_bxor, 0) \
-	_(tk_shl_assign, "<<=", op_shl, 0) \
-	_(tk_shr_assign, ">>=", op_shr, 0) \
-	_(tk_ushr_assign, ">>>=", op_ushr, 0) \
-	_(tk_assign_end, "", 0, 0) \
+	X(tk_assign_begin, _, _, _, _, _, _) \
+	X(tk_assign, "=", op_mov, _, _, _, _) \
+	X(tk_add_assign, "+=", op_add, op_addrn, _, _, _) \
+	X(tk_sub_assign, "-=", op_sub, op_subrn, _, _, _) \
+	X(tk_mul_assign, "*=", op_mul, op_mulrn, _, _, _) \
+	X(tk_div_assign, "/=", op_div, op_divrn, _, _, _) \
+	X(tk_mod_assign, "%=", op_mod, op_modrn, _, _, _) \
+	X(tk_exp_assign, "**=", op_exp, op_exprn, _, _, _) \
+	X(tk_band_assign, "&=", op_band, op_bandrn, _, _, _) \
+	X(tk_bor_assign, "|=", op_bor, op_borrn, _, _, _) \
+	X(tk_bxor_assign, "^=", op_bxor, op_bxorrn, _, _, _) \
+	X(tk_shl_assign, "<<=", op_shl, op_shlrn, _, _, _) \
+	X(tk_shr_assign, ">>=", op_shr, op_shrrn, _, _, _) \
+	X(tk_ushr_assign, ">>>=", op_ushr, op_ushrrn, _, _, _) \
+	X(tk_assign_end, _, _, _, _, _, _) \
 	/* groups */ \
-	_(tk_lbrace, "{", 0, 0) \
-	_(tk_rbrace, "}", 0, 0) \
-	_(tk_lbracket, "[", 0, 0) \
-	_(tk_rbracket, "]", 0, 0) \
-	_(tk_lparen, "(", 0, 0) \
-	_(tk_rparen, ")", 0, 0) \
+	X(tk_lbrace, "{", _, _, _, _, _) \
+	X(tk_rbrace, "}", _, _, _, _, _) \
+	X(tk_lbracket, "[", _, _, _, _, _) \
+	X(tk_rbracket, "]", _, _, _, _, _) \
+	X(tk_lparen, "(", _, _, _, _, _) \
+	X(tk_rparen, ")", _, _, _, _, _) \
 	/* other tokens */ \
-	_(tk_qmark, "?", 0, 0) \
-	_(tk_colon, ":", 0, 0) \
-	_(tk_semicolon, ";", 0, 0) \
-	_(tk_comma, ",", 0, 0) \
-	_(tk_dot, ".", 0, 0)
+	X(tk_qmark, "?", _, _, _, _, _) \
+	X(tk_colon, ":", _, _, _, _, _) \
+	X(tk_semicolon, ";", _, _, _, _, _) \
+	X(tk_comma, ",", _, _, _, _, _) \
+	X(tk_dot, ".", _, _, _, _, _)
 
-#define X(a, b, c, d) a,
+#define X(a, b, c, d, e, f, g) a,
 enum token_type {
 	TOKEN_TYPE_DEF(X)
 };
 #undef X
 
-#define X(a, b, c, d) b,
+#define X(a, b, c, d, e, f, g) b,
+#define _ ""
 static const char* token_names[] = {
 	TOKEN_TYPE_DEF(X)
 };
+#undef _
 #undef X
 
-#define X(a, b, c, d) c,
+#define X(a, b, c, d, e, f, g) c,
+#define _ -1
 static enum opcode token_ops[] = {
 	TOKEN_TYPE_DEF(X)
 };
+#undef _
 #undef X
 
-#define X(a, b, c, d) d,
+#define X(a, b, c, d, e, f, g) d,
+#define _ -1
+static enum opcode token_rn_ops[] = {
+	TOKEN_TYPE_DEF(X)
+};
+#undef _
+#undef X
+
+#define X(a, b, c, d, e, f, g) e,
+#define _ -1
+static enum opcode token_nr_ops[] = {
+	TOKEN_TYPE_DEF(X)
+};
+#undef _
+#undef X
+
+#define X(a, b, c, d, e, f, g) g,
+#define _ 0
 static uint8_t token_precedence[] = {
 	TOKEN_TYPE_DEF(X)
 };
+#undef _
 #undef X
 
 struct functx {
@@ -515,16 +537,6 @@ static void require_token(struct context* ctx, enum token_type token) {
 	next_token(ctx);
 }
 
-enum value_type {
-	vt_null, /* null value */
-	vt_value, /* generic in-reg value */
-	vt_local, /* local variable */
-	vt_global, /* global variable */
-	vt_upval, /* upvalue */
-	vt_member, /* object member */
-};
-
-#define sval_in_reg(x)	((x).type == vt_value || (x).type == vt_local)
 #define topcode()		(&((struct code*)readptr(ctx->cpu->code))[ctx->topfunc->code_id])
 
 static void add_lineinfo(struct context* ctx, enum licmdtype type, int delta) {
@@ -567,6 +579,23 @@ static struct ins* add_ins(struct context* ctx) {
 	return &ins[ins_id];
 }
 
+static int add_const(struct context* ctx, uint32_t val) {
+	/* find duplicate constant */
+	struct cpu* cpu = ctx->cpu;
+	struct code* code = topcode();
+	uint32_t* k = readptr(code->k);
+	for (int i = 0; i < code->k_cnt; i++)
+		if (k[i] == val)
+			return i;
+	if (code->k_cnt - 1 == MAX_K)
+		compile_error(ctx, "Too many constants in this function.");
+	vec_add(ctx->alloc, k, code->k_cnt, code->k_cap);
+	code->k = writeptr(k);
+	uint32_t* kval = &k[code->k_cnt - 1];
+	*kval = val;
+	return code->k_cnt - 1;
+}
+
 static void emit(struct context* ctx, enum opcode opcode, uint8_t op1, uint8_t op2, uint8_t op3) {
 	struct ins* ins = add_ins(ctx);
 	ins->opcode = opcode;
@@ -591,6 +620,26 @@ static void emit_rel(struct context* ctx, enum opcode opcode, uint8_t op1, int d
 	ins->imm = destpc - code->ins_cnt;
 }
 
+static void emit_rn(struct context* ctx, enum opcode opcode, enum opcode rn_opcode, uint8_t op1, uint8_t op2, number op3) {
+	int slot = add_const(ctx, op3);
+	if (slot <= MAX_KOP)
+		emit(ctx, rn_opcode, op1, op2, slot);
+	else {
+		emit_imm(ctx, op_knum, ctx->sp, slot);
+		emit(ctx, opcode, op1, op2, ctx->sp);
+	}
+}
+
+static void emit_nr(struct context* ctx, enum opcode opcode, enum opcode nr_opcode, uint8_t op1, number op2, uint8_t op3) {
+	int slot = add_const(ctx, op2);
+	if (slot <= MAX_KOP)
+		emit(ctx, nr_opcode, op1, slot, op3);
+	else {
+		emit_imm(ctx, op_knum, ctx->sp, slot);
+		emit(ctx, opcode, op1, ctx->sp, op3);
+	}
+}
+
 static inline int current_pc(struct context* ctx) {
 	struct cpu* cpu = ctx->cpu;
 	return topcode()->ins_cnt;
@@ -601,15 +650,57 @@ static inline void patch_rel(struct context* ctx, int pc, int target) {
 	((struct ins*)readptr(topcode()->ins))[pc].imm = target - pc - 1;
 }
 
+enum value_type {
+	vt_undef, /* undefined constant */
+	vt_null, /* null constant */
+	vt_bool, /* bool constant */
+	vt_num, /* number constant */
+	vt_value, /* generic in-reg value */
+	vt_local, /* local variable */
+	vt_global, /* global variable */
+	vt_upval, /* upvalue */
+	vt_member, /* object member */
+};
+
 struct sval {
 	enum value_type type : 8;
-	uint8_t reg;
-	uint8_t field;
+	union {
+		int b;
+		number num;
+		struct {
+			uint8_t reg;
+			uint8_t field;
+		};
+	};
 };
+
+#define sval_in_reg(x)	((x).type == vt_value || (x).type == vt_local)
+#define sval_isk(x)		((x).type <= vt_num)
+#define sval_numable(x)	((x).type == vt_null || (x).type == vt_bool || (x).type == vt_num)
+
+static inline struct sval sval_undef() {
+	struct sval val;
+	val.type = vt_undef;
+	return val;
+}
 
 static inline struct sval sval_null() {
 	struct sval val;
 	val.type = vt_null;
+	return val;
+}
+
+static inline struct sval sval_bool(int b) {
+	struct sval val;
+	val.type = vt_bool;
+	val.b = b;
+	return val;
+}
+
+static inline struct sval sval_num(number num) {
+	struct sval val;
+	val.type = vt_num;
+	val.num = num;
 	return val;
 }
 
@@ -649,6 +740,129 @@ static inline struct sval sval_member(uint8_t reg, uint8_t field) {
 	return val;
 }
 
+static number sval_tonum(struct context* ctx, struct sval val) {
+	switch (val.type) {
+	case vt_null: return num_kint(0);
+	case vt_bool: return num_kint(val.b);
+	case vt_num: return val.num;
+	default: internal_error(ctx);
+	}
+}
+
+typedef struct sval (*fold_func_t)(struct context* ctx, struct sval lval, struct sval rval);
+
+static struct sval fold_empty(struct context* ctx, struct sval lval, struct sval rval) {
+	internal_error(ctx);
+}
+
+static struct sval fold_add(struct context* ctx, struct sval lval, struct sval rval) {
+	return sval_num(num_add(sval_tonum(ctx, lval), sval_tonum(ctx, rval)));
+}
+
+static struct sval fold_sub(struct context* ctx, struct sval lval, struct sval rval) {
+	return sval_num(num_sub(sval_tonum(ctx, lval), sval_tonum(ctx, rval)));
+}
+
+static struct sval fold_mul(struct context* ctx, struct sval lval, struct sval rval) {
+	return sval_num(num_mul(sval_tonum(ctx, lval), sval_tonum(ctx, rval)));
+}
+
+static struct sval fold_div(struct context* ctx, struct sval lval, struct sval rval) {
+	return sval_num(num_div(sval_tonum(ctx, lval), sval_tonum(ctx, rval)));
+}
+
+static struct sval fold_mod(struct context* ctx, struct sval lval, struct sval rval) {
+	return sval_num(num_mod(sval_tonum(ctx, lval), sval_tonum(ctx, rval)));
+}
+
+static struct sval fold_exp(struct context* ctx, struct sval lval, struct sval rval) {
+	return sval_num(num_exp(sval_tonum(ctx, lval), sval_tonum(ctx, rval)));
+}
+
+static struct sval fold_band(struct context* ctx, struct sval lval, struct sval rval) {
+	return sval_num(num_and(sval_tonum(ctx, lval), sval_tonum(ctx, rval)));
+}
+
+static struct sval fold_bor(struct context* ctx, struct sval lval, struct sval rval) {
+	return sval_num(num_or(sval_tonum(ctx, lval), sval_tonum(ctx, rval)));
+}
+
+static struct sval fold_bxor(struct context* ctx, struct sval lval, struct sval rval) {
+	return sval_num(num_xor(sval_tonum(ctx, lval), sval_tonum(ctx, rval)));
+}
+
+static struct sval fold_shl(struct context* ctx, struct sval lval, struct sval rval) {
+	return sval_num(num_shl(sval_tonum(ctx, lval), sval_tonum(ctx, rval)));
+}
+
+static struct sval fold_shr(struct context* ctx, struct sval lval, struct sval rval) {
+	return sval_num(num_shr(sval_tonum(ctx, lval), sval_tonum(ctx, rval)));
+}
+
+static struct sval fold_ushr(struct context* ctx, struct sval lval, struct sval rval) {
+	return sval_num(num_ushr(sval_tonum(ctx, lval), sval_tonum(ctx, rval)));
+}
+
+static struct sval fold_eq(struct context* ctx, struct sval lval, struct sval rval) {
+	if (lval.type != rval.type)
+		return sval_bool(0);
+	switch (lval.type) {
+	case vt_undef:
+	case vt_null:
+		return sval_bool(1);
+
+	case vt_bool:
+		return sval_bool(lval.b == rval.b);
+
+	case vt_num:
+		return sval_bool(lval.num == rval.num);
+
+	default: internal_error(ctx);
+	}
+}
+
+static struct sval fold_ne(struct context* ctx, struct sval lval, struct sval rval) {
+	if (lval.type != rval.type)
+		return sval_bool(1);
+	switch (lval.type) {
+	case vt_undef:
+	case vt_null:
+		return sval_bool(0);
+
+	case vt_bool:
+		return sval_bool(lval.b != rval.b);
+
+	case vt_num:
+		return sval_bool(lval.num != rval.num);
+
+	default: internal_error(ctx);
+	}
+}
+
+static struct sval fold_lt(struct context* ctx, struct sval lval, struct sval rval) {
+	return sval_bool((int32_t)sval_tonum(ctx, lval) < (int32_t)sval_tonum(ctx, rval));
+}
+
+static struct sval fold_le(struct context* ctx, struct sval lval, struct sval rval) {
+	return sval_bool((int32_t)sval_tonum(ctx, lval) <= (int32_t)sval_tonum(ctx, rval));
+}
+
+static struct sval fold_gt(struct context* ctx, struct sval lval, struct sval rval) {
+	return sval_bool((int32_t)sval_tonum(ctx, lval) > (int32_t)sval_tonum(ctx, rval));
+}
+
+static struct sval fold_ge(struct context* ctx, struct sval lval, struct sval rval) {
+	return sval_bool((int32_t)sval_tonum(ctx, lval) >= (int32_t)sval_tonum(ctx, rval));
+}
+
+#define X(a, b, c, d, e, f, g) f,
+#define _ 0
+static fold_func_t token_fold_funcs[] = {
+	TOKEN_TYPE_DEF(X)
+};
+#undef _
+#undef X
+
 static void sval_popone(struct context* ctx, int reg) {
 	if (reg >= ctx->local_sp) {
 		if (reg == ctx->sp - 1)
@@ -670,16 +884,48 @@ static void sval_poptwo(struct context* ctx, int a, int b) {
 }
 
 static void sval_pop(struct context* ctx, struct sval sval) {
-	if (sval.type == vt_upval)
-		return;
-	if (sval.type == vt_member)
+	switch (sval.type) {
+	case vt_member:
 		sval_poptwo(ctx, sval.reg, sval.field);
-	else
+		break;
+
+	case vt_value:
+	case vt_local:
+	case vt_global:
 		sval_popone(ctx, sval.reg);
+		break;
+	}
+}
+
+static void sval_setk(struct context* ctx, int lreg, struct sval rval) {
+	switch (rval.type) {
+	case vt_undef: emit(ctx, op_kundef, lreg, 0, 0); break;
+	case vt_null: emit(ctx, op_knull, lreg, 0, 0); break;
+	case vt_bool: emit(ctx, rval.b ? op_ktrue : op_kfalse, lreg, 0, 0); break;
+	case vt_num: emit_imm(ctx, op_knum, lreg, add_const(ctx, rval.num)); break;
+	default: internal_error(ctx);
+	}
 }
 
 static struct sval sval_get(struct context* ctx, struct sval sval) {
 	switch (sval.type) {
+	case vt_undef: {
+		emit(ctx, op_kundef, ctx->sp, 0, 0);
+		return sval_value(ctx->sp++);
+	}
+	case vt_null: {
+		emit(ctx, op_knull, ctx->sp, 0, 0);
+		return sval_value(ctx->sp++);
+	}
+	case vt_bool: {
+		emit(ctx, sval.b ? op_ktrue : op_kfalse, ctx->sp, 0, 0);
+		return sval_value(ctx->sp++);
+	}
+	case vt_num: {
+		int slot = add_const(ctx, sval.num);
+		emit_imm(ctx, op_knum, ctx->sp, slot);
+		return sval_value(ctx->sp++);
+	}
 	case vt_value:
 	case vt_local:
 		return sval;
@@ -738,26 +984,9 @@ static void sval_set(struct context* ctx, struct sval lval, struct sval rval) {
 }
 
 static struct sval sval_str(struct context* ctx, struct strobj* str) {
-	/* find duplicate constant */
 	struct cpu* cpu = ctx->cpu;
-	struct code* code = topcode();
-	struct value* k = readptr(code->k);
-	int slot = -1;
-	for (int i = 0; i < code->k_cnt; i++) {
-		if (k[i].type == t_str && (struct strobj*)readptr(k[i].str) == str) {
-			slot = i;
-			break;
-		}
-	}
-	if (slot == -1) {
-		vec_add(ctx->alloc, k, code->k_cnt, code->k_cap);
-		code->k = writeptr(k);
-		slot = code->k_cnt - 1;
-		struct value* kval = &k[slot];
-		kval->type = t_str;
-		kval->str = writeptr(str);
-	}
-	emit_imm(ctx, op_kobj, ctx->sp, slot);
+	int slot = add_const(ctx, (uint32_t)((uint8_t*)str - (uint8_t*)cpu));
+	emit_imm(ctx, op_kstr, ctx->sp, slot);
 	return sval_value(ctx->sp++);
 }
 
@@ -926,10 +1155,8 @@ static struct sval compile_element(struct context* ctx) {
 		return sval_global(ctx->sp++);
 	}
 	case tk_num: {
-		emit_imm(ctx, op_knum, ctx->sp, ctx->token_num & 0xFFFF);
-		emit_imm(ctx, op_data, 0, ctx->token_num >> 16);
 		next_token(ctx);
-		return sval_value(ctx->sp++);
+		return sval_num(ctx->token_num);
 	}
 	case tk_str: {
 		struct sval val = sval_tkstr(ctx);
@@ -944,23 +1171,19 @@ static struct sval compile_element(struct context* ctx) {
 	}
 	case tk_undefined: {
 		next_token(ctx);
-		emit(ctx, op_kundef, ctx->sp, 0, 0);
-		return sval_value(ctx->sp++);
+		return sval_undef();
 	}
 	case tk_null: {
 		next_token(ctx);
-		emit(ctx, op_knull, ctx->sp, 0, 0);
-		return sval_value(ctx->sp++);
+		return sval_null();
 	}
 	case tk_false: {
 		next_token(ctx);
-		emit(ctx, op_kfalse, ctx->sp, 0, 0);
-		return sval_value(ctx->sp++);
+		return sval_bool(0);
 	}
 	case tk_true: {
 		next_token(ctx);
-		emit(ctx, op_ktrue, ctx->sp, 0, 0);
-		return sval_value(ctx->sp++);
+		return sval_bool(1);
 	}
 	case tk_this: {
 		next_token(ctx);
@@ -1148,11 +1371,13 @@ static struct sval compile_unary(struct context* ctx) {
 }
 
 static struct sval compile_binary_subexp(struct context* ctx, struct sval lval) {
-	lval = sval_extract(ctx, lval);
 	int precedence = token_precedence[ctx->token];
 	while (token_precedence[ctx->token] == precedence) {
 		enum token_type token = ctx->token;
 		enum opcode op = token_ops[ctx->token];
+		enum opcode rn_op = token_rn_ops[ctx->token];
+		enum opcode nr_op = token_nr_ops[ctx->token];
+		fold_func_t fold_func = token_fold_funcs[ctx->token];
 		next_token(ctx);
 		if (token == tk_and || token == tk_or) {
 			lval = sval_force_extract(ctx, lval);
@@ -1171,14 +1396,31 @@ static struct sval compile_binary_subexp(struct context* ctx, struct sval lval) 
 			lval = sval_value(ctx->sp++);
 		}
 		else {
+			if (!sval_numable(lval) || nr_op < 0)
+				lval = sval_extract(ctx, lval);
 			struct sval rval = compile_unary(ctx);
 			while (token_precedence[ctx->token] > precedence || (op == op_exp && ctx->token == tk_exp))
 				rval = compile_binary_subexp(ctx, rval);
-			rval = sval_extract(ctx, rval);
-			sval_pop(ctx, rval);
-			sval_pop(ctx, lval);
-			emit(ctx, op, ctx->sp, lval.reg, rval.reg);
-			lval = sval_value(ctx->sp++);
+			if (sval_numable(rval) && rn_op >= 0) {
+				sval_pop(ctx, rval);
+				sval_pop(ctx, lval);
+				if (sval_numable(lval))
+					lval = fold_func(ctx, lval, rval);
+				else {
+					emit_rn(ctx, op, rn_op, ctx->sp, lval.reg, sval_tonum(ctx, rval));
+					lval = sval_value(ctx->sp++);
+				}
+			}
+			else {
+				rval = sval_extract(ctx, rval);
+				sval_pop(ctx, rval);
+				sval_pop(ctx, lval);
+				if (sval_numable(lval) && nr_op >= 0)
+					emit_nr(ctx, op, nr_op, ctx->sp, sval_tonum(ctx, lval), rval.reg);
+				else
+					emit(ctx, op, ctx->sp, lval.reg, rval.reg);
+				lval = sval_value(ctx->sp++);
+			}
 		}
 	}
 	return lval;
@@ -1220,16 +1462,28 @@ static struct sval compile_assign(struct context* ctx) {
 	struct sval val = compile_ternary(ctx);
 	if (ctx->token >= tk_assign_begin && ctx->token <= tk_assign_end) {
 		enum opcode op = token_ops[ctx->token];
+		enum opcode rn_op = token_rn_ops[ctx->token];
 		next_token(ctx);
 		switch (val.type) {
 		case vt_value: compile_error(ctx, "Bad assignment.");
 		case vt_local: {
 			struct sval rval = compile_assign(ctx);
-			rval = sval_extract(ctx, rval);
-			if (op == op_mov)
-				emit(ctx, op, val.reg, rval.reg, 0);
-			else
+			if (op == op_mov) {
+				if (sval_isk(rval))
+					sval_setk(ctx, val.reg, rval);
+				else {
+					rval = sval_extract(ctx, rval);
+					emit(ctx, op, val.reg, rval.reg, 0);
+				}
+			}
+			else if (rn_op >= 0 && sval_numable(rval)) {
+				number num = sval_tonum(ctx, rval);
+				emit_rn(ctx, op, rn_op, val.reg, val.reg, num);
+			}
+			else {
+				rval = sval_extract(ctx, rval);
 				emit(ctx, op, val.reg, val.reg, rval.reg);
+			}
 			sval_pop(ctx, rval);
 			return sval_local(val.reg);
 		}
@@ -1247,8 +1501,14 @@ static struct sval compile_assign(struct context* ctx) {
 			else {
 				struct sval mval = sval_get(ctx, val);
 				struct sval rval = compile_assign(ctx);
-				rval = sval_extract(ctx, rval);
-				emit(ctx, op, mval.reg, mval.reg, rval.reg);
+				if (rn_op >= 0 && sval_numable(rval)) {
+					number num = sval_tonum(ctx, rval);
+					emit_rn(ctx, op, rn_op, mval.reg, mval.reg, num);
+				}
+				else {
+					rval = sval_extract(ctx, rval);
+					emit(ctx, op, mval.reg, mval.reg, rval.reg);
+				}
 				sval_set(ctx, val, mval);
 				sval_pop(ctx, rval);
 				sval_pop(ctx, mval);
@@ -1304,7 +1564,7 @@ static void compile_let(struct context* ctx, struct sval* single_sval) {
 		++cnt;
 	} while (ctx->token == tk_comma);
 	if (single_sval)
-		*single_sval = sval_null();
+		*single_sval = sval_undef();
 }
 
 static void patch_break_continue(struct context* ctx, int patch_base, int break_pc, int continue_pc, int close_sp) {
@@ -1429,7 +1689,7 @@ static void compile_statement(struct context* ctx) {
 		next_token(ctx);
 		require_token(ctx, tk_lparen);
 		sym_push(&ctx->sym_table);
-		struct sval for_val = sval_null();
+		struct sval for_val = sval_undef();
 		if (ctx->token == tk_let)
 			compile_let(ctx, &for_val);
 		else if (ctx->token != tk_semicolon)
@@ -1437,7 +1697,7 @@ static void compile_statement(struct context* ctx) {
 		int continue_pc;
 		if (ctx->token == tk_semicolon) {
 			// Regular for loop
-			if (for_val.type != vt_null)
+			if (for_val.type != vt_undef)
 				sval_pop(ctx, for_val);
 			next_token(ctx);
 			int cond_pc = -1, cond_false_pc = -1, cond_true_pc = -1;
@@ -1478,7 +1738,7 @@ static void compile_statement(struct context* ctx) {
 			if (cond_false_pc != -1)
 				patch_rel(ctx, cond_false_pc, current_pc(ctx));
 		}
-		else if (ctx->token == tk_of && for_val.type != vt_null) {
+		else if (ctx->token == tk_of && for_val.type != vt_undef) {
 			// for...of loop
 			next_token(ctx);
 			struct sval iterable = compile_expression(ctx);

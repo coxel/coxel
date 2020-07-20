@@ -17,6 +17,8 @@
 #define SPRITESHEET_BYTES	(SPRITESHEET_WIDTH * SPRITESHEET_HEIGHT / 2)
 #define MAX_CODE_SIZE		65535
 #define SYM_MAX_LEN			256
+#define MAX_K				65535
+#define MAX_KOP				255
 
 #ifdef RELATIVE_ADDRESSING
 typedef uint32_t ptr_t;
@@ -137,22 +139,33 @@ struct tabobj {
 };
 
 #define OPCODE_DEF(X) \
-	X(op_data, "data", _, _, _) \
 	X(op_kundef, "kundef", REG, _, _) \
 	X(op_knull, "knull", REG, _, _) \
 	X(op_kfalse, "kfalse", REG, _, _) \
 	X(op_ktrue, "ktrue", REG, _, _) \
 	X(op_knum, "knum", REG, IMMNUM, _) \
-	X(op_kobj, "kobj", REG, IMMK, _) \
+	X(op_kstr, "kstr", REG, IMMSTR, _) \
 	X(op_mov, "mov", REG, REG, _) \
 	X(op_xchg, "xchg", REG, REG, _) \
 	/* arithmetic */ \
 	X(op_add, "add", REG, REG, REG) \
+	X(op_addrn, "add", REG, REG, NUM) \
+	X(op_addnr, "add", REG, NUM, REG) \
 	X(op_sub, "sub", REG, REG, REG) \
+	X(op_subrn, "sub", REG, REG, NUM) \
+	X(op_subnr, "sub", REG, NUM, REG) \
 	X(op_mul, "mul", REG, REG, REG) \
+	X(op_mulrn, "mul", REG, REG, NUM) \
+	X(op_mulnr, "mul", REG, NUM, REG) \
 	X(op_div, "div", REG, REG, REG) \
+	X(op_divrn, "div", REG, REG, NUM) \
+	X(op_divnr, "div", REG, NUM, REG) \
 	X(op_mod, "mod", REG, REG, REG) \
+	X(op_modrn, "mod", REG, REG, NUM) \
+	X(op_modnr, "mod", REG, NUM, REG) \
 	X(op_exp, "exp", REG, REG, REG) \
+	X(op_exprn, "exp", REG, REG, NUM) \
+	X(op_expnr, "exp", REG, NUM, REG) \
 	X(op_inc, "inc", REG, REG, _) \
 	X(op_dec, "dec", REG, REG, _) \
 	X(op_plus, "plus", REG, REG, _) \
@@ -161,19 +174,43 @@ struct tabobj {
 	X(op_not, "not", REG, REG, _) \
 	/* bitwise logical */ \
 	X(op_band, "band", REG, REG, REG) \
+	X(op_bandrn, "band", REG, REG, NUM) \
+	X(op_bandnr, "band", REG, NUM, REG) \
 	X(op_bor, "bor", REG, REG, REG) \
+	X(op_borrn, "bor", REG, REG, NUM) \
+	X(op_bornr, "bor", REG, NUM, REG) \
 	X(op_bxor, "bxor", REG, REG, REG) \
-	X(op_bnot, "bnot", REG, REG, REG) \
+	X(op_bxorrn, "bxor", REG, REG, NUM) \
+	X(op_bxornr, "bxor", REG, NUM, REG) \
+	X(op_bnot, "bnot", REG, REG, _) \
 	X(op_shl, "shl", REG, REG, REG) \
+	X(op_shlrn, "shl", REG, REG, NUM) \
+	X(op_shlnr, "shl", REG, NUM, REG) \
 	X(op_shr, "shr", REG, REG, REG) \
+	X(op_shrrn, "shr", REG, REG, NUM) \
+	X(op_shrnr, "shr", REG, NUM, REG) \
 	X(op_ushr, "ushr", REG, REG, REG) \
+	X(op_ushrrn, "ushr", REG, REG, NUM) \
+	X(op_ushrnr, "ushr", REG, NUM, REG) \
 	/* comparison */ \
 	X(op_eq, "eq", REG, REG, REG) \
+	X(op_eqrn, "eq", REG, REG, NUM) \
+	X(op_eqnr, "eq", REG, NUM, REG) \
 	X(op_ne, "ne", REG, REG, REG) \
+	X(op_nern, "ne", REG, REG, NUM) \
+	X(op_nenr, "ne", REG, NUM, REG) \
 	X(op_lt, "lt", REG, REG, REG) \
+	X(op_ltrn, "lt", REG, REG, NUM) \
+	X(op_ltnr, "lt", REG, NUM, REG) \
 	X(op_le, "le", REG, REG, REG) \
+	X(op_lern, "le", REG, REG, NUM) \
+	X(op_lenr, "le", REG, NUM, REG) \
 	X(op_gt, "gt", REG, REG, REG) \
+	X(op_gtrn, "gt", REG, REG, NUM) \
+	X(op_gtnr, "gt", REG, NUM, REG) \
 	X(op_ge, "ge", REG, REG, REG) \
+	X(op_gern, "ge", REG, REG, NUM) \
+	X(op_genr, "ge", REG, NUM, REG) \
 	X(op_in, "in", REG, REG, REG) \
 	/* object creation */ \
 	X(op_arr, "arr", REG, _, _) \
@@ -259,7 +296,7 @@ struct code {
 	ptr(struct licmd) lineinfo;
 	/* constants */
 	int k_cnt, k_cap;
-	ptr(struct value) k;
+	ptr(uint32_t) k;
 	/* upvalues */
 	int upval_cnt, upval_cap;
 	ptr(struct updef) upval;
