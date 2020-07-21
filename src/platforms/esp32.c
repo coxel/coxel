@@ -168,12 +168,12 @@ void platform_free(void* ptr) {
 
 void* platform_malloc_fast(int size) {
 	void* addr = heap_caps_malloc(size, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
-	printf("Memory allocation: %p size: 0x%x\n", addr, size);
+	printf("Fast memory allocation: %p size: 0x%x\n", addr, size);
 	return addr;
 }
 
 void platform_free_fast(void* ptr) {
-	printf("Memory free: %p\n", ptr);
+	printf("Fast memory free: %p\n", ptr);
 	heap_caps_free(ptr);
 }
 
@@ -188,10 +188,13 @@ uint32_t platform_seed() {
 	return esp_random();
 }
 
+extern const uint8_t firmware_start[] asm("_binary_firmware_cox_start");
+extern const uint8_t firmware_end[] asm("_binary_firmware_cox_end");
+
 void* platform_open(const char* filename, uint32_t* filesize) {
 	char buf[300] = "/sdcard/";
 	if (filename == NULL)
-		strcpy(buf + 8, FIRMWARE_PATH);
+		return fmemopen(firmware_start, firmware_end - firmware_start, "rb");
 	else {
 		if (strlen(filename) > 256)
 			return 0;
@@ -321,6 +324,7 @@ static SemaphoreHandle_t paint_sem;
 
 static void console_task_main(void *pvParameters) {
 	printf("Console initializing...\n");
+	printf("Built-in firmware size: %d\n", firmware_end - firmware_start);
 	console_init();
 	printf("Initialization completed. Starting main loop.\n");
 	for (;;) {
@@ -458,7 +462,7 @@ void app_main() {
 		uint64_t end_time = esp_timer_get_time();
 		paint(spi);
 		uint64_t end_time2 = esp_timer_get_time();
-		printf("Elapsed time: %llu %llu\n", end_time - start_time, end_time2 - end_time);
+		//printf("Elapsed time: %llu %llu\n", end_time - start_time, end_time2 - end_time);
 		if (pressed == BUTTON_0 && duty > 0)
 			--duty;
 		else if (pressed == BUTTON_2 && duty < 7)

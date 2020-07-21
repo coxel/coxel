@@ -6,6 +6,7 @@
 #include "str.h"
 #include "tab.h"
 
+#include <stdlib.h>
 #include <string.h>
 
 struct value lib_btn(struct cpu* cpu, int sp, int nargs) {
@@ -391,7 +392,7 @@ static struct cart get_cartobj(struct cpu* cpu, struct tabobj* tab) {
 		if (buf->len != SPRITESHEET_BYTES)
 			cart.sprite = NULL;
 		else
-			cart.sprite = buf->data;
+			cart.sprite = (const char*)buf->data;
 	}
 	return cart;
 }

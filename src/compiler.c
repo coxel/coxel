@@ -751,10 +751,6 @@ static number sval_tonum(struct context* ctx, struct sval val) {
 
 typedef struct sval (*fold_func_t)(struct context* ctx, struct sval lval, struct sval rval);
 
-static struct sval fold_empty(struct context* ctx, struct sval lval, struct sval rval) {
-	internal_error(ctx);
-}
-
 static struct sval fold_add(struct context* ctx, struct sval lval, struct sval rval) {
 	return sval_num(num_add(sval_tonum(ctx, lval), sval_tonum(ctx, rval)));
 }
@@ -856,7 +852,7 @@ static struct sval fold_ge(struct context* ctx, struct sval lval, struct sval rv
 }
 
 #define X(a, b, c, d, e, f, g) f,
-#define _ 0
+#define _ NULL
 static fold_func_t token_fold_funcs[] = {
 	TOKEN_TYPE_DEF(X)
 };
@@ -894,6 +890,7 @@ static void sval_pop(struct context* ctx, struct sval sval) {
 	case vt_global:
 		sval_popone(ctx, sval.reg);
 		break;
+	default: return;
 	}
 }
 

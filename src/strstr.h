@@ -12,6 +12,10 @@
 
 #include "config.h"
 
+#ifndef max
+#define max(a,b) (((a) > (b)) ? (a) : (b))
+#endif
+
 static int CONCAT(get_critical_factorization, SUFFIX)(const char* str, int len, int* period) {
 	int i, i_rev, j, k, p, p_rev;
 	/* Maximal suffix on <= */

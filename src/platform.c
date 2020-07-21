@@ -228,6 +228,7 @@ struct run_result console_save(const char* filename, const struct cart* cart) {
 }
 
 static void console_init_internal(int factory_firmware) {
+	g_cur_cpu = -1;
 	key_init(&g_io);
 	struct cart cart;
 	struct run_result res;
@@ -255,6 +256,8 @@ void console_factory_init() {
 }
 
 static void save_cpu_state() {
+	if (g_cur_cpu == -1)
+		return;
 #ifdef HIERARCHICAL_MEMORY
 	memcpy(&g_cpus[g_cur_cpu]->gfx, &g_gfx, sizeof(struct gfx));
 #endif

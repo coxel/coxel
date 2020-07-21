@@ -205,7 +205,7 @@ FORCEINLINE struct tabobj* to_tab(struct cpu* cpu, struct value val) {
 	return (struct tabobj*)readptr(val.tab);
 }
 
-static FORCEINLINE strict_equal(struct cpu* cpu, struct value lval, struct value rval) {
+static FORCEINLINE int strict_equal(struct cpu* cpu, struct value lval, struct value rval) {
 	if (lval.type != rval.type)
 		return 0;
 	switch (lval.type) {
