@@ -14,6 +14,7 @@
 #include "driver/ledc.h"
 #include "bootloader_random.h"
 #include "esp_vfs_fat.h"
+#include "esp_sleep.h"
 #include "esp_system.h"
 #include "sdmmc_cmd.h"
 
@@ -341,7 +342,7 @@ void app_main() {
 	printf("Initializing button input...\n");
 	{
 		gpio_config_t io_conf;
-		io_conf.intr_type = GPIO_PIN_INTR_NEGEDGE;
+		io_conf.intr_type = GPIO_PIN_INTR_POSEDGE;
 		io_conf.mode = GPIO_MODE_INPUT;
 		io_conf.pin_bit_mask = (1LL << BUTTON_0) | (1LL << BUTTON_1) | (1LL << BUTTON_2);
 		io_conf.pull_up_en = 1;
@@ -454,6 +455,7 @@ void app_main() {
 		printf("xTaskCreatePinnedToCore() error.\n");
 	
 	printf("Starting main loop...\n");
+	uint64_t wakeup_time = esp_timer_get_time();
 	for (;;) {
 		uint64_t start_time = esp_timer_get_time();
 		xSemaphoreTake(paint_sem, portMAX_DELAY);
@@ -465,8 +467,20 @@ void app_main() {
 		//printf("Elapsed time: %llu %llu\n", end_time - start_time, end_time2 - end_time);
 		if (pressed == BUTTON_0 && duty > 0)
 			--duty;
-		else if (pressed == BUTTON_2 && duty < 7)
+		else if (pressed == BUTTON_1 && duty < 7)
 			++duty;
+		else if (pressed == BUTTON_2) {
+			uint64_t time = esp_timer_get_time();
+			if (time - wakeup_time > 1000000) { /* 1s */
+				printf("pressed.\n");
+				ledc_set_duty(LEDC_HIGH_SPEED_MODE, LEDC_CHANNEL_0, 0);
+				ledc_update_duty(LEDC_HIGH_SPEED_MODE, LEDC_CHANNEL_0);
+				gpio_wakeup_enable(BUTTON_2, GPIO_INTR_LOW_LEVEL);
+				esp_sleep_enable_gpio_wakeup();
+				esp_light_sleep_start();
+				wakeup_time = esp_timer_get_time();
+			}
+		}
 		pressed = 0;
 		ledc_set_duty(LEDC_HIGH_SPEED_MODE, LEDC_CHANNEL_0, duty);
 		ledc_update_duty(LEDC_HIGH_SPEED_MODE, LEDC_CHANNEL_0);
