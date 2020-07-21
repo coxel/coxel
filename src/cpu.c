@@ -124,6 +124,9 @@ struct cpu* cpu_new() {
 	gfx_init(&cpu->gfx);
 	tab_set(cpu, globals, LIT(global), value_tab(cpu, globals));
 
+	struct bufobj* vmem = buf_new_special(cpu, SBUF_VMEM);
+	tab_set(cpu, globals, str_intern(cpu, "VMEM", 4), value_buf(cpu, vmem));
+
 	return cpu;
 }
 
