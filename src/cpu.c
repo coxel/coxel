@@ -193,14 +193,14 @@ FORCEINLINE struct strobj* to_string(struct cpu* cpu, struct value val) {
 	}
 }
 
-struct arrobj* to_arr(struct cpu* cpu, struct value val) {
-	if (val.type != t_arr)
+FORCEINLINE struct arrobj* to_arr(struct cpu* cpu, struct value val) {
+	if (unlikely(val.type != t_arr))
 		runtime_error(cpu, "Not an array.");
 	return (struct arrobj*)readptr(val.arr);
 }
 
-struct tabobj* to_tab(struct cpu* cpu, struct value val) {
-	if (val.type != t_tab)
+FORCEINLINE struct tabobj* to_tab(struct cpu* cpu, struct value val) {
+	if (unlikely(val.type != t_tab))
 		runtime_error(cpu, "Not an object.");
 	return (struct tabobj*)readptr(val.tab);
 }
@@ -227,41 +227,54 @@ static FORCEINLINE int strict_equal_num(struct cpu* cpu, struct value lval, numb
 	return lval.type == t_num && lval.num == num;
 }
 
-static struct value fget(struct cpu* cpu, struct value obj, struct value field) {
+static FORCEINLINE struct value fget(struct cpu* cpu, struct value obj, struct value field) {
 	switch (obj.type) {
 	case t_str: {
 		struct strobj* str = (struct strobj*)readptr(obj.str);
-		if (field.type == t_num)
+		if (likely(field.type == t_num)) {
+			cpu->cycles += CYCLES_ALLOC;
 			return str_get(cpu, str, to_number(cpu, field));
-		else
+		}
+		else {
+			cpu->cycles += CYCLES_LOOKUP;
 			return str_fget(cpu, str, to_string(cpu, field));
+		}
 	}
 	case t_buf: {
 		struct bufobj* buf = (struct bufobj*)readptr(obj.buf);
-		if (field.type == t_num)
+		if (likely(field.type == t_num)) {
+			cpu->cycles += CYCLES_ARRAY_LOOKUP;
 			return buf_get(cpu, buf, to_number(cpu, field));
-		else
+		}
+		else {
+			cpu->cycles += CYCLES_LOOKUP;
 			return buf_fget(cpu, buf, to_string(cpu, field));
+		}
 	}
 	case t_arr: {
 		struct arrobj* arr = (struct arrobj*)readptr(obj.arr);
-		if (field.type == t_num)
+		if (likely(field.type == t_num)) {
+			cpu->cycles += CYCLES_ARRAY_LOOKUP;
 			return arr_get(cpu, arr, to_number(cpu, field));
-		else
+		}
+		else {
+			cpu->cycles += CYCLES_LOOKUP;
 			return arr_fget(cpu, arr, to_string(cpu, field));
+		}
 	}
 	case t_tab: {
 		struct tabobj* tab = (struct tabobj*)readptr(obj.tab);
+		cpu->cycles += CYCLES_LOOKUP;
 		return tab_get(cpu, tab, to_string(cpu, field));
 	}
 	default: runtime_error(cpu, "Not an object.");
 	}
 }
 
-static void fset(struct cpu* cpu, struct value obj, struct value field, struct value value) {
+static FORCEINLINE void fset(struct cpu* cpu, struct value obj, struct value field, struct value value) {
 	switch (obj.type) {
-	case t_buf: buf_set(cpu, (struct bufobj*)readptr(obj.buf), to_number(cpu, field), value); break;
-	case t_arr: arr_set(cpu, (struct arrobj*)readptr(obj.arr), to_number(cpu, field), value); break;
+	case t_buf: buf_set(cpu, (struct bufobj*)readptr(obj.buf), to_number(cpu, field), value); cpu->cycles += CYCLES_ARRAY_LOOKUP; break;
+	case t_arr: arr_set(cpu, (struct arrobj*)readptr(obj.arr), to_number(cpu, field), value); cpu->cycles += CYCLES_ARRAY_LOOKUP; break;
 	case t_tab: tab_set(cpu, (struct tabobj*)readptr(obj.tab), to_string(cpu, field), value); cpu->cycles += CYCLES_LOOKUP;  break;
 	default: runtime_error(cpu, "Not an object.");
 	}
@@ -543,7 +556,7 @@ void cpu_continue(struct cpu* cpu) {
 		case op_arr: retval = value_arr(cpu, arr_new(cpu)); cpu->cycles += CYCLES_ALLOC; break;
 		case op_apush: arr_push(cpu, to_arr(cpu, retval), lval); cpu->cycles += CYCLES_ALLOC; break;
 		case op_tab: retval = value_tab(cpu, tab_new(cpu)); cpu->cycles += CYCLES_ALLOC; break;
-		case op_fget: retval = fget(cpu, lval, rval); cpu->cycles += CYCLES_LOOKUP; break;
+		case op_fget: retval = fget(cpu, lval, rval); break;
 		case op_fset: fset(cpu, retval, lval, rval); break;
 		case op_gget: retval = tab_get(cpu, (struct tabobj*)readptr(cpu->globals), lvalstr); cpu->cycles += CYCLES_LOOKUP; break;
 		case op_gset: tab_set(cpu, (struct tabobj*)readptr(cpu->globals), retvalstr, lval); cpu->cycles += CYCLES_LOOKUP; break;

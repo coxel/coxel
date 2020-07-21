@@ -16,7 +16,7 @@ void arr_destroy(struct cpu* cpu, struct arrobj* arr) {
 
 struct value arr_get(struct cpu* cpu, struct arrobj* arr, number index) {
 	int idx = num_uint(index);
-	if (idx >= arr->len)
+	if (unlikely(idx >= arr->len))
 		return value_undef(cpu);
 	else
 		return ((struct value*)readptr(arr->data))[idx];
@@ -24,7 +24,7 @@ struct value arr_get(struct cpu* cpu, struct arrobj* arr, number index) {
 
 void arr_set(struct cpu* cpu, struct arrobj* arr, number index, struct value value) {
 	int idx = num_uint(index);
-	if (idx >= arr->len)
+	if (unlikely(idx >= arr->len))
 		runtime_error(cpu, "Index out of bound.");
 	else
 		((struct value*)readptr(arr->data))[idx] = value;
@@ -38,14 +38,14 @@ void arr_push(struct cpu* cpu, struct arrobj* arr, struct value value) {
 }
 
 struct value arr_pop(struct cpu* cpu, struct arrobj* arr) {
-	if (arr->len == 0)
+	if (unlikely(arr->len == 0))
 		return value_undef(cpu);
 	else
 		return ((struct value*)readptr(arr->data))[--arr->len];
 }
 
 struct value libarr_push(struct cpu* cpu, int sp, int nargs) {
-	if (nargs != 1)
+	if (unlikely(nargs != 1))
 		argument_error(cpu);
 	struct arrobj* arr = to_arr(cpu, THIS);
 	arr_push(cpu, arr, ARG(0));
@@ -54,7 +54,7 @@ struct value libarr_push(struct cpu* cpu, int sp, int nargs) {
 }
 
 struct value libarr_pop(struct cpu* cpu, int sp, int nargs) {
-	if (nargs != 0)
+	if (unlikely(nargs != 0))
 		argument_error(cpu);
 	struct arrobj* arr = to_arr(cpu, THIS);
 	return arr_pop(cpu, arr);
@@ -72,7 +72,7 @@ static inline int normalize_index(int index, int len) {
 }
 
 struct value libarr_slice(struct cpu* cpu, int sp, int nargs) {
-	if (nargs > 2)
+	if (unlikely(nargs > 2))
 		argument_error(cpu);
 	struct arrobj* arr = to_arr(cpu, THIS);
 	int start = 0;
@@ -87,6 +87,7 @@ struct value libarr_slice(struct cpu* cpu, int sp, int nargs) {
 	}
 	struct value* values = (struct value*)readptr(arr->data);
 	struct arrobj* narr = arr_new(cpu);
+	// TODO: Optimization
 	for (int i = start; i < end; i++)
 		arr_push(cpu, narr, values[i]);
 	cpu->cycles += CYCLES_ALLOC + CYCLES_VALUES(end - start);

@@ -524,11 +524,12 @@ static inline struct value value_cfunc(struct cpu* cpu, enum cfuncname cfunc) {
 /* General CPU instruction cycles design
  * Each instruction executed costs 1 base cycle
  * - Memory allocation costs 2 additional cycles
+ * - Array lookup costs 1 additional cycles
  * - Table lookup costs 3 additional cycles (including potential memory allocation when setting new values)
  * - Traversing 4 upvalues costs 1 additional cycle
  * - Drawing 8 pixels costs 1 additional cycle
  * - Processing 4 string characters costs 1 additional cycle
- * - Copying 4 values costs 1 additional cycle
+ * - Copying 1 value costs 1 additional cycle
  * - Any cart IO related functions costs 16384 additional cycles
  * string to number conversion anywhere costs 1 additional cycle
  * number/bool to string conversion anywhere costs 1 plus memory allocation cycles
@@ -536,6 +537,7 @@ static inline struct value value_cfunc(struct cpu* cpu, enum cfuncname cfunc) {
  */
 #define CYCLES_BASE			1
 #define CYCLES_ALLOC		2
+#define CYCLES_ARRAY_LOOKUP	1
 #define CYCLES_LOOKUP		3
 #define UPVALUES_PER_CYCLE	4
 #define CYCLES_UPVALUES(x)	(((x) + UPVALUES_PER_CYCLE - 1) / UPVALUES_PER_CYCLE)
@@ -543,7 +545,7 @@ static inline struct value value_cfunc(struct cpu* cpu, enum cfuncname cfunc) {
 #define CYCLES_PIXELS(x)	(((x) + PIXELS_PER_CYCLE - 1) / PIXELS_PER_CYCLE)
 #define CHARS_PER_CYCLE		4
 #define CYCLES_CHARS(x)		(((x) + CHARS_PER_CYCLE - 1) / CHARS_PER_CYCLE)
-#define VALUES_PER_CYCLE	4
+#define VALUES_PER_CYCLE	1
 #define CYCLES_VALUES(x)	(((x) + VALUES_PER_CYCLE - 1) / VALUES_PER_CYCLE)
 #define CYCLES_CARTIO		16384
 #define CYCLES_STR2NUM		1
