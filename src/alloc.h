@@ -41,9 +41,9 @@ struct alloc {
 
 struct alloc* mem_new(uint32_t size, uint32_t reserved_size);
 void mem_destroy(struct alloc* alloc);
-void* mem_malloc(struct alloc* alloc, int size);
+void* mem_alloc(struct alloc* alloc, int size);
 void* mem_realloc(struct alloc* alloc, void* ptr, int size);
-void mem_free(struct alloc* alloc, void* ptr);
+void mem_dealloc(struct alloc* alloc, void* ptr);
 #ifdef _DEBUG
 /* Check allocator integrity */
 void mem_check(struct alloc* alloc);

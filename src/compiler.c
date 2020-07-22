@@ -1916,10 +1916,10 @@ struct compile_err compile(struct cpu* cpu, const char* code, int codelen) {
 		if (ctx.token != tk_eof)
 			compile_error(&ctx, "Unexpected token.");
 		emit(&ctx, op_retu, 0, 0, 0);
-		struct funcobj* topfunc = (struct funcobj*)mem_malloc(&cpu->alloc, sizeof(struct funcobj));
+		struct funcobj* topfunc = (struct funcobj*)mem_alloc(&cpu->alloc, sizeof(struct funcobj));
 		topfunc->code = writeptr(&((struct code*)readptr(cpu->code))[func.code_id]);
 		cpu->topfunc = writeptr(topfunc);
-		mem_free(ctx.alloc, ctx.sbuf);
+		mem_dealloc(ctx.alloc, ctx.sbuf);
 	}
 
 	return ctx.err;

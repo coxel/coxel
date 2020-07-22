@@ -119,7 +119,7 @@ int str_vsprintf(char* buf, const char* format, va_list args) {
 void strtab_init(struct cpu* cpu) {
 	cpu->strtab_cnt = 0;
 	cpu->strtab_size = INITIAL_STRTAB_SIZE;
-	ptr(struct strobj)* strtab = (ptr(struct strobj)*)mem_malloc(&cpu->alloc, cpu->strtab_size * sizeof(ptr_t));
+	ptr(struct strobj)* strtab = (ptr(struct strobj)*)mem_alloc(&cpu->alloc, cpu->strtab_size * sizeof(ptr_t));
 	for (int i = 0; i < cpu->strtab_size; i++)
 		strtab[i] = writeptr(NULL);
 	cpu->strtab = writeptr(strtab);
@@ -137,7 +137,7 @@ void str_destroy(struct cpu* cpu, struct strobj* str) {
 	for (struct strobj* p = readptr(*prev); p; prev = &p->next, p = readptr(*prev)) {
 		if (p == str) {
 			*prev = p->next;
-			mem_free(&cpu->alloc, p);
+			mem_dealloc(&cpu->alloc, p);
 			return;
 		}
 	}
@@ -160,7 +160,7 @@ static struct strobj* str_intern_impl(struct cpu* cpu, const char* str, int len,
 	}
 	struct strobj* obj;
 	if (nogc)
-		obj = (struct strobj*)mem_malloc(&cpu->alloc, sizeof(struct strobj) + len);
+		obj = (struct strobj*)mem_alloc(&cpu->alloc, sizeof(struct strobj) + len);
 	else
 		obj = (struct strobj*)gc_alloc(cpu, t_str, sizeof(struct strobj) + len);
 	obj->hash = hash;
@@ -186,11 +186,11 @@ struct strobj* str_concat(struct cpu* cpu, struct strobj* lval, struct strobj* r
 	if (rval->len == 0)
 		return lval;
 	int totlen = lval->len + rval->len;
-	char* temp = (char*)mem_malloc(&cpu->alloc, totlen);
+	char* temp = (char*)mem_alloc(&cpu->alloc, totlen);
 	memcpy(temp, lval->data, lval->len);
 	memcpy(temp + lval->len, rval->data, rval->len);
 	struct strobj* retval = str_intern(cpu, temp, lval->len + rval->len);
-	mem_free(&cpu->alloc, temp);
+	mem_dealloc(&cpu->alloc, temp);
 	return retval;
 }
 

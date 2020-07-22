@@ -10,8 +10,8 @@ struct arrobj* arr_new(struct cpu* cpu) {
 }
 
 void arr_destroy(struct cpu* cpu, struct arrobj* arr) {
-	mem_free(&cpu->alloc, readptr(arr->data));
-	mem_free(&cpu->alloc, arr);
+	mem_dealloc(&cpu->alloc, readptr(arr->data));
+	mem_dealloc(&cpu->alloc, arr);
 }
 
 struct value arr_get(struct cpu* cpu, struct arrobj* arr, number index) {

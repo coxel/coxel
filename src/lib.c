@@ -358,12 +358,12 @@ struct value devlib_paste(struct cpu* cpu, int sp, int nargs) {
 	if (!avail)
 		return value_str(cpu, LIT(EMPTY));
 	int len = STR_MAXLEN;
-	char* buf = mem_malloc(&cpu->alloc, len);
+	char* buf = mem_alloc(&cpu->alloc, len);
 	if (buf == NULL)
 		out_of_memory_error(cpu);
 	int r = platform_paste(buf, len);
 	struct value ret = value_str(cpu, str_intern(cpu, buf, r));
-	mem_free(&cpu->alloc, buf);
+	mem_dealloc(&cpu->alloc, buf);
 	cpu->cycles += CYCLES_CHARS(r);
 	return ret;
 }

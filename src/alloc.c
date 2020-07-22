@@ -174,7 +174,7 @@ void mem_destroy(struct alloc* alloc) {
 	platform_free(alloc);
 }
 
-void* mem_malloc(struct alloc* alloc, int size) {
+void* mem_alloc(struct alloc* alloc, int size) {
 	size = request2size(size);
 	if (size <= SMALL_REQUEST) {
 		int idx = smallidx(size);
@@ -248,7 +248,7 @@ static void free_chunk_merge_next(struct alloc* alloc, struct chunk* chunk, uint
 
 void* mem_realloc(struct alloc* alloc, void* ptr, int request_size) {
 	if (ptr == NULL)
-		return mem_malloc(alloc, request_size);
+		return mem_alloc(alloc, request_size);
 	uint32_t size = request2size(request_size);
 	struct chunk* chunk = mem2chunk(ptr);
 	if (size <= chunksize(chunk)) {
@@ -298,15 +298,15 @@ void* mem_realloc(struct alloc* alloc, void* ptr, int request_size) {
 		}
 	}
 	/* Cannot realloc in place */
-	void* new_ptr = mem_malloc(alloc, request_size);
+	void* new_ptr = mem_alloc(alloc, request_size);
 	if (new_ptr == NULL)
 		return NULL;
 	memcpy(new_ptr, ptr, request_size);
-	mem_free(alloc, ptr);
+	mem_dealloc(alloc, ptr);
 	return new_ptr;
 }
 
-void mem_free(struct alloc* alloc, void* ptr) {
+void mem_dealloc(struct alloc* alloc, void* ptr) {
 	if (ptr == NULL)
 		return;
 	struct chunk* chunk = mem2chunk(ptr);

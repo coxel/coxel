@@ -13,9 +13,9 @@ struct tabobj* tab_new(struct cpu* cpu) {
 }
 
 void tab_destroy(struct cpu* cpu, struct tabobj* tab) {
-	mem_free(&cpu->alloc, readptr(tab->entry));
-	mem_free(&cpu->alloc, readptr(tab->bucket));
-	mem_free(&cpu->alloc, tab);
+	mem_dealloc(&cpu->alloc, readptr(tab->entry));
+	mem_dealloc(&cpu->alloc, readptr(tab->bucket));
+	mem_dealloc(&cpu->alloc, tab);
 }
 
 static void tab_grow(struct cpu* cpu, struct tabobj* tab) {

@@ -7,7 +7,7 @@
 #include "tab.h"
 
 struct obj* gc_alloc(struct cpu* cpu, enum type type, uint32_t size) {
-	struct obj* obj = (struct obj*)mem_malloc(&cpu->alloc, size);
+	struct obj* obj = (struct obj*)mem_alloc(&cpu->alloc, size);
 	obj->gcnext = cpu->gchead;
 	obj->type = type;
 	cpu->gchead = writeptr(obj);
@@ -102,10 +102,10 @@ static void gc_traverse_val(struct cpu* cpu, struct value* value) {
 void gc_free(struct cpu* cpu, struct obj* obj) {
 	switch (obj->type) {
 	case t_str: str_destroy(cpu, (struct strobj*)obj); return;
-	case t_striter: mem_free(&cpu->alloc, obj); return;
+	case t_striter: mem_dealloc(&cpu->alloc, obj); return;
 	case t_buf: buf_destroy(cpu, (struct bufobj*)obj); return;
 	case t_arr: arr_destroy(cpu, (struct arrobj*)obj); return;
-	case t_arriter: mem_free(&cpu->alloc, obj); return;
+	case t_arriter: mem_dealloc(&cpu->alloc, obj); return;
 	case t_tab: tab_destroy(cpu, (struct tabobj*)obj); return;
 	case t_func: func_destroy(cpu, (struct funcobj*)obj); return;
 	case t_upval: upval_destroy(cpu, (struct upval*)obj); return;

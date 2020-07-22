@@ -375,14 +375,14 @@ static int iter_next(struct cpu* cpu, struct value iterval, struct value* val) {
 }
 
 void func_destroy(struct cpu* cpu, struct funcobj* func) {
-	mem_free(&cpu->alloc, func);
+	mem_dealloc(&cpu->alloc, func);
 }
 
 void upval_destroy(struct cpu* cpu, struct upval* upval) {
 	/* Open upval ? unlink it */
 	if (readptr(upval->val) != &upval->val_holder)
 		upval_unlink(cpu, upval);
-	mem_free(&cpu->alloc, upval);
+	mem_dealloc(&cpu->alloc, upval);
 }
 
 #define update_stack()	do { \

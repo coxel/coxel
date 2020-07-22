@@ -25,7 +25,7 @@ struct bufobj* buf_new_special(struct cpu* cpu, enum special_buf_id id) {
 }
 
 void buf_destroy(struct cpu* cpu, struct bufobj* buf) {
-	mem_free(&cpu->alloc, buf);
+	mem_dealloc(&cpu->alloc, buf);
 }
 
 static FORCEINLINE void buf_getdata(struct cpu* cpu, struct bufobj* buf, uint8_t** data, uint32_t* len) {
