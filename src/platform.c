@@ -227,6 +227,20 @@ struct run_result console_save(const char* filename, const struct cart* cart) {
 	return ret;
 }
 
+static void save_cpu_state() {
+	if (g_cur_cpu == -1)
+		return;
+#ifdef HIERARCHICAL_MEMORY
+	memcpy(&g_cpus[g_cur_cpu]->gfx, &g_gfx, sizeof(struct gfx));
+#endif
+}
+
+static void load_cpu_state() {
+#ifdef HIERARCHICAL_MEMORY
+	memcpy(&g_gfx, &g_cpus[g_cur_cpu]->gfx, sizeof(struct gfx));
+#endif
+}
+
 static void console_init_internal(int factory_firmware) {
 	g_cur_cpu = -1;
 	key_init(&g_io);
@@ -245,6 +259,8 @@ static void console_init_internal(int factory_firmware) {
 	cart_destroy(&cart);
 	if (res.err != NULL)
 		critical_error("Firmware compilation error:\nLine %d: %s", res.linenum + 1, res.err);
+	g_cur_cpu = g_next_cpu;
+	load_cpu_state();
 }
 
 void console_init() {
@@ -253,20 +269,6 @@ void console_init() {
 
 void console_factory_init() {
 	console_init_internal(1);
-}
-
-static void save_cpu_state() {
-	if (g_cur_cpu == -1)
-		return;
-#ifdef HIERARCHICAL_MEMORY
-	memcpy(&g_cpus[g_cur_cpu]->gfx, &g_gfx, sizeof(struct gfx));
-#endif
-}
-
-static void load_cpu_state() {
-#ifdef HIERARCHICAL_MEMORY
-	memcpy(&g_gfx, &g_cpus[g_cur_cpu]->gfx, sizeof(struct gfx));
-#endif
 }
 
 #ifdef RELATIVE_ADDRESSING
