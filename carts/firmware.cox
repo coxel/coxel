@@ -500,13 +500,13 @@ function onframe_spriteEditor() {
   fillRect(64, 8+6*sprVy, 4, 32, dc);
 
   // Draw sprite sheet picker
+  let VMEM_ = VMEM;
+  let sprite_ = sprite;
   let p = sprVy * 8 * 32;
   for (let i = 0; i < 128; i++) {
-    for (let j = 0; j < 64; j += 2) {
-      pset(j,8+i,sprite[p]&15);
-      pset(j+1,8+i,sprite[p]>>4);
-      p++;
-    }
+    let vp = (8 + i) * 160 / 2;
+    for (let j = 0; j < 64; j += 2)
+      VMEM_[vp++] = sprite_[p++];
   }
   if (dev_mwheel() != 0) {
     let wheel = dev_mwheel();
@@ -538,16 +538,25 @@ function onframe_spriteEditor() {
   // Draw canvas
   let ps = 64 / sprSize;
   rect(79,17,66,66,0);
-  for (let i = 0; i < 64; i++) {
-    let p = firstp + floor(i/ps)*32;
-    for (let j = 0; j < 64; j+=2*ps) {
-      let lo = sprite[p]&15;
-      let hi = sprite[p]>>4;
-      for (let k = 0; k < ps; k++)
-        pset(80+j+k,18+i,lo);
-      for (let k = 0; k < ps; k++)
-        pset(80+j+k+ps,18+i,hi);
-      p++;
+  if (ps == 1) {
+    for (let i = 0; i < 64; i++) {
+      let p = firstp + i * 64 / 2;
+      let vp = ((18+i)*160+80) / 2;
+      for (let j = 0; j < 64; j += 2)
+        VMEM_[vp++] = sprite_[p++];
+    }
+  }
+  else {
+    let fillRect_ = fillRect;
+    for (let i = 0; i < 64; i+=ps) {
+      let p = firstp + floor(i/ps)*32;
+      for (let j = 0; j < 64; j+=2*ps) {
+        let d = sprite_[p++];
+        fillRect_(80 + j, 18 + i,
+          ps, ps, d & 15);
+        fillRect_(80 + j + ps, 18 + i,
+          ps, ps, d >> 4);
+      }
     }
   }
   // Draw helpers
@@ -686,6 +695,7 @@ function drawToolbar() {
   }, onframe == onframe_spriteEditor);
   if (statMsg != "")
     print(statMsg,1,138,statColor);
+  print(statCpu(),136,138,statColor);
 }
 
 function stat(msg, c) {
