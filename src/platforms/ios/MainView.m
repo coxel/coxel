@@ -11,6 +11,17 @@ char pixels[HEIGHT * WIDTH * 3];
 	return self;
 }
 
+-(CGPoint)translateMouseLocation:(CGPoint)point {
+	struct io* io = console_getio();
+	CGFloat view_width = self.frame.size.width;
+	CGFloat view_height = self.frame.size.height;
+	CGFloat scale = MIN(view_width / WIDTH, view_height / HEIGHT);
+	CGFloat width = WIDTH * scale, height = HEIGHT * scale;
+	CGFloat x1 = (view_width - width) / 2;
+	CGFloat y1 = (view_height - height) / 2;
+	return CGPointMake((point.x - x1) / scale, (point.y - y1) / scale);
+}
+
 -(void)drawRect:(CGRect)rect {
 	for (int y = 0; y < HEIGHT; y++) {
 		for (int x = 0; x < WIDTH; x++) {

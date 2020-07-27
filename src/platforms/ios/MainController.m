@@ -157,4 +157,36 @@ MainView *mainView;
 	[mainView setNeedsDisplay];
 }
 
+-(void)resetMouseLocation {
+	struct io* io = console_getio();
+	io->mousex = num_kint(-1);
+	io->mousey = num_kint(-1);
+}
+
+-(void)updateMouseLocation:(UITouch *)touch {
+	CGPoint point = [mainView translateMouseLocation:[touch locationInView:mainView]];
+	struct io* io = console_getio();
+	io->mousex = num_kint((int)point.x);
+	io->mousey = num_kint((int)point.y);
+}
+
+-(void)touchesBegan:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event {
+	[self updateMouseLocation:[touches anyObject]];
+	key_press(kc_mleft);
+}
+
+-(void)touchesMoved:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event {
+	[self updateMouseLocation:[touches anyObject]];
+}
+
+-(void)touchesEnded:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event {
+	[self updateMouseLocation:[touches anyObject]];
+	key_release(kc_mleft);
+}
+
+-(void)touchesCancelled:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event {
+	[self updateMouseLocation:[touches anyObject]];
+	key_release(kc_mleft);
+}
+
 @end

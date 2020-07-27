@@ -2,4 +2,6 @@
 
 @interface MainView: UIView
 
+-(CGPoint)translateMouseLocation:(CGPoint)point;
+
 @end
