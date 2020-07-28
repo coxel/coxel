@@ -56,8 +56,8 @@
 	X(space, ' ', ' ') \
 	X(lbracket, '[', '{') \
 	X(rbracket, ']', '}') \
-	X(lslash, '/', '?') \
-	X(rslash, '\\', '|') \
+	X(slash, '/', '?') \
+	X(backslash, '\\', '|') \
 	X(semicolon, ';', ':') \
 	X(quote, '\'', '"') \
 	X(comma, ',', '<') \
