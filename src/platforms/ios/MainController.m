@@ -5,6 +5,7 @@
 #include "../../platform.h"
 #include "../../key.h"
 #include "../../str.h"
+#include "../hidkey.h"
 #include <sys/stat.h>
 
 NORETURN void platform_error(const char *msg) {
@@ -155,6 +156,33 @@ MainView *mainView;
 	if (key != kc_none)
 		key_release(key);
 	[mainView setNeedsDisplay];
+}
+
+-(enum key)getKeyCode:(NSSet<UIPress *> *)presses {
+	return hidkeymap[[presses anyObject].key.keyCode];
+}
+
+-(void)pressesBegan:(NSSet<UIPress *> *)presses withEvent:(UIPressesEvent *)event {
+	enum key key = [self getKeyCode:presses];
+	if (key != kc_none) {
+		key_press(key);
+		key_input(key_get_standard_input(key));
+	}
+}
+
+-(void)pressesChanged:(NSSet<UIPress *> *)presses withEvent:(UIPressesEvent *)event {
+}
+
+-(void)pressesEnded:(NSSet<UIPress *> *)presses withEvent:(UIPressesEvent *)event {
+	enum key key = [self getKeyCode:presses];
+	if (key != kc_none)
+		key_release(key);
+}
+
+-(void)pressesCancelled:(NSSet<UIPress *> *)presses withEvent:(UIPressesEvent *)event {
+	enum key key = [self getKeyCode:presses];
+	if (key != kc_none)
+		key_release(key);
 }
 
 -(void)resetMouseLocation {

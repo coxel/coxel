@@ -63,6 +63,7 @@ elseif(ESP_PLATFORM)
 	idf_component_register(SRCS ${SOURCES} INCLUDE_DIRS "" REQUIRES bootloader_support driver fatfs EMBED_FILES ../carts/firmware.cox)
 elseif(APPLE)
 	set(IOS_SOURCES
+		platforms/hidkey.h
 		platforms/ios/AppDelegate.h
 		platforms/ios/AppDelegate.m
 		platforms/ios/KeyboardView.h
