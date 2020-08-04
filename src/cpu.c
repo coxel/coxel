@@ -274,11 +274,72 @@ static FORCEINLINE struct value fget(struct cpu* cpu, struct value obj, struct v
 	}
 }
 
+static FORCEINLINE struct value fgetn(struct cpu* cpu, struct value obj, number field) {
+	switch (obj.type) {
+	case t_str: {
+		cpu->cycles += CYCLES_ARRAY_LOOKUP;
+		return str_get(cpu, (struct strobj*)readptr(obj.str), field);
+	}
+	case t_buf: {
+		cpu->cycles += CYCLES_ARRAY_LOOKUP;
+		return buf_get(cpu, (struct bufobj*)readptr(obj.buf), field);
+	}
+
+	case t_arr: {
+		cpu->cycles += CYCLES_ARRAY_LOOKUP;
+		return arr_get(cpu, (struct arrobj*)readptr(obj.arr), field);
+	}
+
+	case t_tab: {
+		cpu->cycles += CYCLES_LOOKUP;
+		return tab_get(cpu, (struct tabobj*)readptr(obj.tab), num_to_str(cpu, field));
+	}
+	default: runtime_error(cpu, "Not an object.");
+	}
+}
+
+static FORCEINLINE struct value fgets(struct cpu* cpu, struct value obj, struct strobj* field) {
+	cpu->cycles += CYCLES_LOOKUP;
+	switch (obj.type) {
+	case t_str: return str_fget(cpu, (struct strobj*)readptr(obj.str), field);
+	case t_buf: return buf_fget(cpu, (struct bufobj*)readptr(obj.buf), field);
+	case t_arr: return arr_fget(cpu, (struct arrobj*)readptr(obj.arr), field);
+	case t_tab: return tab_get(cpu, (struct tabobj*)readptr(obj.tab), field);
+	default: runtime_error(cpu, "Not an object.");
+	}
+}
+
 static FORCEINLINE void fset(struct cpu* cpu, struct value obj, struct value field, struct value value) {
 	switch (obj.type) {
+	case t_str: runtime_error(cpu, "Cannot set string element.");
 	case t_buf: buf_set(cpu, (struct bufobj*)readptr(obj.buf), to_number(cpu, field), value); cpu->cycles += CYCLES_ARRAY_LOOKUP; break;
 	case t_arr: arr_set(cpu, (struct arrobj*)readptr(obj.arr), to_number(cpu, field), value); cpu->cycles += CYCLES_ARRAY_LOOKUP; break;
 	case t_tab: tab_set(cpu, (struct tabobj*)readptr(obj.tab), to_string(cpu, field), value); cpu->cycles += CYCLES_LOOKUP;  break;
+	default: runtime_error(cpu, "Not an object.");
+	}
+}
+
+static FORCEINLINE void fsetn(struct cpu* cpu, struct value obj, number field, struct value value) {
+	switch (obj.type) {
+	case t_str: runtime_error(cpu, "Cannot set string element.");
+	case t_buf: buf_set(cpu, (struct bufobj*)readptr(obj.buf), field, value); cpu->cycles += CYCLES_ARRAY_LOOKUP; break;
+	case t_arr: arr_set(cpu, (struct arrobj*)readptr(obj.arr), field, value); cpu->cycles += CYCLES_ARRAY_LOOKUP; break;
+	case t_tab: tab_set(cpu, (struct tabobj*)readptr(obj.tab), num_to_str(cpu, field), value); cpu->cycles += CYCLES_LOOKUP; break;
+	default: runtime_error(cpu, "Not an object.");
+	}
+}
+
+static FORCEINLINE void fsets(struct cpu* cpu, struct value obj, struct strobj* field, struct value value) {
+	switch (obj.type) {
+	case t_str:
+	case t_buf:
+	case t_arr:
+		runtime_error(cpu, "Can only set string field on tables.");
+
+	case t_tab:
+		tab_set(cpu, (struct tabobj*)readptr(obj.tab), field, value); cpu->cycles += CYCLES_LOOKUP;
+		break;
+
 	default: runtime_error(cpu, "Not an object.");
 	}
 }
@@ -404,6 +465,9 @@ void upval_destroy(struct cpu* cpu, struct upval* upval) {
 #define rvalstr		to_string(cpu, rval)
 #define lnum		((number)((uint32_t*)readptr(g_code->k))[ins->op2])
 #define rnum		((number)((uint32_t*)readptr(g_code->k))[ins->op3])
+#define retstr		forcereadptr(((uint32_t*)readptr(g_code->k))[ins->op1])
+#define lstr		forcereadptr(((uint32_t*)readptr(g_code->k))[ins->op2])
+#define rstr		forcereadptr(((uint32_t*)readptr(g_code->k))[ins->op3])
 
 void cpu_execute(struct cpu* cpu, struct funcobj* func) {
 	struct value* frame;
@@ -560,9 +624,15 @@ void cpu_continue(struct cpu* cpu) {
 		case op_apush: arr_push(cpu, to_arr(cpu, retval), lval); cpu->cycles += CYCLES_ALLOC; break;
 		case op_tab: retval = value_tab(cpu, tab_new(cpu)); cpu->cycles += CYCLES_ALLOC; break;
 		case op_fget: retval = fget(cpu, lval, rval); break;
+		case op_fgetn: retval = fgetn(cpu, lval, rnum); break;
+		case op_fgets: retval = fgets(cpu, lval, rstr); break;
 		case op_fset: fset(cpu, retval, lval, rval); break;
+		case op_fsetn: fsetn(cpu, retval, lnum, rval); break;
+		case op_fsets: fsets(cpu, retval, lstr, rval); break;
 		case op_gget: retval = tab_get(cpu, (struct tabobj*)readptr(cpu->globals), lvalstr); cpu->cycles += CYCLES_LOOKUP; break;
+		case op_ggets: retval = tab_get(cpu, (struct tabobj*)readptr(cpu->globals), lstr); cpu->cycles += CYCLES_LOOKUP; break;
 		case op_gset: tab_set(cpu, (struct tabobj*)readptr(cpu->globals), retvalstr, lval); cpu->cycles += CYCLES_LOOKUP; break;
+		case op_gsets: tab_set(cpu, (struct tabobj*)readptr(cpu->globals), retstr, lval); cpu->cycles += CYCLES_LOOKUP; break;
 		case op_uget: retval = *(struct value*)readptr(((struct upval*)readptr(func->upval[ins->op2]))->val); break;
 		case op_uset: *(struct value*)readptr(((struct upval*)readptr(func->upval[ins->op1]))->val) = lval; break;
 		case op_iter: retval = get_iter(cpu, lval); cpu->cycles += CYCLES_ALLOC; break;
@@ -684,6 +754,7 @@ enum operand_type {
 	ot__,
 	ot_REG,
 	ot_NUM,
+	ot_STR,
 	ot_IMM8,
 	ot_IMM16,
 	ot_IMMNUM,
@@ -702,11 +773,29 @@ static const struct opcode_desc opcode_desc[] = {
 };
 #undef X
 
-static char* dump_operand(uint32_t* k, enum operand_type ot, int value, char* buf) {
+static char* dump_str(struct strobj* str, char* buf) {
+	int len = str->len;
+	if (len > 20)
+		len = 20;
+	*buf++ = '"';
+	memcpy(buf, str->data, len);
+	buf += len;
+	*buf++ = '"';
+	if (len < str->len) {
+		*buf++ = '.';
+		*buf++ = '.';
+		*buf++ = '.';
+	}
+	return buf;
+}
+
+static char* dump_operand(struct cpu* cpu, uint32_t* k, enum operand_type ot, int value, char* buf) {
 	if (ot == ot_NUM) {
 		number num = (number)k[value];
 		return buf + num_format(num, 4, buf);
 	}
+	else if (ot == ot_STR)
+		return dump_str((struct strobj*)forcereadptr(k[value]), buf);
 	if (ot == ot_REG)
 		*buf++ = 'r';
 	return buf + int_format(value, buf);
@@ -815,7 +904,7 @@ static int dump_func(struct cpu* cpu, const char* codebuf, int codelen, int func
 			*cur++ = ' ';
 		int comma = 0;
 		if (desc->op1 != ot__) {
-			cur = dump_operand((uint32_t*)readptr(code->k), desc->op1, ins->op1, cur);
+			cur = dump_operand(cpu, (uint32_t*)readptr(code->k), desc->op1, ins->op1, cur);
 			comma = 1;
 		}
 		if (desc->op2 != ot__) {
@@ -826,19 +915,7 @@ static int dump_func(struct cpu* cpu, const char* codebuf, int codelen, int func
 			switch (desc->op2) {
 			case ot_IMMSTR: {
 				uint32_t ptr = ((uint32_t*)readptr(code->k))[ins->imm];
-				struct strobj* str = (struct strobj*)((uint8_t*)cpu + ptr);
-				int len = str->len;
-				if (len > 20)
-					len = 20;
-				*cur++ = '"';
-				memcpy(cur, str->data, len);
-				cur += len;
-				*cur++ = '"';
-				if (len < str->len) {
-					*cur++ = '.';
-					*cur++ = '.';
-					*cur++ = '.';
-				}
+				cur = dump_str((struct strobj*)forcereadptr(ptr), cur);
 				break;
 			}
 			case ot_IMM16:
@@ -855,11 +932,11 @@ static int dump_func(struct cpu* cpu, const char* codebuf, int codelen, int func
 				break;
 			}
 			default: {
-				cur = dump_operand((uint32_t*)readptr(code->k), desc->op2, ins->op2, cur);
+				cur = dump_operand(cpu, (uint32_t*)readptr(code->k), desc->op2, ins->op2, cur);
 				if (desc->op3 != ot__) {
 					*cur++ = ',';
 					*cur++ = ' ';
-					cur = dump_operand((uint32_t*)readptr(code->k), desc->op3, ins->op3, cur);
+					cur = dump_operand(cpu, (uint32_t*)readptr(code->k), desc->op3, ins->op3, cur);
 				}
 			}
 			}

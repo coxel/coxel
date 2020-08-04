@@ -20,10 +20,12 @@
 #define MAX_K				65535
 #define MAX_KOP				255
 
+#define forcereadptr(aptr)	(((aptr) == 0) ? NULL : (void*)((uint8_t*)cpu + (aptr)))
+#define forcewriteptr(aptr)	(((aptr) == NULL) ? 0 : (uint32_t)((uint8_t*)(aptr) - (uint8_t*)cpu))
 #ifdef RELATIVE_ADDRESSING
 typedef uint32_t ptr_t;
-#define readptr(aptr)		(((aptr) == 0) ? NULL : (void*)((uint8_t*)cpu + (aptr)))
-#define writeptr(aptr)		(((aptr) == NULL) ? 0 : (ptr_t)((uint8_t*)(aptr) - (uint8_t*)cpu))
+#define readptr(aptr)		forcereadptr(aptr)
+#define writeptr(aptr)		forcewriteptr(aptr)
 #define ptr(type)			ptr_t
 #else
 typedef void* ptr_t;
@@ -218,10 +220,16 @@ struct tabobj {
 	X(op_tab, "tab", REG, _, _) \
 	/* global access */ \
 	X(op_gget, "gget", REG, REG, _) \
+	X(op_ggets, "gget", REG, STR, _) \
 	X(op_gset, "gset", REG, REG, _) \
+	X(op_gsets, "gset", STR, REG, _) \
 	/* field access */ \
 	X(op_fget, "fget", REG, REG, REG) \
+	X(op_fgets, "fget", REG, REG, STR) \
+	X(op_fgetn, "fget", REG, REG, NUM) \
 	X(op_fset, "fset", REG, REG, REG) \
+	X(op_fsets, "fset", REG, STR, REG) \
+	X(op_fsetn, "fset", REG, NUM, REG) \
 	/* upvalue access */ \
 	X(op_uget, "uget", REG, IMM8, _) \
 	X(op_uset, "uset", IMM8, REG, _) \

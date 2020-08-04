@@ -655,11 +655,15 @@ enum value_type {
 	vt_null, /* null constant */
 	vt_bool, /* bool constant */
 	vt_num, /* number constant */
+	vt_str, /* string constant */
 	vt_value, /* generic in-reg value */
 	vt_local, /* local variable */
 	vt_global, /* global variable */
+	vt_globals, /* global variable with constant string identifier */
 	vt_upval, /* upvalue */
 	vt_member, /* object member */
+	vt_membern, /* object constant number member */
+	vt_members, /* object constant string member */
 };
 
 struct sval {
@@ -667,6 +671,7 @@ struct sval {
 	union {
 		int b;
 		number num;
+		uint32_t ptr;
 		struct {
 			uint8_t reg;
 			uint8_t field;
@@ -704,6 +709,13 @@ static inline struct sval sval_num(number num) {
 	return val;
 }
 
+static inline struct sval sval_str(uint32_t ptr) {
+	struct sval val;
+	val.type = vt_str;
+	val.ptr = ptr;
+	return val;
+}
+
 static inline struct sval sval_value(uint8_t reg) {
 	struct sval val;
 	val.type = vt_value;
@@ -725,6 +737,13 @@ static inline struct sval sval_global(uint8_t reg) {
 	return val;
 }
 
+static inline struct sval sval_globals(uint8_t k) {
+	struct sval val;
+	val.type = vt_globals;
+	val.reg = k;
+	return val;
+}
+
 static inline struct sval sval_upval(uint8_t reg) {
 	struct sval val;
 	val.type = vt_upval;
@@ -737,6 +756,22 @@ static inline struct sval sval_member(uint8_t reg, uint8_t field) {
 	val.type = vt_member;
 	val.reg = reg;
 	val.field = field;
+	return val;
+}
+
+static inline struct sval sval_membern(uint8_t reg, uint8_t k) {
+	struct sval val;
+	val.type = vt_membern;
+	val.reg = reg;
+	val.field = k;
+	return val;
+}
+
+static inline struct sval sval_members(uint8_t reg, uint8_t k) {
+	struct sval val;
+	val.type = vt_members;
+	val.reg = reg;
+	val.field = k;
 	return val;
 }
 
@@ -888,6 +923,8 @@ static void sval_pop(struct context* ctx, struct sval sval) {
 	case vt_value:
 	case vt_local:
 	case vt_global:
+	case vt_membern:
+	case vt_members:
 		sval_popone(ctx, sval.reg);
 		break;
 	default: return;
@@ -923,6 +960,11 @@ static struct sval sval_get(struct context* ctx, struct sval sval) {
 		emit_imm(ctx, op_knum, ctx->sp, slot);
 		return sval_value(ctx->sp++);
 	}
+	case vt_str: {
+		int slot = add_const(ctx, sval.ptr);
+		emit_imm(ctx, op_kstr, ctx->sp, slot);
+		return sval_value(ctx->sp++);
+	}
 	case vt_value:
 	case vt_local:
 		return sval;
@@ -930,13 +972,26 @@ static struct sval sval_get(struct context* ctx, struct sval sval) {
 		emit(ctx, op_gget, ctx->sp, sval.reg, 0);
 		return sval_value(ctx->sp++);
 	}
+	case vt_globals: {
+		emit(ctx, op_ggets, ctx->sp, sval.reg, 0);
+		return sval_value(ctx->sp++);
+	}
 	case vt_upval: {
 		emit(ctx, op_uget, ctx->sp, sval.reg, 0);
 		return sval_value(ctx->sp++);
 	}
-	case vt_member:
+	case vt_member: {
 		emit(ctx, op_fget, ctx->sp, sval.reg, sval.field);
 		return sval_value(ctx->sp++);
+	}
+	case vt_membern: {
+		emit(ctx, op_fgetn, ctx->sp, sval.reg, sval.field);
+		return sval_value(ctx->sp++);
+	}
+	case vt_members: {
+		emit(ctx, op_fgets, ctx->sp, sval.reg, sval.field);
+		return sval_value(ctx->sp++);
+	}
 	default: internal_error(ctx);
 	}
 }
@@ -970,25 +1025,27 @@ static void sval_set(struct context* ctx, struct sval lval, struct sval rval) {
 	case vt_global:
 		emit(ctx, op_gset, lval.reg, rval.reg, 0);
 		break;
+	case vt_globals:
+		emit(ctx, op_gsets, lval.reg, rval.reg, 0);
+		break;
 	case vt_upval:
 		emit(ctx, op_uset, lval.reg, rval.reg, 0);
 		break;
 	case vt_member:
 		emit(ctx, op_fset, lval.reg, lval.field, rval.reg);
 		break;
+	case vt_membern:
+		emit(ctx, op_fsetn, lval.reg, lval.field, rval.reg);
+		break;
+	case vt_members:
+		emit(ctx, op_fsets, lval.reg, lval.field, rval.reg);
+		break;
 	default: internal_error(ctx);
 	}
 }
 
-static struct sval sval_str(struct context* ctx, struct strobj* str) {
-	struct cpu* cpu = ctx->cpu;
-	int slot = add_const(ctx, (uint32_t)((uint8_t*)str - (uint8_t*)cpu));
-	emit_imm(ctx, op_kstr, ctx->sp, slot);
-	return sval_value(ctx->sp++);
-}
-
-static struct sval sval_tkstr(struct context* ctx) {
-	return sval_str(ctx, str_intern_nogc(ctx->cpu, ctx->token_str_begin, (int)(ctx->token_str_end - ctx->token_str_begin)));
+static struct strobj* tkstr(struct context* ctx) {
+	return str_intern_nogc(ctx->cpu, ctx->token_str_begin, (int)(ctx->token_str_end - ctx->token_str_begin));
 }
 
 static void add_patch(struct context* ctx, enum patch_type type, int pc) {
@@ -1058,14 +1115,12 @@ static struct sval compile_function(struct context* ctx, int global) {
 	struct cpu* cpu = ctx->cpu;
 	next_token(ctx);
 	sym_push(&ctx->sym_table);
-	struct sval nval;
 	struct strobj* name = NULL;
 	if (global) {
 		if (ctx->topfunc->enfunc != NULL) // TODO: Wrong hoisting semantics
 			compile_error(ctx, "Global function definition must appear at toplevel.");
 		check_token(ctx, tk_ident);
-		name = str_intern_nogc(ctx->cpu, ctx->token_str_begin, (int)(ctx->token_str_end - ctx->token_str_begin));
-		nval = sval_str(ctx, name);
+		name = tkstr(ctx);
 		next_token(ctx);
 	}
 	else if (ctx->token == tk_ident) {
@@ -1074,7 +1129,7 @@ static struct sval compile_function(struct context* ctx, int global) {
 		if (!sym_emplace(&ctx->sym_table, ctx->sym_table.level,
 			ctx->token_str_begin, ctx->token_str_end - ctx->token_str_begin, &sym))
 			internal_error(ctx);
-		name = str_intern_nogc(ctx->cpu, ctx->token_str_begin, (int)(ctx->token_str_end - ctx->token_str_begin));
+		name = tkstr(ctx);
 		sym->reg = 0;
 		next_token(ctx);
 	}
@@ -1122,14 +1177,21 @@ static struct sval compile_function(struct context* ctx, int global) {
 	ctx->lastlineins = old_lastlineins;
 	ctx->topfunc = func.enfunc;
 	sym_pop(&ctx->sym_table);
-	emit_imm(ctx, op_func, ctx->sp, func.code_id);
 	if (global) {
-		emit(ctx, op_gset, nval.reg, ctx->sp, 0);
-		sval_pop(ctx, nval);
-		return nval;
+		int slot = add_const(ctx, forcewriteptr(name));
+		if (slot <= MAX_KOP) {
+			emit_imm(ctx, op_func, ctx->sp, func.code_id);
+			emit(ctx, op_gsets, slot, ctx->sp, 0);
+		}
+		else {
+			emit_imm(ctx, op_kstr, ctx->sp, slot);
+			emit_imm(ctx, op_func, ctx->sp + 1, func.code_id);
+			emit(ctx, op_gset, ctx->sp, ctx->sp + 1, 0);
+		}
 	}
 	else
-		return sval_value(ctx->sp++);
+		emit_imm(ctx, op_func, ctx->sp, func.code_id);
+	return sval_value(ctx->sp++);
 }
 
 static struct sval compile_element(struct context* ctx) {
@@ -1146,19 +1208,24 @@ static struct sval compile_element(struct context* ctx) {
 			sym->upval_used = 1;
 			return sval_upval(add_updef(ctx, ctx->topfunc, level, sym->reg));
 		}
-		struct sval key = sval_tkstr(ctx);
-		sval_pop(ctx, key);
+		struct strobj* key = tkstr(ctx);
 		next_token(ctx);
-		return sval_global(ctx->sp++);
+		int slot = add_const(ctx, forcewriteptr(key));
+		if (slot <= MAX_KOP)
+			return sval_globals(slot);
+		else {
+			emit_imm(ctx, op_kstr, ctx->sp, slot);
+			return sval_global(ctx->sp++);
+		}
 	}
 	case tk_num: {
 		next_token(ctx);
 		return sval_num(ctx->token_num);
 	}
 	case tk_str: {
-		struct sval val = sval_tkstr(ctx);
+		struct strobj* str = tkstr(ctx);
 		next_token(ctx);
-		return val;
+		return sval_str(forcewriteptr(str));
 	}
 	case tk_lparen: {
 		next_token(ctx);
@@ -1185,9 +1252,14 @@ static struct sval compile_element(struct context* ctx) {
 	case tk_this: {
 		next_token(ctx);
 		if (ctx->topfunc->enfunc == NULL) {
-			struct sval val = sval_str(ctx, LIT(global));
-			sval_pop(ctx, val);
-			emit(ctx, op_gget, ctx->sp, val.reg, 0);
+			// TODO: Is this semantic correct when global is re-assigned?
+			int slot = add_const(ctx, forcewriteptr(LIT(global)));
+			if (slot <= MAX_KOP)
+				emit(ctx, op_ggets, ctx->sp, slot, 0);
+			else {
+				emit_imm(ctx, op_kstr, ctx->sp, slot);
+				emit(ctx, op_gget, ctx->sp, ctx->sp, 0);
+			}
 			return sval_value(ctx->sp++);
 		}
 		else
@@ -1216,14 +1288,20 @@ static struct sval compile_element(struct context* ctx) {
 		while (ctx->token != tk_eof && ctx->token != tk_rbrace) {
 			if (ctx->token != tk_ident && ctx->token != tk_str)
 				compile_error(ctx, "Identifier or string expected.");
-			struct sval kval = sval_tkstr(ctx);
+			// TODO: More key types (ident/string/number/...)
+			struct strobj* str = tkstr(ctx);
+			int slot = add_const(ctx, forcewriteptr(str));
 			next_token(ctx);
 			require_token(ctx, tk_colon);
 			struct sval val = compile_single_expression(ctx);
 			val = sval_extract(ctx, val);
 			sval_pop(ctx, val);
-			sval_pop(ctx, kval);
-			emit(ctx, op_fset, tval.reg, kval.reg, val.reg);
+			if (slot <= MAX_KOP)
+				emit(ctx, op_fsets, tval.reg, slot, val.reg);
+			else {
+				emit_imm(ctx, op_kstr, ctx->sp, slot);
+				emit(ctx, op_fset, tval.reg, ctx->sp, val.reg);
+			}
 			if (ctx->token != tk_comma)
 				break;
 			next_token(ctx);
@@ -1239,15 +1317,22 @@ static struct sval compile_element(struct context* ctx) {
 }
 
 static struct sval compile_member(struct context* ctx) {
+	struct cpu* cpu = ctx->cpu;
 	struct sval val = compile_element(ctx);
 	for (;;) {
 		if (ctx->token == tk_dot) {
 			val = sval_extract(ctx, val);
 			next_token(ctx);
 			check_token(ctx, tk_ident);
-			struct sval rval = sval_tkstr(ctx);
+			struct strobj* str = tkstr(ctx);
 			next_token(ctx);
-			val = sval_member(val.reg, rval.reg);
+			int slot = add_const(ctx, forcewriteptr(str));
+			if (slot <= MAX_KOP)
+				val = sval_members(val.reg, slot);
+			else {
+				emit_imm(ctx, op_kstr, ctx->sp, slot);
+				val = sval_member(val.reg, ctx->sp++);
+			}
 		}
 		else if (ctx->token == tk_lbracket) {
 			val = sval_extract(ctx, val);
@@ -1260,16 +1345,23 @@ static struct sval compile_member(struct context* ctx) {
 		else if (ctx->token == tk_lparen) {
 			int sp;
 			int param_count = 0;
-			if (val.type == vt_member) {
+			if (val.type == vt_member || val.type == vt_membern || val.type == vt_members) {
+				enum opcode op;
+				if (val.type == vt_member)
+					op = op_fget;
+				else if (val.type == vt_membern)
+					op = op_fgetn;
+				else /* val.type == vt_members */
+					op = op_fgets;
 				sval_pop(ctx, val);
 				sp = ctx->sp;
 				if (val.reg == ctx->sp) {
-					emit(ctx, op_fget, ctx->sp + 1, val.reg, val.field);
+					emit(ctx, op, ctx->sp + 1, val.reg, val.field);
 					emit(ctx, op_xchg, ctx->sp, ctx->sp + 1, 0);
 					ctx->sp += 2;
 				}
 				else {
-					emit(ctx, op_fget, ctx->sp++, val.reg, val.field);
+					emit(ctx, op, ctx->sp++, val.reg, val.field);
 					emit(ctx, op_mov, ctx->sp++, val.reg, 0);
 				}
 			}
@@ -1836,9 +1928,11 @@ static void compile_statement(struct context* ctx) {
 		emit_imm(ctx, op_j, 0, 0);
 		break;
 	}
-	case tk_function:
-		compile_function(ctx, 1);
+	case tk_function: {
+		struct sval val = compile_function(ctx, 1);
+		sval_pop(ctx, val);
 		return;
+	}
 	case tk_return: {
 		next_token(ctx);
 		if (ctx->token == tk_semicolon)
