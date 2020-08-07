@@ -537,7 +537,7 @@ struct value devlib_fastParse(struct cpu* cpu, int sp, int nargs) {
 						break;
 				}
 				token = pt_comment;
-				token_end = i + 1;
+				token_end = i + 2;
 			}
 		}
 	}
