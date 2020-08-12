@@ -90,7 +90,7 @@ static int CONCAT(index_of, SUFFIX)(const char* t, int tlen, const char* x, int 
 		s0 = xlen - p - 1;
 	else {
 		s0 = -1;
-		p = max(l + 1, xlen - l - 1) + 1;
+		p = max(l, xlen - l - 1) + 1;
 	}
 	pos = start, s = -1;
 	while (pos + xlen <= tlen) {

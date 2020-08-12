@@ -694,6 +694,10 @@ test("String-indexOf", function() {
   check("abcda".indexOf("", 6), 5);
 });
 
+test("String-indexOf-bugs", function() {
+  check("  bab".indexOf("bab"), 2);
+});
+
 test("String-lastIndexOf", function() {
   check("abcda".lastIndexOf("abc"), 0);
   check("abcda".lastIndexOf("da"), 3);
