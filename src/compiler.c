@@ -386,6 +386,8 @@ start:
 							goto start;
 						}
 					}
+					if (ctx->ch == '\n')
+						ctx->linenum++;
 				} while (ctx->ch != 0);
 				compile_error(ctx, "Block comment not closed.");
 			}
