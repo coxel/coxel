@@ -256,11 +256,11 @@ enum opcode {
 
 struct ins {
 	enum opcode opcode : 8;
-	int op1 : 8;
+	unsigned int op1 : 8;
 	union {
 		struct {
-			int op2 : 8;
-			int op3 : 8;
+			unsigned int op2 : 8;
+			unsigned int op3 : 8;
 		};
 		int imm : 16;
 	};
