@@ -696,6 +696,7 @@ test("String-indexOf", function() {
 
 test("String-indexOf-bugs", function() {
   check("  bab".indexOf("bab"), 2);
+  check("333".indexOf("73"), -1);
 });
 
 test("String-lastIndexOf", function() {

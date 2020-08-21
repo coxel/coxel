@@ -19,7 +19,7 @@
 static int CONCAT(get_critical_factorization, SUFFIX)(const char* str, int len, int* period) {
 	int i, i_rev, j, k, p, p_rev;
 	/* Maximal suffix on <= */
-	i = -1, j = 0, k = 0, p = 0;
+	i = -1, j = 0, k = 1, p = 0;
 	while (j + k < len) {
 		int c = CMP(str, len, j + k, str, len, i + k);
 		if (c < 0) { /* b < a */
@@ -42,7 +42,7 @@ static int CONCAT(get_critical_factorization, SUFFIX)(const char* str, int len, 
 	}
 
 	/* Maximal suffix on >= */
-	i_rev = -1, j = 0, k = 0, p_rev = 0;
+	i_rev = -1, j = 0, k = 1, p_rev = 0;
 	while (j + k < len) {
 		int c = CMP(str, len, j + k, str, len, i_rev + k);
 		if (c > 0) { /* b > a */
@@ -76,7 +76,7 @@ static int CONCAT(get_critical_factorization, SUFFIX)(const char* str, int len, 
 static int CONCAT(mem_compare, SUFFIX)(const char* x, int xlen, int p1, int p2, int len) {
 	for (int i = 0; i < len; i++) {
 		int c = CMP(x, xlen, p1 + i, x, xlen, p2 + i);
-		if (c < 0)
+		if (c)
 			return c;
 	}
 	return 0;
@@ -86,7 +86,7 @@ static int CONCAT(index_of, SUFFIX)(const char* t, int tlen, const char* x, int 
 	int i, j, pos, s, s0;
 	int l, p;
 	l = CONCAT(get_critical_factorization, SUFFIX)(x, xlen, &p);
-	if (l + p <= xlen && CONCAT(mem_compare, SUFFIX)(x, xlen, 0, p, l + 1) == 0)
+	if (l + p + 1 <= xlen && CONCAT(mem_compare, SUFFIX)(x, xlen, 0, p, l + 1) == 0)
 		s0 = xlen - p - 1;
 	else {
 		s0 = -1;
