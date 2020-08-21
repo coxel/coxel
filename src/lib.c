@@ -181,7 +181,7 @@ struct value lib_spr(struct cpu* cpu, int sp, int nargs) {
 }
 
 struct value lib_sspr(struct cpu* cpu, int sp, int nargs) {
-	if (nargs < 6 || nargs > 8)
+	if (nargs < 6 || nargs > 9)
 		argument_error(cpu);
 	int sx = num_int(to_number(cpu, ARG(0)));
 	int sy = num_int(to_number(cpu, ARG(1)));
