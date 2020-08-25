@@ -23,6 +23,7 @@
 #define request2size(size)	((size) < (MIN_CHUNK_SIZE - CHUNK_OVERHEAD) ? MIN_CHUNK_SIZE : pad_request(size))
 
 #define smallidx(size)		((size) / CHUNK_GRANULARITY)
+#define smallsize(idx)		((idx) * CHUNK_GRANULARITY)
 #define PUSE_BIT			1 /* Previous chunk is in use */
 #define CUSE_BIT			2 /* Current chunk is in use */
 #define FLAG_MASK			(PUSE_BIT | CUSE_BIT)
@@ -136,13 +137,16 @@ static struct binhdr* large_alloc(struct alloc* alloc, uint32_t size) {
 	struct chunk* chunk = mem2chunk(best);
 	unlink_large_chunk(alloc, chunk);
 	uint32_t rsize = chunksize(chunk) - size;
-	if (rsize < MIN_CHUNK_SIZE)
+	if (rsize < MIN_CHUNK_SIZE) {
 		set_inuse_pinuse(alloc, chunk);
+		alloc->used_memory += chunksize(chunk);
+	}
 	else {
 		set_size_inuse(alloc, chunk, size);
 		struct chunk* next = nextchunk(chunk);
 		set_size_free(alloc, next, rsize);
 		insert_chunk(alloc, next);
+		alloc->used_memory += size;
 	}
 	return best;
 }
@@ -152,7 +156,7 @@ struct alloc* mem_new(uint32_t size, uint32_t reserved_size) {
 	struct alloc* alloc = (struct alloc*)platform_malloc(size);
 	if (alloc == NULL)
 		return NULL;
-	alloc->used_memory = 0;
+	alloc->used_memory = reserved_size;
 	alloc->size = size;
 	alloc->reserved_size = reserved_size;
 	for (int i = 0; i < SMALL_BINS; i++) {
@@ -184,6 +188,7 @@ void* mem_alloc(struct alloc* alloc, int size) {
 			struct binhdr* mem = unlink_small_head(alloc, idx);
 			struct chunk* chunk = mem2chunk(mem);
 			set_inuse_pinuse(alloc, chunk);
+			alloc->used_memory += smallsize(idx);
 			return mem;
 		}
 		else {
@@ -198,6 +203,7 @@ void* mem_alloc(struct alloc* alloc, int size) {
 				struct chunk* next = nextchunk(chunk);
 				set_size_free(alloc, next, rsize);
 				insert_small_chunk(alloc, next);
+				alloc->used_memory += size;
 				return mem;
 			}
 			else { /* Try allocate from large bin */
@@ -223,6 +229,7 @@ void* mem_alloc(struct alloc* alloc, int size) {
 		set_size_inuse(alloc, chunk, size);
 		writeptr(alloc->top, (uint8_t*)chunk + size);
 		alloc->topsize = rsize;
+		alloc->used_memory += size;
 		return chunk2mem(chunk);
 	}
 	/* Fail */
@@ -255,11 +262,12 @@ void* mem_realloc(struct alloc* alloc, void* ptr, int request_size) {
 		/* Already done */
 		uint32_t rsize = chunksize(chunk) - size;
 		if (rsize >= MIN_CHUNK_SIZE) {
-			/* Split chunk */
+			/* Shrink, split chunk */
 			struct chunk* next = nextchunk(chunk);
 			set_size(alloc, chunk, size);
 			chunk = nextchunk(chunk);
 			free_chunk_merge_next(alloc, chunk, rsize, next);
+			alloc->used_memory -= rsize;
 		}
 		return ptr;
 	}
@@ -272,6 +280,7 @@ void* mem_realloc(struct alloc* alloc, void* ptr, int request_size) {
 			size = totsize;
 			rsize = 0;
 		}
+		alloc->used_memory += size - chunksize(chunk);
 		set_size(alloc, chunk, size);
 		writeptr(alloc->top, (uint8_t*)chunk + size);
 		alloc->topsize = rsize;
@@ -283,12 +292,14 @@ void* mem_realloc(struct alloc* alloc, void* ptr, int request_size) {
 			uint32_t rsize = totsize - size;
 			unlink_chunk(alloc, next);
 			if (rsize < MIN_CHUNK_SIZE) {
+				alloc->used_memory += totsize - chunksize(chunk);
 				set_size(alloc, chunk, totsize);
 				next = nextchunk(chunk);
 				if (next != readptr(alloc->top))
 					next->size |= PUSE_BIT;
 			}
 			else {
+				alloc->used_memory += size - chunksize(chunk);
 				set_size(alloc, chunk, size);
 				next = nextchunk(chunk);
 				set_size_free(alloc, next, rsize);
@@ -312,6 +323,7 @@ void mem_dealloc(struct alloc* alloc, void* ptr) {
 	struct chunk* chunk = mem2chunk(ptr);
 	struct chunk* next = nextchunk(chunk);
 	uint32_t size = chunksize(chunk);
+	alloc->used_memory -= size;
 	/* Merge previous chunk */
 	if (!(chunk->size & PUSE_BIT)) {
 		uint32_t prevsize = *((uint32_t*)chunk - 1);
@@ -354,8 +366,10 @@ void mem_check(struct alloc* alloc) {
 	}
 	/* Check all chunks */
 	int prev_inuse = 1;
+	uint32_t used_memory = alloc->reserved_size;
 	for (struct chunk* chunk = (struct chunk*)((uint8_t*)alloc + alloc->reserved_size); chunk != readptr(alloc->top); chunk = nextchunk(chunk)) {
 		if (chunk->size & CUSE_BIT) {
+			used_memory += chunksize(chunk);
 			struct chunk* next = nextchunk(chunk);
 			if (prev_inuse)
 				check(chunk->size & PUSE_BIT);
@@ -370,5 +384,6 @@ void mem_check(struct alloc* alloc) {
 		}
 	}
 	check(free_chunk_cnt == 0);
+	check(used_memory == alloc->used_memory);
 }
 #endif

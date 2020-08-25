@@ -27,6 +27,7 @@ typedef struct value(*cfunc)(struct cpu* cpu, int sp, int nargs);
 	X(lib_srand) \
 	X(lib_rand) \
 	X(lib_statCpu) \
+	X(lib_statMem) \
 	X(devlib_key) \
 	X(devlib_keyp) \
 	X(devlib_mpos) \

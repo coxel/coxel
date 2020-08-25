@@ -296,6 +296,13 @@ struct value lib_statCpu(struct cpu* cpu, int sp, int nargs) {
 	return value_num(cpu, usage);
 }
 
+struct value lib_statMem(struct cpu* cpu, int sp, int nargs) {
+	if (nargs != 0)
+		argument_error(cpu);
+	number usage = (number)((int64_t)cpu->alloc.used_memory << FRAC_BITS >> 10);
+	return value_num(cpu, usage);
+}
+
 struct value devlib_key(struct cpu* cpu, int sp, int nargs) {
 	if (nargs != 1)
 		argument_error(cpu);
@@ -583,6 +590,7 @@ static const struct libdef libdefs[] = {
 	{"srand", cf_lib_srand },
 	{"rand", cf_lib_rand },
 	{"statCpu", cf_lib_statCpu },
+	{"statMem", cf_lib_statMem },
 	{ NULL, 0 },
 };
 
