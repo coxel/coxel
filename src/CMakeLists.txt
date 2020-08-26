@@ -45,6 +45,7 @@ if("${CMAKE_SIZEOF_VOID_P}" STREQUAL "8")
 endif()
 
 if(MSVC)
+	add_definitions(-DWIN32)
 	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /arch:IA32")
 	add_executable(coxel WIN32 ${SOURCES};platforms/win32.c)
 	set_target_properties(coxel PROPERTIES
@@ -60,7 +61,7 @@ elseif(ESP_PLATFORM)
 		${SOURCES}
 		platforms/esp32.c
 	)
-	idf_component_register(SRCS ${SOURCES} INCLUDE_DIRS "" REQUIRES bootloader_support driver fatfs EMBED_FILES ../carts/firmware.cox)
+	idf_component_register(SRCS ${SOURCES} INCLUDE_DIRS "" REQUIRES bootloader_support bt driver esp_hid fatfs nvs_flash EMBED_FILES ../carts/firmware.cox)
 elseif(APPLE)
 	set(IOS_SOURCES
 		platforms/hidkey.h

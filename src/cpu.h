@@ -251,6 +251,7 @@ struct tabobj {
 #define X(a, b, c, d, e) a,
 enum opcode {
 	OPCODE_DEF(X)
+	op_CNT,
 };
 #undef X
 
@@ -438,6 +439,10 @@ void cpu_destroy(struct cpu* cpu);
 void cpu_execute(struct cpu* cpu, struct funcobj* func);
 void cpu_continue(struct cpu* cpu);
 int cpu_dump_code(struct cpu* cpu, const char* codebuf, int codelen, char* buf, int buflen);
+#ifdef DEBUG_TIMING
+void cpu_timing_reset();
+void cpu_timing_print_report(int report_tag);
+#endif
 
 int to_bool(struct cpu* cpu, struct value val);
 number to_number(struct cpu* cpu, struct value val);

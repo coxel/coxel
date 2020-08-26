@@ -433,7 +433,13 @@ void console_update() {
 	struct cpu* cpu = g_cpus[g_cur_cpu];
 	if (!cpu->stopped) {
 		if (!cpu->top_executed) {
+#ifdef DEBUG_TIMING
+			cpu_timing_reset();
+#endif
 			cpu_execute(cpu, (struct funcobj*)readptr(cpu->topfunc));
+#ifdef DEBUG_TIMING
+			cpu_timing_print_report(-1);
+#endif
 			cpu->top_executed = 1;
 		}
 		else {

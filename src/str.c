@@ -80,6 +80,15 @@ int str_vsprintf(char* buf, const char* format, va_list args) {
 				p += int_format(num, p);
 				break;
 			}
+			case 'l': {
+				if (*format++ != 'l')
+					goto format_error;
+				if (*format++ != 'd')
+					goto format_error;
+				int64_t num = va_arg(args, int64_t);
+				p += int64_format(num, p);
+				break;
+			}
 			case 'f': {
 				number num = va_arg(args, number);
 				p += num_format(num, 4, p);
@@ -104,7 +113,7 @@ int str_vsprintf(char* buf, const char* format, va_list args) {
 				p += len;
 				break;
 			}
-			default: platform_error("str_vsprintf() format error.");
+			default: format_error: platform_error("str_vsprintf() format error.");
 			}
 		}
 		else

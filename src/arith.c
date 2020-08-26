@@ -207,6 +207,32 @@ int int_format(int num, char* output) {
 	return neg + len;
 }
 
+int int64_format(int64_t num, char* output) {
+	char buf[20];
+	if (num == 0) {
+		*output = '0';
+		return 1;
+	}
+	else if (num == 0x8000000000000000LL) {
+		memcpy(output, "-9223372036854775808", 20);
+		return 20;
+	}
+	int neg = 0;
+	int len = 0;
+	if (num < 0) {
+		neg = 1;
+		num = -num;
+		*output++ = '-';
+	}
+	while (num) {
+		buf[len++] = num % 10 + '0';
+		num /= 10;
+	}
+	for (int i = 0; i < len; i++)
+		*output++ = buf[len - 1 - i];
+	return neg + len;
+}
+
 static const char hex[16] = "0123456789abcdef";
 char to_hex(int ch) {
 	return hex[ch];

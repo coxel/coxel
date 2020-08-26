@@ -99,6 +99,7 @@ struct cpu* cpu_new() {
 		return NULL;
 	cpu->gchead = writeptr(NULL);
 	cpu->parent = -1;
+	cpu->cycles = 0;
 	cpu->top_executed = 0;
 	cpu->paused = 0;
 	cpu->stopped = 0;
@@ -274,7 +275,7 @@ static FORCEINLINE struct value fget(struct cpu* cpu, struct value obj, struct v
 	}
 }
 
-static FORCEINLINE struct value fgetn(struct cpu* cpu, struct value obj, number field) {
+static FORCEINLINE struct value fgetnum(struct cpu* cpu, struct value obj, number field) {
 	switch (obj.type) {
 	case t_str: {
 		cpu->cycles += CYCLES_ARRAY_LOOKUP;
@@ -298,7 +299,7 @@ static FORCEINLINE struct value fgetn(struct cpu* cpu, struct value obj, number 
 	}
 }
 
-static FORCEINLINE struct value fgets(struct cpu* cpu, struct value obj, struct strobj* field) {
+static FORCEINLINE struct value fgetstr(struct cpu* cpu, struct value obj, struct strobj* field) {
 	cpu->cycles += CYCLES_LOOKUP;
 	switch (obj.type) {
 	case t_str: return str_fget(cpu, (struct strobj*)readptr(obj.str), field);
@@ -469,6 +470,10 @@ void upval_destroy(struct cpu* cpu, struct upval* upval) {
 #define lstr		forcereadptr(((uint32_t*)readptr(g_code->k))[ins->op2])
 #define rstr		forcereadptr(((uint32_t*)readptr(g_code->k))[ins->op3])
 
+#ifdef DEBUG_TIMING
+void cpu_timing_record(enum opcode opcode, int64_t duration);
+#endif
+
 void cpu_execute(struct cpu* cpu, struct funcobj* func) {
 	struct value* frame;
 	update_stack();
@@ -495,6 +500,10 @@ void cpu_continue(struct cpu* cpu) {
 	g_code = (struct code*)readptr(func->code);
 	g_pc = cpu->curpc;
 	update_stack();
+#ifdef DEBUG_TIMING
+	MEASURE_DEFINES();
+	enum opcode last_opcode = -1;
+#endif
 	for (;;) {
 		if (unlikely(cpu->cycles >= CYCLES_PER_FRAME)) {
 			cpu->cycles -= CYCLES_PER_FRAME;
@@ -505,6 +514,11 @@ void cpu_continue(struct cpu* cpu) {
 		}
 		struct ins* ins = &((struct ins*)readptr(g_code->ins))[g_pc++];
 		cpu->cycles += CYCLES_BASE;
+		MEASURE_END();
+		if (last_opcode != -1)
+			cpu_timing_record(last_opcode, MEASURE_DURATION());
+		last_opcode = ins->opcode;
+		MEASURE_START();
 		switch (ins->opcode) {
 		case op_kundef: retval = value_undef(cpu); break;
 		case op_knull: retval = value_null(cpu); break;
@@ -624,8 +638,8 @@ void cpu_continue(struct cpu* cpu) {
 		case op_apush: arr_push(cpu, to_arr(cpu, retval), lval); cpu->cycles += CYCLES_ALLOC; break;
 		case op_tab: retval = value_tab(cpu, tab_new(cpu)); cpu->cycles += CYCLES_ALLOC; break;
 		case op_fget: retval = fget(cpu, lval, rval); break;
-		case op_fgetn: retval = fgetn(cpu, lval, rnum); break;
-		case op_fgets: retval = fgets(cpu, lval, rstr); break;
+		case op_fgetn: retval = fgetnum(cpu, lval, rnum); break;
+		case op_fgets: retval = fgetstr(cpu, lval, rstr); break;
 		case op_fset: fset(cpu, retval, lval, rval); break;
 		case op_fsetn: fsetn(cpu, retval, lnum, rval); break;
 		case op_fsets: fsets(cpu, retval, lstr, rval); break;
@@ -955,3 +969,97 @@ int cpu_dump_code(struct cpu* cpu, const char* codebuf, int codelen, char* buf, 
 	}
 	return totlen;
 }
+
+#ifdef DEBUG_TIMING
+#define X(a, b, c, d, e)	#a,
+static const char* const opname[] = {
+	OPCODE_DEF(X)
+};
+#undef X
+
+struct timing_record_item {
+	int count;
+	int64_t tot_duration;
+	int64_t min_duration;
+	int64_t max_duration;
+};
+
+static struct timing_record_item g_timing_record_items[op_CNT];
+void cpu_timing_record(enum opcode opcode, int64_t duration) {
+	struct timing_record_item* item = &g_timing_record_items[opcode];
+	item->count++;
+	/* Ignore first time for each opcode */
+	if (item->count == 0)
+		return;
+	item->tot_duration += duration;
+	if (duration < item->min_duration)
+		item->min_duration = duration;
+	if (duration > item->max_duration)
+		item->max_duration = duration;
+}
+
+#ifdef WIN32
+#define WIN32_LEAN_AND_MEAN
+#include <Windows.h>
+#else
+#endif
+#include <stdio.h>
+
+static void console_printf(const char* format, ...) {
+	static char buf[256];
+	va_list ap;
+	va_start(ap, format);
+	int size = str_vsprintf(buf, format, ap);
+	va_end(ap);
+#ifdef WIN32
+	HANDLE console = GetStdHandle(STD_OUTPUT_HANDLE);
+	DWORD written;
+	WriteConsoleA(console, buf, size, &written, NULL);
+#else
+	buf[size] = 0;
+	printf("%s", buf);
+#endif
+}
+
+void cpu_timing_reset() {
+	for (int i = 0; i < op_CNT; i++) {
+		struct timing_record_item* item = &g_timing_record_items[i];
+		item->count = -1;
+		item->tot_duration = 0;
+		item->min_duration = INT64_MAX;
+		item->max_duration = 0;
+	}
+}
+
+void cpu_timing_print_report(int report_tag) {
+#ifdef WIN32
+	AllocConsole();
+#endif
+	console_printf("Coxel CPU Timing report:\n");
+	console_printf("Report tag: %d\n", report_tag);
+	MEASURE_DEFINES();
+	const int times = 10;
+	int64_t overhead = 0;
+	for (int i = 0; i < times; i++) {
+		MEASURE_START();
+		MEASURE_END();
+		overhead += MEASURE_DURATION();
+	}
+	overhead /= times;
+	console_printf("Measure overhead: %lld\n", overhead);
+	for (int i = 0; i < op_CNT; i++) {
+		struct timing_record_item* item = &g_timing_record_items[i];
+		if (item->count <= 0)
+			continue;
+		number avg = (number)((item->tot_duration << FRAC_BITS) / item->count);
+		avg = num_sub(avg, num_kint(overhead));
+		console_printf("%s: %d times, tot %lld, avg %f, min %lld, max %lld\n",
+			opname[i],
+			item->count,
+			item->tot_duration - overhead * item->count,
+			avg,
+			item->min_duration - overhead,
+			item->max_duration - overhead);
+	}
+}
+#endif

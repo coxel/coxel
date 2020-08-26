@@ -14,6 +14,7 @@ int str_equal(const void* key1, int len1, const void* key2, int len2);
 /* Supported formats:
  * %%: '%' symbol
  * %d: 32-bit signed integer
+ * %lld: 64-bit signed integer
  * %f: number
  * %c: char
  * %s: NULL-terminated string

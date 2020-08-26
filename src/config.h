@@ -7,6 +7,28 @@
 #define COXEL_STATE_MAGIC		' xoc'
 #define COXEL_STATE_VERSION		0
 
+#define DEBUG_TIMING
+
+//#ifdef DEBUG_TIMING
+
+#if defined(_M_IX86) || defined(__i386__) || defined(_M_X64) || defined(__x86_64__)
+#include <intrin.h>
+#define MEASURE_DEFINES()	int64_t measure_begin, measure_end; unsigned int measure_dummy
+#define MEASURE_START()		_mm_mfence(); measure_begin = __rdtscp(&measure_dummy); _mm_lfence()
+#define MEASURE_END()		_mm_mfence(); measure_end = __rdtscp(&measure_dummy); _mm_lfence()
+#define MEASURE_DURATION()	(measure_end - measure_begin)
+#elif defined(ESP_PLATFORM)
+#include <xtensa/hal.h>
+#define MEASURE_DEFINES()	int measure_begin, measure_end
+#define MEASURE_START()		measure_begin = xthal_get_ccount()
+#define MEASURE_END()		measure_end = xthal_get_ccount()
+#define MEASURE_DURATION()	(measure_end - measure_begin)
+#else
+#error Timing primitives not defined for this platform.
+#endif
+
+#endif
+
 #if !defined(_DEBUG) && !defined(ESP_PLATFORM)
 #define RELATIVE_ADDRESSING
 #endif

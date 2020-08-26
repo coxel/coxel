@@ -8,15 +8,27 @@
 #include "freertos/task.h"
 #include "freertos/queue.h"
 #include "driver/gpio.h"
+#include "driver/i2c.h"
 #include "driver/sdmmc_host.h"
 #include "driver/sdspi_host.h"
 #include "driver/spi_common.h"
 #include "driver/ledc.h"
 #include "bootloader_random.h"
+#include "esp_bt.h"
+#include "esp_bt_main.h"
+#include "esp_bt_device.h"
+#include "esp_gap_bt_api.h"
+#include "esp_hidh.h"
 #include "esp_vfs_fat.h"
 #include "esp_sleep.h"
 #include "esp_system.h"
+#include "nvs.h"
+#include "nvs_flash.h"
 #include "sdmmc_cmd.h"
+
+#define MCP23017_SCL	15
+#define MCP23017_SDA	13
+#define MCP23017_ADDR	0x20
 
 #define TFT_MISO	12
 #define TFT_MOSI	23
@@ -194,8 +206,10 @@ extern const uint8_t firmware_end[] asm("_binary_firmware_cox_end");
 
 void* platform_open(const char* filename, uint32_t* filesize) {
 	char buf[300] = "/sdcard/";
-	if (filename == NULL)
+	if (filename == NULL) {
+		*filesize = (uint32_t)(firmware_end - firmware_start);
 		return fmemopen(firmware_start, firmware_end - firmware_start, "rb");
+	}
 	else {
 		if (strlen(filename) > 256)
 			return 0;
@@ -332,10 +346,313 @@ static void console_task_main(void *pvParameters) {
 		console_update();
 		xSemaphoreGive(paint_sem);
 		xSemaphoreTake(console_sem, portMAX_DELAY);
+		vTaskDelay(1 / portTICK_PERIOD_MS);
 	}
 }
 
+static char* bda2str(esp_bd_addr_t bda, char* str, size_t size) {
+	if (bda == NULL || str == NULL || size < 18) {
+		return NULL;
+	}
+	uint8_t* p = bda;
+	sprintf(str, "%02x:%02x:%02x:%02x:%02x:%02x",
+		p[0], p[1], p[2], p[3], p[4], p[5]);
+	return str;
+}
+
+static int discovery_finished;
+static int discovered_peer;
+static esp_bd_addr_t discovered_bda;
+
+void bt_app_gap_cb(esp_bt_gap_cb_event_t event, esp_bt_gap_cb_param_t* param) {
+	switch (event) {
+	case ESP_BT_GAP_DISC_RES_EVT: {
+		char bda_str[18];
+		printf("Device found: %s\n", bda2str(param->disc_res.bda, bda_str, 18));
+		for (int i = 0; i < param->disc_res.num_prop; i++) {
+			esp_bt_gap_dev_prop_t* prop = &param->disc_res.prop[i];
+			if (prop->type == ESP_BT_GAP_DEV_PROP_BDNAME) {
+				const char* name = (const char*)prop->val;
+				printf("Device name: %s\n", name);
+			}
+			else if (prop->type == ESP_BT_GAP_DEV_PROP_COD) {
+				uint32_t cod = *(uint32_t*)prop->val;
+				printf("Class of device: %u\n", cod);
+				if (!esp_bt_gap_is_valid_cod(cod))
+					printf("Invalid COD!\n");
+				else {
+					uint32_t major = esp_bt_gap_get_cod_major_dev(cod);
+					uint32_t minor = esp_bt_gap_get_cod_minor_dev(cod);
+					uint32_t format = esp_bt_gap_get_cod_format_type(cod);
+					printf("Major device class: %u\n", major);
+					printf("Minor device class: %u\n", minor);
+					printf("Format type ID: %u\n", format);
+					if (major == ESP_BT_COD_MAJOR_DEV_PERIPHERAL) {
+						printf("Peripheral device.\n");
+						if (minor & 16)
+							printf("Keyboard.\n");
+						if (minor & 32)
+							printf("Mouse.\n");
+					}
+					if (major == ESP_BT_COD_MAJOR_DEV_PERIPHERAL && (minor & 48)) { // keyboard / mouse
+						esp_bt_gap_cancel_discovery();
+						discovered_peer = 1;
+						memcpy(&discovered_bda, &param->disc_res.bda, sizeof(esp_bd_addr_t));
+					}
+				}
+			}
+			else if (prop->type == ESP_BT_GAP_DEV_PROP_RSSI) {
+				int rssi = *(int8_t*)prop->val;
+				printf("RSSI: %d\n", rssi);
+			}
+			else if (prop->type == ESP_BT_GAP_DEV_PROP_EIR) {
+				uint8_t len = 0;
+				uint8_t* data = NULL;
+				data = esp_bt_gap_resolve_eir_data((uint8_t*)prop->val, ESP_BT_EIR_TYPE_CMPL_LOCAL_NAME, &len);
+				if (data == NULL)
+					data = esp_bt_gap_resolve_eir_data((uint8_t*)prop->val, ESP_BT_EIR_TYPE_SHORT_LOCAL_NAME, &len);
+				if (data != NULL) {
+					printf("Name: ");
+					for (int i = 0; i < len; i++)
+						printf("%c", data[i]);
+					printf("\n");
+				}
+			}
+		}
+		break;
+	}
+	case ESP_BT_GAP_DISC_STATE_CHANGED_EVT: {
+		if (param->disc_st_chg.state == ESP_BT_GAP_DISCOVERY_STARTED)
+			printf("Bluetooth discovery started.\n");
+		else if (param->disc_st_chg.state == ESP_BT_GAP_DISCOVERY_STOPPED) {
+			printf("Bluetooth discovery stopped.\n");
+			discovery_finished = 1;
+		}
+		break;
+	}
+	default:
+		printf("Event got: %d\n", event);
+		break;
+	}
+}
+
+void hidh_callback(void* handler_args, esp_event_base_t base, int32_t id, void* event_data) {
+	esp_hidh_event_t event = (esp_hidh_event_t)id;
+	esp_hidh_event_data_t* param = (esp_hidh_event_data_t*)event_data;
+
+	switch (event) {
+	case ESP_HIDH_OPEN_EVENT: {
+		const uint8_t* bda = esp_hidh_dev_bda_get(param->open.dev);
+		printf("OPEN: %s\n", esp_hidh_dev_name_get(param->open.dev));
+		esp_hidh_dev_dump(param->open.dev, stdout);
+		break;
+	}
+	case ESP_HIDH_BATTERY_EVENT: {
+		const uint8_t* bda = esp_hidh_dev_bda_get(param->battery.dev);
+		printf("BATTERY: %d%%\n", param->battery.level);
+		break;
+	}
+	case ESP_HIDH_INPUT_EVENT: {
+		const uint8_t* bda = esp_hidh_dev_bda_get(param->input.dev);
+		printf("INPUT: %8s, MAP: %2u, ID: %3u, Len: %d, Data:\n", esp_hid_usage_str(param->input.usage), param->input.map_index, param->input.report_id, param->input.length);
+		break;
+	}
+	case ESP_HIDH_FEATURE_EVENT: {
+		const uint8_t* bda = esp_hidh_dev_bda_get(param->feature.dev);
+		printf("FEATURE: %8s, MAP: %2u, ID: %3u, Len: %d\n", esp_hid_usage_str(param->feature.usage), param->feature.map_index, param->feature.report_id, param->feature.length);
+		break;
+	}
+	case ESP_HIDH_CLOSE_EVENT: {
+		const uint8_t* bda = esp_hidh_dev_bda_get(param->close.dev);
+		printf("CLOSE: '%s' %s\n", esp_hidh_dev_name_get(param->close.dev), esp_hid_disconnect_reason_str(esp_hidh_dev_transport_get(param->close.dev), param->close.reason));
+		esp_hidh_dev_free(param->close.dev);
+		break;
+	}
+	default:
+		printf("EVENT: %d\n", event);
+		break;
+	}
+	int bonded_num = esp_bt_gap_get_bond_device_num();
+	printf("Bonded num: %d\n", bonded_num);
+}
+
+#define ACK_CHECK_EN	0x1
+
+static void mcp23017_write_register(uint8_t reg, uint8_t value) {
+	esp_err_t err;
+	i2c_cmd_handle_t cmd = i2c_cmd_link_create();
+	err = i2c_master_start(cmd);
+	if (err != ESP_OK)
+		printf("i2c_master_start() error.\n");
+	err = i2c_master_write_byte(cmd, I2C_MASTER_WRITE | (MCP23017_ADDR << 1), ACK_CHECK_EN);
+	if (err != ESP_OK)
+		printf("i2c_master_write_byte() error.\n");
+	err = i2c_master_write_byte(cmd, reg, ACK_CHECK_EN);
+	if (err != ESP_OK)
+		printf("i2c_master_write_byte() error.\n");
+	err = i2c_master_write_byte(cmd, value, ACK_CHECK_EN);
+	if (err != ESP_OK)
+		printf("i2c_master_write_byte() error.\n");
+	err = i2c_master_stop(cmd);
+	if (err != ESP_OK)
+		printf("i2c_master_stop() error.\n");
+	err = i2c_master_cmd_begin(I2C_NUM_0, cmd, portMAX_DELAY);
+	if (err != ESP_OK)
+		printf("i2c_master_cmd_begin() error: %s.\n", esp_err_to_name(err));
+	i2c_cmd_link_delete(cmd);
+}
+
+static int mcp23017_read_gpios() {
+	uint8_t lo, hi;
+	i2c_cmd_handle_t cmd = i2c_cmd_link_create();
+	i2c_master_start(cmd);
+	i2c_master_write_byte(cmd, I2C_MASTER_WRITE | (MCP23017_ADDR << 1), 1);
+	i2c_master_write_byte(cmd, 0x12, 1);
+	//i2c_master_cmd_begin(I2C_NUM_0, cmd, 0);
+	//i2c_cmd_link_delete(cmd);
+
+	//cmd = i2c_cmd_link_create();
+	//i2c_master_start(cmd);
+	i2c_master_write_byte(cmd, I2C_MASTER_READ | (MCP23017_ADDR << 1), 1);
+	i2c_master_read_byte(cmd, &lo, 1);
+	i2c_master_read_byte(cmd, &hi, 1);
+	i2c_master_cmd_begin(I2C_NUM_0, cmd, portMAX_DELAY);
+	i2c_master_stop(cmd);
+	i2c_cmd_link_delete(cmd);
+	return (int)lo + ((int)hi << 8);
+}
+
 void app_main() {
+	esp_err_t ret;
+	/* Initialize NVS - it is used to store PHY calibration data */
+	printf("Initializing NVS...\n");
+	ret = nvs_flash_init();
+	if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
+		if (nvs_flash_erase() != 0)
+			printf("nvs_flash_erase() error.\n");
+		ret = nvs_flash_init();
+	}
+	if (ret != ESP_OK)
+		printf("nvs_flash_init() error.\n");
+
+#if 0
+	
+	printf("Initializing bluetooth...\n");
+	/* Release BLE stack */
+	ret = esp_bt_controller_mem_release(ESP_BT_MODE_BLE);
+	if (ret != 0)
+		printf("esp_bt_controller_mem_release() error.\n");
+	esp_bt_controller_config_t bt_cfg = BT_CONTROLLER_INIT_CONFIG_DEFAULT();
+	bt_cfg.mode = ESP_BT_MODE_CLASSIC_BT;
+	bt_cfg.bt_max_acl_conn = 3;
+	bt_cfg.bt_max_sync_conn = 3;
+	ret = esp_bt_controller_init(&bt_cfg);
+	if (ret != 0)
+		printf("esp_bt_controller_init() error.\n");
+	ret = esp_bt_controller_enable(ESP_BT_MODE_CLASSIC_BT);
+	if (ret != 0)
+		printf("esp_bt_controller_enable() error.\n");
+	ret = esp_bluedroid_init();
+	if (ret != 0)
+		printf("esp_bluedroid_init() error.\n");
+	ret = esp_bluedroid_enable();
+	if (ret != 0)
+		printf("esp_bluedroid_enable() error.\n");
+
+	{
+		const uint8_t* bda = esp_bt_dev_get_address();
+		char str[18];
+		bda2str(bda, str, 18);
+		printf("Local bda address: %s\n", str);
+	}
+
+	printf("Retrieving bonded devices...\n");
+	int bonded_num = esp_bt_gap_get_bond_device_num();
+	printf("Bonded num: %d\n", bonded_num);
+	esp_bd_addr_t* dev_list = (esp_bd_addr_t*)malloc(sizeof(esp_bd_addr_t) * bonded_num);
+	ret = esp_bt_gap_get_bond_device_list(&bonded_num, dev_list);
+	if (ret != 0)
+		printf("esp_bt_gap_get_bond_device_list() failed.\n");
+	else {
+		for (int i = 0; i < bonded_num; i++) {
+			char bda_str[18];
+			bda2str(dev_list[i], bda_str, 18);
+			printf("#%d: %s\n", bonded_num, bda_str);
+		}
+	}
+
+	printf("Initializing gap...\n");
+	esp_bt_dev_set_device_name("Coxel ESP32");
+
+	esp_bt_cod_t cod;
+	cod.major = ESP_BT_COD_MAJOR_DEV_COMPUTER;
+	cod.minor = 0b000101;
+	cod.service = 0;
+	esp_bt_gap_set_cod(cod, ESP_BT_INIT_COD);
+
+	/* Allow devices to connect back to us */
+	esp_bt_gap_set_scan_mode(ESP_BT_CONNECTABLE, ESP_BT_GENERAL_DISCOVERABLE);
+
+	/* Set default parameters for Secure Simple Pairing */
+	esp_bt_sp_param_t param_type = ESP_BT_SP_IOCAP_MODE;
+	esp_bt_io_cap_t iocap = ESP_BT_IO_CAP_OUT;
+	esp_bt_gap_set_security_param(param_type, &iocap, sizeof(uint8_t));
+
+	/*
+	 * Set default parameters for Legacy Pairing
+	 * Use fixed pin code
+	 */
+	esp_bt_pin_type_t pin_type = ESP_BT_PIN_TYPE_FIXED;
+	esp_bt_pin_code_t pin_code;
+	pin_code[0] = '1';
+	pin_code[1] = '2';
+	pin_code[2] = '3';
+	pin_code[3] = '4';
+	esp_bt_gap_set_pin(pin_type, 4, pin_code);
+	//esp_bt_gap_set_pin(ESP_BT_PIN_TYPE_VARIABLE, 0, 0);
+
+	esp_bt_gap_register_callback(bt_app_gap_cb);
+
+	esp_hidh_config_t config = {
+		.callback = hidh_callback,
+	};
+	ret = esp_hidh_init(&config);
+	if (ret != 0)
+		printf("esp_hidh_init() error.\n");
+
+	esp_bt_gap_start_discovery(ESP_BT_INQ_MODE_GENERAL_INQUIRY, 10, 0);
+	while (!discovery_finished)
+		vTaskDelay(16 / portTICK_PERIOD_MS);
+	if (discovered_peer)
+		esp_hidh_dev_open(discovered_bda, ESP_HID_TRANSPORT_BT, BLE_ADDR_TYPE_PUBLIC);
+	return;
+#endif
+
+#if 0
+	printf("Initializing MCP23017...\n");
+	i2c_config_t i2c_cfg;
+	i2c_cfg.mode = I2C_MODE_MASTER;
+	i2c_cfg.sda_io_num = MCP23017_SDA;
+	i2c_cfg.scl_io_num = MCP23017_SCL;
+	i2c_cfg.sda_pullup_en = GPIO_PULLUP_ENABLE;
+	i2c_cfg.scl_pullup_en = GPIO_PULLUP_ENABLE;
+	i2c_cfg.master.clk_speed = 100000;
+	ret = i2c_param_config(I2C_NUM_0, &i2c_cfg);
+	if (ret != ESP_OK)
+		printf("i2c_param_config() error.\n");
+	ret = i2c_driver_install(I2C_NUM_0, I2C_MODE_MASTER, 0, 0, 0);
+	if (ret != ESP_OK)
+		printf("i2c_driver_install() error.\n");
+	/* Set all IO direction to input */
+	mcp23017_write_register(0x00, 0xFF);
+	/* Set all IO to have pull-up resistor */
+	mcp23017_write_register(0x0C, 0xFF);
+	for (;;) {
+		printf("%d\n", mcp23017_read_gpios());
+		vTaskDelay(1000 / portTICK_PERIOD_MS);
+	}
+#endif
+
 	printf("Initializing bootloader random number generator...\n");
 	bootloader_random_enable();
 
@@ -356,7 +673,6 @@ void app_main() {
 	gpio_isr_handler_add(BUTTON_2, gpio_isr_handler, (void*)BUTTON_2);
 
 	printf("Initializing SPI bus...\n");
-	esp_err_t ret;
 	spi_device_handle_t spi;
 	spi_bus_config_t buscfg = {
 		.miso_io_num = TFT_MISO,
@@ -484,7 +800,6 @@ void app_main() {
 		pressed = 0;
 		ledc_set_duty(LEDC_HIGH_SPEED_MODE, LEDC_CHANNEL_0, duty);
 		ledc_update_duty(LEDC_HIGH_SPEED_MODE, LEDC_CHANNEL_0);
-		//vTaskDelay(1 / portTICK_PERIOD_MS);
-		vTaskDelay(0);
+		vTaskDelay(1 / portTICK_PERIOD_MS);
 	}
 }
