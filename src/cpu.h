@@ -256,16 +256,22 @@ enum opcode {
 #undef X
 
 struct ins {
-	enum opcode opcode : 8;
-	unsigned int op1 : 8;
+	uint8_t opcode;
+	uint8_t op1;
 	union {
 		struct {
-			unsigned int op2 : 8;
-			unsigned int op3 : 8;
+			uint8_t op2;
+			uint8_t op3;
 		};
-		int imm : 16;
+		int16_t imm;
 	};
 };
+
+#define OPCODE(ins)		((uint8_t)((ins)))
+#define OP1(ins)		((uint8_t)((ins) >> 8))
+#define OP2(ins)		((uint8_t)((ins) >> 16))
+#define OP3(ins)		((uint8_t)((ins) >> 24))
+#define IMM(ins)		((int16_t)(uint16_t)((ins) >> 16))
 
 struct updef {
 	uint8_t in_stack;

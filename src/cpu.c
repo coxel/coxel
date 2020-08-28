@@ -13,8 +13,6 @@
 #include <string.h>
 
 static jmp_buf g_jmp_buf;
-static int g_pc;
-static struct code* g_code;
 
 static void print_name(struct cpu* cpu, struct code* code) {
 	struct gfx* gfx = console_getgfx();
@@ -41,9 +39,12 @@ NORETURN void runtime_error(struct cpu* cpu, const char* msg) {
 	gfx->cy = 0;
 	gfx_print(gfx, "RUNTIME ERROR", 13, -1, -1, 2);
 	gfx_print(gfx, msg, (int)strlen(msg), -1, -1, 2);
+	longjmp(g_jmp_buf, 1);
+}
+
+static void print_stack_trace(struct cpu* cpu, struct code* code, int pc) {
+	struct gfx* gfx = console_getgfx();
 	gfx_print(gfx, "Stack trace:", 12, -1, -1, 14);
-	struct code* code = g_code;
-	int pc = g_pc;
 	int sp = cpu->sp;
 	for (int depth = 0; depth < MAX_STACKTRACE; depth++) {
 		pc--;
@@ -78,7 +79,6 @@ NORETURN void runtime_error(struct cpu* cpu, const char* msg) {
 	}
 	if (sp != 0)
 		gfx_print_simple(gfx, "...", 3, 14);
-	longjmp(g_jmp_buf, 1);
 }
 
 NORETURN void argument_error(struct cpu* cpu) {
@@ -158,6 +158,8 @@ FORCEINLINE int to_bool(struct cpu* cpu, struct value val) {
 }
 
 FORCEINLINE number to_number(struct cpu* cpu, struct value val) {
+	if (likely(val.type == t_num))
+		return val.num;
 	switch (val.type) {
 	case t_null: return num_kint(0);
 	case t_bool: return num_kint(val.b);
@@ -453,9 +455,14 @@ void upval_destroy(struct cpu* cpu, struct upval* upval) {
 		frame = &((struct value*)readptr(cpu->stack))[cpu->sp]; \
 	} while (0)
 
-#define retval		frame[ins->op1]
-#define lval		frame[ins->op2]
-#define rval		frame[ins->op3]
+#define iopcode		OPCODE(ins)
+#define iop1		OP1(ins)
+#define iop2		OP2(ins)
+#define iop3		OP3(ins)
+#define iimm		IMM(ins)
+#define retval		frame[iop1]
+#define lval		frame[iop2]
+#define rval		frame[iop3]
 #define retvalbool	to_bool(cpu, retval)
 #define lvalbool	to_bool(cpu, lval)
 #define retvalnum	to_number(cpu, retval)
@@ -464,11 +471,11 @@ void upval_destroy(struct cpu* cpu, struct upval* upval) {
 #define retvalstr	to_string(cpu, retval)
 #define lvalstr		to_string(cpu, lval)
 #define rvalstr		to_string(cpu, rval)
-#define lnum		((number)((uint32_t*)readptr(g_code->k))[ins->op2])
-#define rnum		((number)((uint32_t*)readptr(g_code->k))[ins->op3])
-#define retstr		forcereadptr(((uint32_t*)readptr(g_code->k))[ins->op1])
-#define lstr		forcereadptr(((uint32_t*)readptr(g_code->k))[ins->op2])
-#define rstr		forcereadptr(((uint32_t*)readptr(g_code->k))[ins->op3])
+#define lnum		((number)ktable[iop2])
+#define rnum		((number)ktable[iop3])
+#define retstr		forcereadptr(ktable[iop1])
+#define lstr		forcereadptr(ktable[iop2])
+#define rstr		forcereadptr(ktable[iop3])
 
 #ifdef DEBUG_TIMING
 void cpu_timing_record(enum opcode opcode, int64_t duration);
@@ -491,14 +498,19 @@ void cpu_execute(struct cpu* cpu, struct funcobj* func) {
 }
 
 void cpu_continue(struct cpu* cpu) {
+	struct value* frame;
+	struct funcobj* func = (struct funcobj*)readptr(cpu->curfunc);
+	struct code* code = NULL;
+	uint32_t* ktable = NULL;
+	uint32_t* pc = NULL;
 	if (setjmp(g_jmp_buf) != 0) {
+		print_stack_trace(cpu, code, (uint16_t)(pc - (uint32_t*)readptr(code->ins)));
 		cpu->stopped = 1;
 		return;
 	}
-	struct value* frame;
-	struct funcobj* func = (struct funcobj*)readptr(cpu->curfunc);
-	g_code = (struct code*)readptr(func->code);
-	g_pc = cpu->curpc;
+	code = (struct code*)readptr(func->code);
+	ktable = (uint32_t*)readptr(code->k);
+	pc = &((uint32_t*)readptr(code->ins))[cpu->curpc];
 	update_stack();
 #ifdef DEBUG_TIMING
 	MEASURE_DEFINES();
@@ -508,29 +520,33 @@ void cpu_continue(struct cpu* cpu) {
 		if (unlikely(cpu->cycles >= CYCLES_PER_FRAME)) {
 			cpu->cycles -= CYCLES_PER_FRAME;
 			cpu->curfunc = writeptr(func);
-			cpu->curpc = g_pc;
+			cpu->curpc = (uint16_t)(pc - (uint32_t*)readptr(code->ins));
 			cpu->paused = 1;
 			return;
 		}
-		struct ins* ins = &((struct ins*)readptr(g_code->ins))[g_pc++];
-		cpu->cycles += CYCLES_BASE;
+#ifdef DEBUG_TIMING
 		MEASURE_END();
 		if (last_opcode != -1)
 			cpu_timing_record(last_opcode, MEASURE_DURATION());
-		last_opcode = ins->opcode;
 		MEASURE_START();
-		switch (ins->opcode) {
+#endif
+		uint32_t ins = *pc++;
+		cpu->cycles += CYCLES_BASE;
+#ifdef DEBUG_TIMING
+		last_opcode = iopcode;
+#endif
+		switch (iopcode) {
 		case op_kundef: retval = value_undef(cpu); break;
 		case op_knull: retval = value_null(cpu); break;
 		case op_kfalse: retval = value_bool(cpu, 0); break;
 		case op_ktrue: retval = value_bool(cpu, 1); break;
 		case op_knum: {
-			uint32_t val = ((uint32_t*)readptr(g_code->k))[ins->imm];
+			uint32_t val = ktable[iimm];
 			retval = value_num(cpu, (number)val);
 			break;
 		}
 		case op_kstr: {
-			uint32_t ptr = ((uint32_t*)readptr(g_code->k))[ins->imm];
+			uint32_t ptr = ktable[iimm];
 			struct strobj* str = (struct strobj*)((uint8_t*)cpu + ptr);
 			retval = value_str(cpu, str);
 			break;
@@ -647,20 +663,20 @@ void cpu_continue(struct cpu* cpu) {
 		case op_ggets: retval = tab_get(cpu, (struct tabobj*)readptr(cpu->globals), lstr); cpu->cycles += CYCLES_LOOKUP; break;
 		case op_gset: tab_set(cpu, (struct tabobj*)readptr(cpu->globals), retvalstr, lval); cpu->cycles += CYCLES_LOOKUP; break;
 		case op_gsets: tab_set(cpu, (struct tabobj*)readptr(cpu->globals), retstr, lval); cpu->cycles += CYCLES_LOOKUP; break;
-		case op_uget: retval = *(struct value*)readptr(((struct upval*)readptr(func->upval[ins->op2]))->val); break;
-		case op_uset: *(struct value*)readptr(((struct upval*)readptr(func->upval[ins->op1]))->val) = lval; break;
+		case op_uget: retval = *(struct value*)readptr(((struct upval*)readptr(func->upval[iop2]))->val); break;
+		case op_uset: *(struct value*)readptr(((struct upval*)readptr(func->upval[iop1]))->val) = lval; break;
 		case op_iter: retval = get_iter(cpu, lval); cpu->cycles += CYCLES_ALLOC; break;
 		case op_next: retval = value_bool(cpu, iter_next(cpu, rval, &lval)); break;
-		case op_j: g_pc += ins->imm; break;
+		case op_j: pc += iimm; break;
 		case op_closej: {
-			close_upvals(cpu, frame, ins->op1);
-			g_pc += ins->imm; break;
+			close_upvals(cpu, frame, iop1);
+			pc += iimm; break;
 			break;
 		}
-		case op_jtrue: if (retvalbool) g_pc += ins->imm; break;
-		case op_jfalse: if (!retvalbool) g_pc += ins->imm; break;
+		case op_jtrue: if (retvalbool) pc += iimm; break;
+		case op_jfalse: if (!retvalbool) pc += iimm; break;
 		case op_func: {
-			struct code* code = &((struct code*)readptr(cpu->code))[ins->imm];
+			struct code* code = &((struct code*)readptr(cpu->code))[iimm];
 			struct funcobj* f = (struct funcobj*)gc_alloc(cpu, t_func,
 				sizeof(struct funcobj) + sizeof(struct upval) * code->upval_cnt);
 			f->code = writeptr(code);
@@ -702,24 +718,24 @@ void cpu_continue(struct cpu* cpu) {
 			break;
 		}
 		case op_close: {
-			close_upvals(cpu, frame, ins->op1);
+			close_upvals(cpu, frame, iop1);
 			break;
 		}
 		case op_call: {
 			if (retval.type == t_cfunc) {
-				int sp = cpu->sp + ins->op1;
+				int sp = cpu->sp + iop1;
 				cfunc func = cfunc_get(retval.cfunc);
-				((struct value*)readptr(cpu->stack))[sp] = func(cpu, sp, ins->op2);
+				((struct value*)readptr(cpu->stack))[sp] = func(cpu, sp, iop2);
 			}
 			else if (retval.type == t_func) {
 				struct funcobj* f = (struct funcobj*)readptr(retval.func);
 				/* Fill missing arguments to undefined */
 				int nargs = ((struct code*)readptr(f->code))->nargs;
-				for (int i = ins->op2; i < nargs; i++)
-					frame[ins->op1 + 2 + i] = value_undef(cpu);
-				cpu->cycles += CYCLES_BASE * (nargs - ins->op2);
-				int stack_size = ins->op1;
-				cpu->sp += ins->op1;
+				for (int i = iop2; i < nargs; i++)
+					frame[iop1 + 2 + i] = value_undef(cpu);
+				cpu->cycles += CYCLES_BASE * (nargs - iop2);
+				int stack_size = iop1;
+				cpu->sp += iop1;
 				update_stack();
 				struct value* stack = (struct value*)readptr(cpu->stack);
 				int ci = cpu->sp + 2 + nargs;
@@ -728,11 +744,12 @@ void cpu_continue(struct cpu* cpu) {
 				ci1->func = writeptr(func);
 				stack[ci + 1].type = t_callinfo2;
 				struct callinfo2* ci2 = &stack[ci + 1].ci2;
-				ci2->pc = g_pc;
+				ci2->pc = (uint16_t)(pc - (uint32_t*)readptr(code->ins));
 				ci2->stack_size = stack_size;
-				g_pc = 0;
 				func = f;
-				g_code = readptr(func->code);
+				code = (struct code*)readptr(func->code);
+				ktable = (uint32_t*)readptr(code->k);
+				pc = (uint32_t*)readptr(code->ins);
 			}
 			else
 				runtime_error(cpu, "Not callable object.");
@@ -748,15 +765,16 @@ void cpu_continue(struct cpu* cpu) {
 			int nargs = ((struct code*)readptr(func->code))->nargs;
 			struct callinfo1 ci1 = frame[2 + nargs].ci1;
 			struct callinfo2 ci2 = frame[3 + nargs].ci2;
-			if (ins->opcode == op_retu)
+			if (iopcode == op_retu)
 				frame[0] = value_undef(cpu);
 			else
 				frame[0] = retval;
-			func = readptr(ci1.func);
-			g_pc = ci2.pc;
+			func = (struct funcobj*)readptr(ci1.func);
 			cpu->sp -= ci2.stack_size;
 			update_stack();
-			g_code = readptr(func->code);
+			code = (struct code*)readptr(func->code);
+			ktable = (uint32_t*)readptr(code->k);
+			pc = &((uint32_t*)readptr(code->ins))[ci2.pc];
 			break;
 		}
 		default: internal_error(cpu);
@@ -1039,6 +1057,8 @@ void cpu_timing_print_report(int report_tag) {
 	console_printf("Report tag: %d\n", report_tag);
 	MEASURE_DEFINES();
 	const int times = 10;
+	MEASURE_START();
+	MEASURE_END();
 	int64_t overhead = 0;
 	for (int i = 0; i < times; i++) {
 		MEASURE_START();

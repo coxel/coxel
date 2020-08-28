@@ -7,9 +7,9 @@
 #define COXEL_STATE_MAGIC		' xoc'
 #define COXEL_STATE_VERSION		0
 
-#define DEBUG_TIMING
+//#define DEBUG_TIMING
 
-//#ifdef DEBUG_TIMING
+#ifdef DEBUG_TIMING
 
 #if defined(_M_IX86) || defined(__i386__) || defined(_M_X64) || defined(__x86_64__)
 #include <intrin.h>
@@ -20,8 +20,8 @@
 #elif defined(ESP_PLATFORM)
 #include <xtensa/hal.h>
 #define MEASURE_DEFINES()	int measure_begin, measure_end
-#define MEASURE_START()		measure_begin = xthal_get_ccount()
-#define MEASURE_END()		measure_end = xthal_get_ccount()
+#define MEASURE_START()		measure_begin = xthal_get_ccount(); __sync_synchronize()
+#define MEASURE_END()		__sync_synchronize(); measure_end = xthal_get_ccount()
 #define MEASURE_DURATION()	(measure_end - measure_begin)
 #else
 #error Timing primitives not defined for this platform.
