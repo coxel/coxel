@@ -26,7 +26,7 @@ void str_destroy(struct cpu* cpu, struct strobj* str);
 struct strobj* str_intern(struct cpu* cpu, const char* str, int len);
 struct strobj* str_intern_nogc(struct cpu* cpu, const char* str, int len);
 struct strobj* str_concat(struct cpu* cpu, struct strobj* lval, struct strobj* rval);
-struct value str_get(struct cpu* cpu, struct strobj* str, number index);
-struct value str_fget(struct cpu* cpu, struct strobj* str, struct strobj* key);
+value_t str_get(struct cpu* cpu, struct strobj* str, number index);
+value_t str_fget(struct cpu* cpu, struct strobj* str, struct strobj* key);
 
 #endif

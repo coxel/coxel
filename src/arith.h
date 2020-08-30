@@ -11,7 +11,7 @@
 #define INT_SHIFT_BITS		(FRAC_BITS + FRAC_SHIFT_BITS)
 #define FRAC_SAFE_DIGITS	8
 #define NUM_OVERFLOW		(number)0x80000000
-#define CLEAR_LOWBITS(n)	((n) & ((-1) << FRAC_SHIFT_BITS))
+#define CLEAR_LOWBITS(n)	((n) & -(1 << FRAC_SHIFT_BITS))
 typedef uint32_t number;
 
 static inline number num_kint(int16_t x) {
@@ -102,7 +102,7 @@ static inline number num_ushr(number a, number b) {
 }
 
 static inline number num_floor(number a) {
-	return a & ((-1) << INT_SHIFT_BITS);
+	return a & -(1 << INT_SHIFT_BITS);
 }
 
 static inline number num_ceil(number a) {

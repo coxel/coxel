@@ -64,10 +64,10 @@ static uint16_t tab_find(struct cpu* cpu, struct tabobj* tab, struct strobj* key
 	return TAB_NULL;
 }
 
-struct value tab_get(struct cpu* cpu, struct tabobj* tab, struct strobj* key) {
+value_t tab_get(struct cpu* cpu, struct tabobj* tab, struct strobj* key) {
 	uint16_t p = tab_find(cpu, tab, key, NULL);
 	if (p == TAB_NULL)
-		return value_undef(cpu);
+		return value_undef();
 	return ((struct tabent*)readptr(tab->entry))[p].value;
 }
 
@@ -75,7 +75,7 @@ int tab_in(struct cpu* cpu, struct tabobj* tab, struct strobj* key) {
 	return tab_find(cpu, tab, key, NULL) != TAB_NULL;
 }
 
-void tab_set(struct cpu* cpu, struct tabobj* tab, struct strobj* key, struct value value) {
+void tab_set(struct cpu* cpu, struct tabobj* tab, struct strobj* key, value_t value) {
 	uint16_t p = tab_find(cpu, tab, key, NULL);
 	if (p != TAB_NULL) {
 		((struct tabent*)readptr(tab->entry))[p].value = value;

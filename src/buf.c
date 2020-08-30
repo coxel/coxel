@@ -39,36 +39,36 @@ static FORCEINLINE void buf_getdata(struct cpu* cpu, struct bufobj* buf, uint8_t
 	}
 }
 
-struct value buf_get(struct cpu* cpu, struct bufobj* buf, number index) {
+value_t buf_get(struct cpu* cpu, struct bufobj* buf, number index) {
 	uint8_t* data;
 	uint32_t len;
 	buf_getdata(cpu, buf, &data, &len);
 	int idx = num_uint(index);
 	if (unlikely(idx >= len))
-		return value_undef(cpu);
+		return value_undef();
 	else
-		return value_num(cpu, num_kuint(data[idx]));
+		return value_num(num_kuint(data[idx]));
 }
 
-void buf_set(struct cpu* cpu, struct bufobj* buf, number index, struct value value) {
+void buf_set(struct cpu* cpu, struct bufobj* buf, number index, value_t value) {
 	uint8_t* data;
 	uint32_t len;
 	buf_getdata(cpu, buf, &data, &len);
-	if (unlikely(value.type != t_num))
+	if (unlikely(value_is_num(value)))
 		return;
 	int idx = num_uint(index);
 	if (unlikely(idx >= len))
 		return;
-	int byte = num_uint(value.num);
+	int byte = num_uint(value_get_num(value));
 	data[idx] = (uint8_t)byte;
 }
 
-struct value buf_fget(struct cpu* cpu, struct bufobj* buf, struct strobj* key) {
+value_t buf_fget(struct cpu* cpu, struct bufobj* buf, struct strobj* key) {
 	uint8_t* data;
 	uint32_t len;
 	buf_getdata(cpu, buf, &data, &len);
 	if (key == LIT(length))
-		return value_num(cpu, num_kuint(len));
+		return value_num(num_kuint(len));
 	else
-		return value_undef(cpu);
+		return value_undef();
 }

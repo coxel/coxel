@@ -1,8 +1,10 @@
 #ifndef _CFUNC_H
 #define _CFUNC_H
 
+#include "value.h"
+
 struct cpu;
-typedef struct value(*cfunc)(struct cpu* cpu, int sp, int nargs);
+typedef value_t(*cfunc)(struct cpu* cpu, int sp, int nargs);
 
 #define CFUNC_DEFS(X) \
 	X(lib_btn) \

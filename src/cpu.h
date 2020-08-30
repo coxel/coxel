@@ -6,6 +6,7 @@
 #include "cfunc.h"
 #include "config.h"
 #include "key.h"
+#include "value.h"
 
 #include <stdint.h>
 
@@ -19,126 +20,6 @@
 #define SYM_MAX_LEN			256
 #define MAX_K				65535
 #define MAX_KOP				255
-
-#define forcereadptr(aptr)	(((aptr) == 0) ? NULL : (void*)((uint8_t*)cpu + (aptr)))
-#define forcewriteptr(aptr)	(((aptr) == NULL) ? 0 : (uint32_t)((uint8_t*)(aptr) - (uint8_t*)cpu))
-#ifdef RELATIVE_ADDRESSING
-typedef uint32_t ptr_t;
-#define readptr(aptr)		forcereadptr(aptr)
-#define writeptr(aptr)		forcewriteptr(aptr)
-#define ptr(type)			ptr_t
-#else
-typedef void* ptr_t;
-#define readptr(aptr)		(aptr)
-#define writeptr(aptr)		(aptr)
-#define ptr(type)			type*
-#endif
-
-struct cpu;
-
-#define OBJ_HEADER	ptr(struct obj) gcnext; enum type type
-
-enum type {
-	t_undef,
-	t_null,
-	t_bool,
-	t_num,
-	t_str,
-	t_striter,
-	t_buf,
-	t_arr,
-	t_arriter,
-	t_tab,
-	t_func,
-	t_cfunc,
-	t_callinfo1,
-	t_callinfo2,
-	t_upval,
-	t_cnt,
-};
-
-struct callinfo1 {
-	ptr(struct funcobj) func;
-};
-
-struct callinfo2 {
-	uint8_t stack_size;
-	uint16_t pc;
-};
-
-struct value {
-	enum type type;
-	union {
-		int b;
-		number num;
-		ptr(struct obj) obj;
-		ptr(struct strobj) str;
-		ptr(struct striterobj) striter;
-		ptr(struct bufobj) buf;
-		ptr(struct arrobj) arr;
-		ptr(struct arriterobj) arriter;
-		ptr(struct tabobj) tab;
-		ptr(struct funcobj) func;
-		enum cfuncname cfunc;
-		struct callinfo1 ci1;
-		struct callinfo2 ci2;
-	};
-};
-
-struct obj {
-	OBJ_HEADER;
-};
-
-struct strobj {
-	OBJ_HEADER;
-	ptr(struct strobj) next;
-	uint32_t hash;
-	uint32_t len;
-	char data[];
-};
-
-struct striterobj {
-	OBJ_HEADER;
-	ptr(struct strobj) str;
-	uint32_t i;
-	uint32_t end;
-};
-
-struct bufobj {
-	OBJ_HEADER;
-	uint32_t len;
-	uint8_t data[];
-};
-
-struct arrobj {
-	OBJ_HEADER;
-	uint32_t len, cap;
-	ptr(struct value) data;
-};
-
-struct arriterobj {
-	OBJ_HEADER;
-	ptr(struct arrobj) arr;
-	uint32_t i;
-	uint32_t end;
-};
-
-#define TAB_NULL		((uint16_t)-1)
-
-struct tabent {
-	ptr(struct strobj) key;
-	struct value value;
-	uint16_t next;
-};
-
-struct tabobj {
-	OBJ_HEADER;
-	int entry_cnt;
-	ptr(struct tabent) entry;
-	uint16_t freelist;
-	int bucket_cnt;
-	ptr(uint16_t) bucket;
-};
 
 #define OPCODE_DEF(X) \
 	X(op_kundef, "kundef", REG, _, _) \
@@ -319,7 +200,7 @@ struct code {
 
 struct upval {
 	OBJ_HEADER;
-	ptr(struct value) val;
+	ptr(value_t) val;
 	union {
 		/* open field */
 		struct {
@@ -327,7 +208,7 @@ struct upval {
 			ptr(struct upval) next;
 		};
 		/* close field */
-		struct value val_holder;
+		value_t val_holder;
 	};
 };
 
@@ -403,7 +284,7 @@ struct cpu {
 
 	/* stack additional info */
 	int sp, stack_cap;
-	ptr(struct value) stack;
+	ptr(value_t) stack;
 
 	/* points to first open upvalue (weak ref) */
 	ptr(struct upval) upval_open;
@@ -436,8 +317,8 @@ struct io {
 	int mousewheel;
 };
 
-#define ARG(i)		((struct value*)readptr(cpu->stack))[sp + 2 + (i)]
-#define THIS		((struct value*)readptr(cpu->stack))[sp + 1]
+#define ARG(i)		((value_t*)readptr(cpu->stack))[sp + 2 + (i)]
+#define THIS		((value_t*)readptr(cpu->stack))[sp + 1]
 #define LIT(x)		((struct strobj*)readptr(cpu->_lit_##x))
 
 NORETURN void runtime_error(struct cpu* cpu, const char* msg);
@@ -453,95 +334,13 @@ void cpu_timing_reset();
 void cpu_timing_print_report(int report_tag);
 #endif
 
-int to_bool(struct cpu* cpu, struct value val);
-number to_number(struct cpu* cpu, struct value val);
-struct strobj* to_string(struct cpu* cpu, struct value val);
-struct arrobj* to_arr(struct cpu* cpu, struct value val);
-struct tabobj* to_tab(struct cpu* cpu, struct value val);
+int to_bool(struct cpu* cpu, value_t val);
+number to_number(struct cpu* cpu, value_t val);
+struct strobj* to_string(struct cpu* cpu, value_t val);
+struct arrobj* to_arr(struct cpu* cpu, value_t val);
+struct tabobj* to_tab(struct cpu* cpu, value_t val);
 void func_destroy(struct cpu* cpu, struct funcobj* func);
 void upval_destroy(struct cpu* cpu, struct upval* upval);
-
-static inline struct value value_undef(struct cpu* cpu) {
-	struct value val;
-	val.type = t_undef;
-	return val;
-}
-
-static inline struct value value_null(struct cpu* cpu) {
-	struct value val;
-	val.type = t_null;
-	return val;
-}
-
-static inline struct value value_bool(struct cpu* cpu, int b) {
-	struct value val;
-	val.type = t_bool;
-	val.b = b;
-	return val;
-}
-
-static inline struct value value_num(struct cpu* cpu, number num) {
-	struct value val;
-	val.type = t_num;
-	val.num = num;
-	return val;
-}
-
-static inline struct value value_str(struct cpu* cpu, struct strobj* str) {
-	struct value val;
-	val.type = t_str;
-	val.str = writeptr(str);
-	return val;
-}
-
-static inline struct value value_striter(struct cpu* cpu, struct striterobj* striter) {
-	struct value val;
-	val.type = t_striter;
-	val.striter = writeptr(striter);
-	return val;
-}
-
-static inline struct value value_buf(struct cpu* cpu, struct bufobj* buf) {
-	struct value val;
-	val.type = t_buf;
-	val.buf = writeptr(buf);
-	return val;
-}
-
-static inline struct value value_arr(struct cpu* cpu, struct arrobj* arr) {
-	struct value val;
-	val.type = t_arr;
-	val.arr = writeptr(arr);
-	return val;
-}
-
-static inline struct value value_arriter(struct cpu* cpu, struct arriterobj* arriter) {
-	struct value val;
-	val.type = t_arriter;
-	val.arriter = writeptr(arriter);
-	return val;
-}
-
-static inline struct value value_tab(struct cpu* cpu, struct tabobj* tab) {
-	struct value val;
-	val.type = t_tab;
-	val.tab = writeptr(tab);
-	return val;
-}
-
-static inline struct value value_func(struct cpu* cpu, struct funcobj* func) {
-	struct value val;
-	val.type = t_func;
-	val.func = writeptr(func);
-	return val;
-}
-
-static inline struct value value_cfunc(struct cpu* cpu, enum cfuncname cfunc) {
-	struct value val;
-	val.type = t_cfunc;
-	val.cfunc = cfunc;
-	return val;
-}
 
 /* General CPU instruction cycles design
  * Each instruction executed costs 1 base cycle

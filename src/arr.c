@@ -14,46 +14,46 @@ void arr_destroy(struct cpu* cpu, struct arrobj* arr) {
 	mem_dealloc(&cpu->alloc, arr);
 }
 
-struct value arr_get(struct cpu* cpu, struct arrobj* arr, number index) {
+value_t arr_get(struct cpu* cpu, struct arrobj* arr, number index) {
 	int idx = num_uint(index);
 	if (unlikely(idx >= arr->len))
-		return value_undef(cpu);
+		return value_undef();
 	else
-		return ((struct value*)readptr(arr->data))[idx];
+		return ((value_t*)readptr(arr->data))[idx];
 }
 
-void arr_set(struct cpu* cpu, struct arrobj* arr, number index, struct value value) {
+void arr_set(struct cpu* cpu, struct arrobj* arr, number index, value_t value) {
 	int idx = num_uint(index);
 	if (unlikely(idx >= arr->len))
 		runtime_error(cpu, "Index out of bound.");
 	else
-		((struct value*)readptr(arr->data))[idx] = value;
+		((value_t*)readptr(arr->data))[idx] = value;
 }
 
-void arr_push(struct cpu* cpu, struct arrobj* arr, struct value value) {
-	struct value* data = (struct value*)readptr(arr->data);
+void arr_push(struct cpu* cpu, struct arrobj* arr, value_t value) {
+	value_t* data = (value_t*)readptr(arr->data);
 	vec_add(&cpu->alloc, data, arr->len, arr->cap);
 	arr->data = writeptr(data);
 	data[arr->len - 1] = value;
 }
 
-struct value arr_pop(struct cpu* cpu, struct arrobj* arr) {
+value_t arr_pop(struct cpu* cpu, struct arrobj* arr) {
 	if (unlikely(arr->len == 0))
-		return value_undef(cpu);
+		return value_undef();
 	else
-		return ((struct value*)readptr(arr->data))[--arr->len];
+		return ((value_t*)readptr(arr->data))[--arr->len];
 }
 
-struct value libarr_push(struct cpu* cpu, int sp, int nargs) {
+value_t libarr_push(struct cpu* cpu, int sp, int nargs) {
 	if (unlikely(nargs != 1))
 		argument_error(cpu);
 	struct arrobj* arr = to_arr(cpu, THIS);
 	arr_push(cpu, arr, ARG(0));
 	cpu->cycles -= CYCLES_ALLOC;
-	return value_undef(cpu);
+	return value_undef();
 }
 
-struct value libarr_pop(struct cpu* cpu, int sp, int nargs) {
+value_t libarr_pop(struct cpu* cpu, int sp, int nargs) {
 	if (unlikely(nargs != 0))
 		argument_error(cpu);
 	struct arrobj* arr = to_arr(cpu, THIS);
@@ -71,7 +71,7 @@ static inline int normalize_index(int index, int len) {
 		return index;
 }
 
-struct value libarr_slice(struct cpu* cpu, int sp, int nargs) {
+value_t libarr_slice(struct cpu* cpu, int sp, int nargs) {
 	if (unlikely(nargs > 2))
 		argument_error(cpu);
 	struct arrobj* arr = to_arr(cpu, THIS);
@@ -85,24 +85,24 @@ struct value libarr_slice(struct cpu* cpu, int sp, int nargs) {
 			end = normalize_index(end, arr->len);
 		}
 	}
-	struct value* values = (struct value*)readptr(arr->data);
+	value_t* values = (value_t*)readptr(arr->data);
 	struct arrobj* narr = arr_new(cpu);
 	// TODO: Optimization
 	for (int i = start; i < end; i++)
 		arr_push(cpu, narr, values[i]);
 	cpu->cycles -= CYCLES_ALLOC + CYCLES_VALUES(end - start);
-	return value_arr(cpu, narr);
+	return value_arr(narr);
 }
 
-struct value arr_fget(struct cpu* cpu, struct arrobj* arr, struct strobj* key) {
+value_t arr_fget(struct cpu* cpu, struct arrobj* arr, struct strobj* key) {
 	if (key == LIT(pop))
-		return value_cfunc(cpu, cf_libarr_pop);
+		return value_cfunc(cf_libarr_pop);
 	else if (key == LIT(push))
-		return value_cfunc(cpu, cf_libarr_push);
+		return value_cfunc(cf_libarr_push);
 	else if (key == LIT(length))
-		return value_num(cpu, num_kuint(arr->len));
+		return value_num(num_kuint(arr->len));
 	else if (key == LIT(slice))
-		return value_cfunc(cpu, cf_libarr_slice);
+		return value_cfunc(cf_libarr_slice);
 	else
-		return value_undef(cpu);
+		return value_undef();
 }

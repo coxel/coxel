@@ -203,12 +203,12 @@ struct strobj* str_concat(struct cpu* cpu, struct strobj* lval, struct strobj* r
 	return retval;
 }
 
-struct value str_get(struct cpu* cpu, struct strobj* str, number index) {
+value_t str_get(struct cpu* cpu, struct strobj* str, number index) {
 	int idx = num_uint(index);
 	if (idx >= str->len)
-		return value_undef(cpu);
+		return value_undef();
 	else
-		return value_str(cpu, str_intern(cpu, &str->data[idx], 1));
+		return value_str(str_intern(cpu, &str->data[idx], 1));
 }
 
 #define SUFFIX
@@ -232,7 +232,7 @@ static int get_index_of_cycles(int start, int len, int pos, int patlen) {
 	return CYCLES_CHARS(chars);
 }
 
-struct value libstr_indexOf(struct cpu* cpu, int sp, int nargs) {
+value_t libstr_indexOf(struct cpu* cpu, int sp, int nargs) {
 	if (nargs != 1 && nargs != 2)
 		argument_error(cpu);
 	struct strobj* str = to_string(cpu, THIS);
@@ -241,19 +241,19 @@ struct value libstr_indexOf(struct cpu* cpu, int sp, int nargs) {
 	if (nargs == 2)
 		start = num_uint(to_number(cpu, ARG(1)));
 	if (start == num_uint(num_kint(-1)))
-		return value_num(cpu, num_kint(-1));
+		return value_num(num_kint(-1));
 	else if (pat->len == 0) {
 		int ret = start <= str->len ? start : str->len;
-		return value_num(cpu, num_kuint(ret));
+		return value_num(num_kuint(ret));
 	}
 	else {
 		int pos = index_of(str->data, str->len, pat->data, pat->len, start);
 		cpu->cycles -= get_index_of_cycles(start, str->len, pos, pat->len);
-		return value_num(cpu, num_kuint(pos));
+		return value_num(num_kuint(pos));
 	}
 }
 
-struct value libstr_lastIndexOf(struct cpu* cpu, int sp, int nargs) {
+value_t libstr_lastIndexOf(struct cpu* cpu, int sp, int nargs) {
 	if (nargs != 1 && nargs != 2)
 		argument_error(cpu);
 	struct strobj* str = to_string(cpu, THIS);
@@ -262,10 +262,10 @@ struct value libstr_lastIndexOf(struct cpu* cpu, int sp, int nargs) {
 	if (nargs == 2)
 		start = num_uint(to_number(cpu, ARG(1)));
 	if (start == num_uint(num_kint(-1)))
-		return value_num(cpu, num_kint(-1));
+		return value_num(num_kint(-1));
 	else if (pat->len == 0) {
 		int ret = start <= str->len ? start : str->len;
-		return value_num(cpu, num_kuint(ret));
+		return value_num(num_kuint(ret));
 	}
 	else {
 		int rev_start = str->len - pat->len - start;
@@ -275,11 +275,11 @@ struct value libstr_lastIndexOf(struct cpu* cpu, int sp, int nargs) {
 		cpu->cycles -= get_index_of_cycles(rev_start, str->len, pos, pat->len);
 		if (pos >= 0)
 			pos = str->len - pat->len - pos;
-		return value_num(cpu, num_kuint(pos));
+		return value_num(num_kuint(pos));
 	}
 }
 
-struct value libstr_substr(struct cpu* cpu, int sp, int nargs) {
+value_t libstr_substr(struct cpu* cpu, int sp, int nargs) {
 	if (nargs != 1 && nargs != 2)
 		argument_error(cpu);
 	struct strobj* str = to_string(cpu, THIS);
@@ -290,18 +290,18 @@ struct value libstr_substr(struct cpu* cpu, int sp, int nargs) {
 	if (start + count > str->len)
 		count = str->len - start;
 	cpu->cycles -= CYCLES_CHARS(count);
-	return value_str(cpu, str_intern(cpu, str->data + start, count));
+	return value_str(str_intern(cpu, str->data + start, count));
 }
 
-struct value str_fget(struct cpu* cpu, struct strobj* str, struct strobj* key) {
+value_t str_fget(struct cpu* cpu, struct strobj* str, struct strobj* key) {
 	if (key == LIT(indexOf))
-		return value_cfunc(cpu, cf_libstr_indexOf);
+		return value_cfunc(cf_libstr_indexOf);
 	else if (key == LIT(lastIndexOf))
-		return value_cfunc(cpu, cf_libstr_lastIndexOf);
+		return value_cfunc(cf_libstr_lastIndexOf);
 	else if (key == LIT(substr))
-		return value_cfunc(cpu, cf_libstr_substr);
+		return value_cfunc(cf_libstr_substr);
 	else if (key == LIT(length))
-		return value_num(cpu, num_kuint(str->len));
+		return value_num(num_kuint(str->len));
 	else
-		return value_undef(cpu);
+		return value_undef();
 }

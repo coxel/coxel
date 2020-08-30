@@ -35,6 +35,7 @@ set(SOURCES
 	sym.h
 	tab.c
 	tab.h
+	value.h
 )
 
 set(BUILTIN_CARTS

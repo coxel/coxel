@@ -446,9 +446,9 @@ void console_update() {
 			if (cpu->paused)
 				cpu_continue(cpu);
 			else {
-				struct value fval = tab_get(cpu, (struct tabobj*)readptr(cpu->globals), LIT(onframe));
-				if (fval.type == t_func) {
-					struct funcobj* fobj = readptr(fval.func);
+				value_t fval = tab_get(cpu, (struct tabobj*)readptr(cpu->globals), LIT(onframe));
+				if (value_get_type(fval) == t_func) {
+					struct funcobj* fobj = (struct funcobj*)value_get_object(fval);
 					cpu_execute(cpu, fobj);
 				}
 			}
