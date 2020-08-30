@@ -14,7 +14,7 @@
 
 static jmp_buf g_jmp_buf;
 
-static void print_name(struct cpu* cpu, struct code* code) {
+static NOINLINE void print_name(struct cpu* cpu, struct code* code) {
 	struct gfx* gfx = console_getgfx();
 	if (code->enclosure > 0) {
 		print_name(cpu, &((struct code*)readptr(cpu->code))[code->enclosure]);
@@ -42,7 +42,7 @@ NORETURN void runtime_error(struct cpu* cpu, const char* msg) {
 	longjmp(g_jmp_buf, 1);
 }
 
-static void print_stack_trace(struct cpu* cpu, struct code* code, int pc) {
+static NOINLINE void print_stack_trace(struct cpu* cpu, struct code* code, int pc) {
 	struct gfx* gfx = console_getgfx();
 	gfx_print(gfx, "Stack trace:", 12, -1, -1, 14);
 	int sp = cpu->sp;
@@ -169,7 +169,7 @@ FORCEINLINE number to_number(struct cpu* cpu, struct value val) {
 		struct strobj* str = (struct strobj*)readptr(val.str);
 		if (!num_parse(str->data, str->data + str->len, &num))
 			runtime_error(cpu, "Invalid number.");
-		cpu->cycles += CYCLES_STR2NUM;
+		cpu->cycles -= CYCLES_STR2NUM;
 		return num;
 	}
 	default: runtime_error(cpu, "Cannot convert to number.");
@@ -179,7 +179,7 @@ FORCEINLINE number to_number(struct cpu* cpu, struct value val) {
 static FORCEINLINE struct strobj* num_to_str(struct cpu* cpu, number num) {
 	char buf[20];
 	int len = num_format(num, 4, buf);
-	cpu->cycles += CYCLES_NUM2STR;
+	cpu->cycles -= CYCLES_NUM2STR;
 	return str_intern(cpu, buf, len);
 }
 
@@ -238,39 +238,39 @@ static FORCEINLINE struct value fget(struct cpu* cpu, struct value obj, struct v
 	case t_str: {
 		struct strobj* str = (struct strobj*)readptr(obj.str);
 		if (likely(field.type == t_num)) {
-			cpu->cycles += CYCLES_ALLOC;
+			cpu->cycles -= CYCLES_ALLOC;
 			return str_get(cpu, str, to_number(cpu, field));
 		}
 		else {
-			cpu->cycles += CYCLES_LOOKUP;
+			cpu->cycles -= CYCLES_LOOKUP;
 			return str_fget(cpu, str, to_string(cpu, field));
 		}
 	}
 	case t_buf: {
 		struct bufobj* buf = (struct bufobj*)readptr(obj.buf);
 		if (likely(field.type == t_num)) {
-			cpu->cycles += CYCLES_ARRAY_LOOKUP;
+			cpu->cycles -= CYCLES_ARRAY_LOOKUP;
 			return buf_get(cpu, buf, to_number(cpu, field));
 		}
 		else {
-			cpu->cycles += CYCLES_LOOKUP;
+			cpu->cycles -= CYCLES_LOOKUP;
 			return buf_fget(cpu, buf, to_string(cpu, field));
 		}
 	}
 	case t_arr: {
 		struct arrobj* arr = (struct arrobj*)readptr(obj.arr);
 		if (likely(field.type == t_num)) {
-			cpu->cycles += CYCLES_ARRAY_LOOKUP;
+			cpu->cycles -= CYCLES_ARRAY_LOOKUP;
 			return arr_get(cpu, arr, to_number(cpu, field));
 		}
 		else {
-			cpu->cycles += CYCLES_LOOKUP;
+			cpu->cycles -= CYCLES_LOOKUP;
 			return arr_fget(cpu, arr, to_string(cpu, field));
 		}
 	}
 	case t_tab: {
 		struct tabobj* tab = (struct tabobj*)readptr(obj.tab);
-		cpu->cycles += CYCLES_LOOKUP;
+		cpu->cycles -= CYCLES_LOOKUP;
 		return tab_get(cpu, tab, to_string(cpu, field));
 	}
 	default: runtime_error(cpu, "Not an object.");
@@ -280,21 +280,21 @@ static FORCEINLINE struct value fget(struct cpu* cpu, struct value obj, struct v
 static FORCEINLINE struct value fgetnum(struct cpu* cpu, struct value obj, number field) {
 	switch (obj.type) {
 	case t_str: {
-		cpu->cycles += CYCLES_ARRAY_LOOKUP;
+		cpu->cycles -= CYCLES_ARRAY_LOOKUP;
 		return str_get(cpu, (struct strobj*)readptr(obj.str), field);
 	}
 	case t_buf: {
-		cpu->cycles += CYCLES_ARRAY_LOOKUP;
+		cpu->cycles -= CYCLES_ARRAY_LOOKUP;
 		return buf_get(cpu, (struct bufobj*)readptr(obj.buf), field);
 	}
 
 	case t_arr: {
-		cpu->cycles += CYCLES_ARRAY_LOOKUP;
+		cpu->cycles -= CYCLES_ARRAY_LOOKUP;
 		return arr_get(cpu, (struct arrobj*)readptr(obj.arr), field);
 	}
 
 	case t_tab: {
-		cpu->cycles += CYCLES_LOOKUP;
+		cpu->cycles -= CYCLES_LOOKUP;
 		return tab_get(cpu, (struct tabobj*)readptr(obj.tab), num_to_str(cpu, field));
 	}
 	default: runtime_error(cpu, "Not an object.");
@@ -302,7 +302,7 @@ static FORCEINLINE struct value fgetnum(struct cpu* cpu, struct value obj, numbe
 }
 
 static FORCEINLINE struct value fgetstr(struct cpu* cpu, struct value obj, struct strobj* field) {
-	cpu->cycles += CYCLES_LOOKUP;
+	cpu->cycles -= CYCLES_LOOKUP;
 	switch (obj.type) {
 	case t_str: return str_fget(cpu, (struct strobj*)readptr(obj.str), field);
 	case t_buf: return buf_fget(cpu, (struct bufobj*)readptr(obj.buf), field);
@@ -315,9 +315,9 @@ static FORCEINLINE struct value fgetstr(struct cpu* cpu, struct value obj, struc
 static FORCEINLINE void fset(struct cpu* cpu, struct value obj, struct value field, struct value value) {
 	switch (obj.type) {
 	case t_str: runtime_error(cpu, "Cannot set string element.");
-	case t_buf: buf_set(cpu, (struct bufobj*)readptr(obj.buf), to_number(cpu, field), value); cpu->cycles += CYCLES_ARRAY_LOOKUP; break;
-	case t_arr: arr_set(cpu, (struct arrobj*)readptr(obj.arr), to_number(cpu, field), value); cpu->cycles += CYCLES_ARRAY_LOOKUP; break;
-	case t_tab: tab_set(cpu, (struct tabobj*)readptr(obj.tab), to_string(cpu, field), value); cpu->cycles += CYCLES_LOOKUP;  break;
+	case t_buf: buf_set(cpu, (struct bufobj*)readptr(obj.buf), to_number(cpu, field), value); cpu->cycles -= CYCLES_ARRAY_LOOKUP; break;
+	case t_arr: arr_set(cpu, (struct arrobj*)readptr(obj.arr), to_number(cpu, field), value); cpu->cycles -= CYCLES_ARRAY_LOOKUP; break;
+	case t_tab: tab_set(cpu, (struct tabobj*)readptr(obj.tab), to_string(cpu, field), value); cpu->cycles -= CYCLES_LOOKUP;  break;
 	default: runtime_error(cpu, "Not an object.");
 	}
 }
@@ -325,9 +325,9 @@ static FORCEINLINE void fset(struct cpu* cpu, struct value obj, struct value fie
 static FORCEINLINE void fsetn(struct cpu* cpu, struct value obj, number field, struct value value) {
 	switch (obj.type) {
 	case t_str: runtime_error(cpu, "Cannot set string element.");
-	case t_buf: buf_set(cpu, (struct bufobj*)readptr(obj.buf), field, value); cpu->cycles += CYCLES_ARRAY_LOOKUP; break;
-	case t_arr: arr_set(cpu, (struct arrobj*)readptr(obj.arr), field, value); cpu->cycles += CYCLES_ARRAY_LOOKUP; break;
-	case t_tab: tab_set(cpu, (struct tabobj*)readptr(obj.tab), num_to_str(cpu, field), value); cpu->cycles += CYCLES_LOOKUP; break;
+	case t_buf: buf_set(cpu, (struct bufobj*)readptr(obj.buf), field, value); cpu->cycles -= CYCLES_ARRAY_LOOKUP; break;
+	case t_arr: arr_set(cpu, (struct arrobj*)readptr(obj.arr), field, value); cpu->cycles -= CYCLES_ARRAY_LOOKUP; break;
+	case t_tab: tab_set(cpu, (struct tabobj*)readptr(obj.tab), num_to_str(cpu, field), value); cpu->cycles -= CYCLES_LOOKUP; break;
 	default: runtime_error(cpu, "Not an object.");
 	}
 }
@@ -340,7 +340,7 @@ static FORCEINLINE void fsets(struct cpu* cpu, struct value obj, struct strobj* 
 		runtime_error(cpu, "Can only set string field on tables.");
 
 	case t_tab:
-		tab_set(cpu, (struct tabobj*)readptr(obj.tab), field, value); cpu->cycles += CYCLES_LOOKUP;
+		tab_set(cpu, (struct tabobj*)readptr(obj.tab), field, value); cpu->cycles -= CYCLES_LOOKUP;
 		break;
 
 	default: runtime_error(cpu, "Not an object.");
@@ -372,7 +372,7 @@ static void close_upvals(struct cpu* cpu, struct value* frame, int base) {
 		val = next;
 		cnt++;
 	}
-	cpu->cycles += CYCLES_UPVALUES(cnt);
+	cpu->cycles -= CYCLES_UPVALUES(cnt);
 }
 
 static struct value get_iter(struct cpu* cpu, struct value val) {
@@ -478,7 +478,7 @@ void upval_destroy(struct cpu* cpu, struct upval* upval) {
 #define rstr		forcereadptr(ktable[iop3])
 
 #ifdef DEBUG_TIMING
-void cpu_timing_record(enum opcode opcode, int64_t duration);
+static NOINLINE void cpu_timing_record(enum opcode opcode, int64_t duration);
 #endif
 
 void cpu_execute(struct cpu* cpu, struct funcobj* func) {
@@ -493,7 +493,7 @@ void cpu_execute(struct cpu* cpu, struct funcobj* func) {
 	}
 	cpu->curfunc = writeptr(func);
 	cpu->curpc = 0;
-	cpu->cycles = 0;
+	cpu->cycles = CYCLES_PER_FRAME;
 	cpu_continue(cpu);
 }
 
@@ -514,8 +514,13 @@ void cpu_execute(struct cpu* cpu, struct funcobj* func) {
 #if defined(USE_COMPUTED_GOTO)
 #define DISPATCH()	do { \
 		COMPUTED_GOTO_DEBUG_TIMING_UPDATE(); \
-		ins = *pc++; \
-		goto *dispatch_table[iopcode]; \
+		if (likely(cpu->cycles > 0)) { \
+			cpu->cycles -= CYCLES_BASE; \
+			ins = *pc++; \
+			goto *local_dispatch_table[iopcode]; \
+		} \
+		cpu->dummy = __COUNTER__; \
+		goto timeout; \
 	} while (0)
 #define CASE(op)	target_##op:
 #else
@@ -528,7 +533,11 @@ void cpu_continue(struct cpu* cpu) {
 	struct funcobj* func = (struct funcobj*)readptr(cpu->curfunc);
 	struct code* code = NULL;
 	uint32_t* ktable = NULL;
+#ifdef ESP_PLATFORM
+	register uint32_t* pc asm("a3") = NULL;
+#else
 	uint32_t* pc = NULL;
+#endif
 	if (setjmp(g_jmp_buf) != 0) {
 		print_stack_trace(cpu, code, (uint16_t)(pc - (uint32_t*)readptr(code->ins)));
 		cpu->stopped = 1;
@@ -544,12 +553,16 @@ void cpu_continue(struct cpu* cpu) {
 #endif
 #if defined(USE_COMPUTED_GOTO)
 #include "cpu_dispatch.h"
+#ifdef ESP_PLATFORM
+	/* Force it into a register */
+	register void** local_dispatch_table asm("a2") = dispatch_table;
+#else
+	void** local_dispatch_table = dispatch_table;
+#endif
 #else
 	for (;;) {
 #endif
 		uint32_t ins = 0;
-		if (unlikely(cpu->cycles >= CYCLES_PER_FRAME))
-			goto timeout;
 #if defined(USE_COMPUTED_GOTO)
 		DISPATCH();
 		target_default: internal_error(cpu);
@@ -560,8 +573,10 @@ void cpu_continue(struct cpu* cpu) {
 			cpu_timing_record(last_opcode, MEASURE_DURATION());
 		MEASURE_START();
 #endif
+		if (unlikely(cpu->cycles <= 0))
+			goto timeout;
+		cpu->cycles -= CYCLES_BASE;
 		ins = *pc++;
-		cpu->cycles += CYCLES_BASE;
 #if defined(DEBUG_TIMING)
 		last_opcode = iopcode;
 #endif
@@ -595,7 +610,7 @@ void cpu_continue(struct cpu* cpu) {
 				struct strobj* l = lvalstr;
 				struct strobj* r = rvalstr;
 				retval = value_str(cpu, str_concat(cpu, l, r));
-				cpu->cycles += CYCLES_CHARS(l->len + r->len) + CYCLES_ALLOC;
+				cpu->cycles -= CYCLES_CHARS(l->len + r->len) + CYCLES_ALLOC;
 			}
 			else
 				retval = value_num(cpu, num_add(lvalnum, rvalnum));
@@ -606,7 +621,7 @@ void cpu_continue(struct cpu* cpu) {
 				struct strobj* l = lvalstr;
 				struct strobj* r = num_to_str(cpu, rnum);
 				retval = value_str(cpu, str_concat(cpu, l, r));
-				cpu->cycles += CYCLES_CHARS(l->len + r->len) + CYCLES_ALLOC;
+				cpu->cycles -= CYCLES_CHARS(l->len + r->len) + CYCLES_ALLOC;
 			}
 			else
 				retval = value_num(cpu, num_add(lvalnum, rnum));
@@ -617,7 +632,7 @@ void cpu_continue(struct cpu* cpu) {
 				struct strobj* l = num_to_str(cpu, lnum);
 				struct strobj* r = rvalstr;
 				retval = value_str(cpu, str_concat(cpu, l, r));
-				cpu->cycles += CYCLES_CHARS(l->len + r->len) + CYCLES_ALLOC;
+				cpu->cycles -= CYCLES_CHARS(l->len + r->len) + CYCLES_ALLOC;
 			}
 			else
 				retval = value_num(cpu, num_add(lnum, rvalnum));
@@ -682,22 +697,22 @@ void cpu_continue(struct cpu* cpu) {
 		CASE(op_gern) retval = value_bool(cpu, (int32_t)lvalnum >= (int32_t)rnum); DISPATCH();
 		CASE(op_genr) retval = value_bool(cpu, (int32_t)lnum >= (int32_t)rvalnum); DISPATCH();
 		CASE(op_in) retval = value_bool(cpu, tab_in(cpu, to_tab(cpu, rval), lvalstr)); DISPATCH();
-		CASE(op_arr) retval = value_arr(cpu, arr_new(cpu)); cpu->cycles += CYCLES_ALLOC; DISPATCH();
-		CASE(op_apush) arr_push(cpu, to_arr(cpu, retval), lval); cpu->cycles += CYCLES_ALLOC; DISPATCH();
-		CASE(op_tab) retval = value_tab(cpu, tab_new(cpu)); cpu->cycles += CYCLES_ALLOC; DISPATCH();
+		CASE(op_arr) retval = value_arr(cpu, arr_new(cpu)); cpu->cycles -= CYCLES_ALLOC; DISPATCH();
+		CASE(op_apush) arr_push(cpu, to_arr(cpu, retval), lval); cpu->cycles -= CYCLES_ALLOC; DISPATCH();
+		CASE(op_tab) retval = value_tab(cpu, tab_new(cpu)); cpu->cycles -= CYCLES_ALLOC; DISPATCH();
 		CASE(op_fget) retval = fget(cpu, lval, rval); DISPATCH();
 		CASE(op_fgetn) retval = fgetnum(cpu, lval, rnum); DISPATCH();
 		CASE(op_fgets) retval = fgetstr(cpu, lval, rstr); DISPATCH();
 		CASE(op_fset) fset(cpu, retval, lval, rval); DISPATCH();
 		CASE(op_fsetn) fsetn(cpu, retval, lnum, rval); DISPATCH();
 		CASE(op_fsets) fsets(cpu, retval, lstr, rval); DISPATCH();
-		CASE(op_gget) retval = tab_get(cpu, (struct tabobj*)readptr(cpu->globals), lvalstr); cpu->cycles += CYCLES_LOOKUP; DISPATCH();
-		CASE(op_ggets) retval = tab_get(cpu, (struct tabobj*)readptr(cpu->globals), lstr); cpu->cycles += CYCLES_LOOKUP; DISPATCH();
-		CASE(op_gset) tab_set(cpu, (struct tabobj*)readptr(cpu->globals), retvalstr, lval); cpu->cycles += CYCLES_LOOKUP; DISPATCH();
-		CASE(op_gsets) tab_set(cpu, (struct tabobj*)readptr(cpu->globals), retstr, lval); cpu->cycles += CYCLES_LOOKUP; DISPATCH();
+		CASE(op_gget) retval = tab_get(cpu, (struct tabobj*)readptr(cpu->globals), lvalstr); cpu->cycles -= CYCLES_LOOKUP; DISPATCH();
+		CASE(op_ggets) retval = tab_get(cpu, (struct tabobj*)readptr(cpu->globals), lstr); cpu->cycles -= CYCLES_LOOKUP; DISPATCH();
+		CASE(op_gset) tab_set(cpu, (struct tabobj*)readptr(cpu->globals), retvalstr, lval); cpu->cycles -= CYCLES_LOOKUP; DISPATCH();
+		CASE(op_gsets) tab_set(cpu, (struct tabobj*)readptr(cpu->globals), retstr, lval); cpu->cycles -= CYCLES_LOOKUP; DISPATCH();
 		CASE(op_uget) retval = *(struct value*)readptr(((struct upval*)readptr(func->upval[iop2]))->val); DISPATCH();
 		CASE(op_uset) *(struct value*)readptr(((struct upval*)readptr(func->upval[iop1]))->val) = lval; DISPATCH();
-		CASE(op_iter) retval = get_iter(cpu, lval); cpu->cycles += CYCLES_ALLOC; DISPATCH();
+		CASE(op_iter) retval = get_iter(cpu, lval); cpu->cycles -= CYCLES_ALLOC; DISPATCH();
 		CASE(op_next) retval = value_bool(cpu, iter_next(cpu, rval, &lval)); DISPATCH();
 		CASE(op_j) pc += iimm; DISPATCH();
 		CASE(op_closej) {
@@ -746,7 +761,7 @@ void cpu_continue(struct cpu* cpu) {
 					f->upval[i] = func->upval[def->idx];
 			}
 			retval = value_func(cpu, f);
-			cpu->cycles += CYCLES_ALLOC * (1 + code->upval_cnt);
+			cpu->cycles -= CYCLES_ALLOC * (1 + code->upval_cnt);
 			DISPATCH();
 		}
 		CASE(op_close) {
@@ -765,7 +780,7 @@ void cpu_continue(struct cpu* cpu) {
 				int nargs = ((struct code*)readptr(f->code))->nargs;
 				for (int i = iop2; i < nargs; i++)
 					frame[iop1 + 2 + i] = value_undef(cpu);
-				cpu->cycles += CYCLES_BASE * (nargs - iop2);
+				cpu->cycles -= CYCLES_BASE * (nargs - iop2);
 				int stack_size = iop1;
 				cpu->sp += iop1;
 				update_stack();
@@ -814,7 +829,7 @@ void cpu_continue(struct cpu* cpu) {
 	}
 #endif
 timeout:
-	cpu->cycles -= CYCLES_PER_FRAME;
+	cpu->cycles += CYCLES_PER_FRAME;
 	cpu->curfunc = writeptr(func);
 	cpu->curpc = (uint16_t)(pc - (uint32_t*)readptr(code->ins));
 	cpu->paused = 1;
@@ -1041,7 +1056,7 @@ struct timing_record_item {
 };
 
 static struct timing_record_item g_timing_record_items[op_CNT];
-void cpu_timing_record(enum opcode opcode, int64_t duration) {
+static NOINLINE void cpu_timing_record(enum opcode opcode, int64_t duration) {
 	struct timing_record_item* item = &g_timing_record_items[opcode];
 	item->count++;
 	/* Ignore first time for each opcode */

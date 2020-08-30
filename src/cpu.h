@@ -418,6 +418,9 @@ struct cpu {
 
 	/* prng state */
 	uint32_t prng_s[4];
+
+	/* dummy variable which is never actually used */
+	int dummy;
 };
 
 #define MAX_INPUT_CHARS	16

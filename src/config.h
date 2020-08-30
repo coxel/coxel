@@ -18,10 +18,10 @@
 #define MEASURE_END()		_mm_mfence(); measure_end = __rdtscp(&measure_dummy); _mm_lfence()
 #define MEASURE_DURATION()	(measure_end - measure_begin)
 #elif defined(ESP_PLATFORM)
-#include <xtensa/hal.h>
+#include <xtensa/core-macros.h>
 #define MEASURE_DEFINES()	int measure_begin = 0, measure_end = 0
-#define MEASURE_START()		measure_begin = xthal_get_ccount(); __sync_synchronize()
-#define MEASURE_END()		__sync_synchronize(); measure_end = xthal_get_ccount()
+#define MEASURE_START()		measure_begin = XTHAL_GET_CCOUNT();
+#define MEASURE_END()		measure_end = XTHAL_GET_CCOUNT()
 #define MEASURE_DURATION()	(measure_end - measure_begin)
 #else
 #error Timing primitives not defined for this platform.
@@ -41,9 +41,11 @@
 #ifdef _MSC_VER
 #define NORETURN	__declspec(noreturn)
 #define FORCEINLINE	__forceinline
+#define NOINLINE	__declspec(noinline)
 #else
 #define NORETURN	__attribute__((noreturn))
 #define FORCEINLINE	__attribute__((always_inline))
+#define NOINLINE	__attribute__((noinline))
 #endif
 
 /* Branch prediction hints */

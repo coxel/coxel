@@ -248,7 +248,7 @@ struct value libstr_indexOf(struct cpu* cpu, int sp, int nargs) {
 	}
 	else {
 		int pos = index_of(str->data, str->len, pat->data, pat->len, start);
-		cpu->cycles += get_index_of_cycles(start, str->len, pos, pat->len);
+		cpu->cycles -= get_index_of_cycles(start, str->len, pos, pat->len);
 		return value_num(cpu, num_kuint(pos));
 	}
 }
@@ -272,7 +272,7 @@ struct value libstr_lastIndexOf(struct cpu* cpu, int sp, int nargs) {
 		if (rev_start < 0)
 			rev_start = 0;
 		int pos = index_of_rev(str->data, str->len, pat->data, pat->len, rev_start);
-		cpu->cycles += get_index_of_cycles(rev_start, str->len, pos, pat->len);
+		cpu->cycles -= get_index_of_cycles(rev_start, str->len, pos, pat->len);
 		if (pos >= 0)
 			pos = str->len - pat->len - pos;
 		return value_num(cpu, num_kuint(pos));
@@ -289,7 +289,7 @@ struct value libstr_substr(struct cpu* cpu, int sp, int nargs) {
 	int count = nargs == 1 ? str->len - start : num_uint(to_number(cpu, ARG(1)));
 	if (start + count > str->len)
 		count = str->len - start;
-	cpu->cycles += CYCLES_CHARS(count);
+	cpu->cycles -= CYCLES_CHARS(count);
 	return value_str(cpu, str_intern(cpu, str->data + start, count));
 }
 

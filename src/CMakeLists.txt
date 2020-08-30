@@ -66,7 +66,10 @@ elseif(ESP_PLATFORM)
 		${SOURCES}
 		platforms/esp32.c
 	)
-	idf_component_register(SRCS ${SOURCES} INCLUDE_DIRS "" REQUIRES bootloader_support bt driver esp_hid fatfs nvs_flash EMBED_FILES ../carts/firmware.cox)
+	idf_component_register(SRCS ${SOURCES} INCLUDE_DIRS "" REQUIRES bootloader_support bt driver esp_hid fatfs nvs_flash EMBED_FILES ../carts/firmware.cox
+		LDFRAGMENTS "platforms/esp32.lf"
+		)
+	target_compile_options(${COMPONENT_LIB} PUBLIC -O2 -fno-gcse -fno-crossjumping -fno-guess-branch-probability)
 elseif(APPLE)
 	set(IOS_SOURCES
 		platforms/hidkey.h
