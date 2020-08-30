@@ -1124,7 +1124,7 @@ void cpu_timing_print_report(int report_tag) {
 		struct timing_record_item* item = &g_timing_record_items[i];
 		if (item->count <= 0)
 			continue;
-		number avg = (number)((item->tot_duration << FRAC_BITS) / item->count);
+		number avg = num_of_division(item->tot_duration, item->count);
 		avg = num_sub(avg, num_kint(overhead));
 		console_printf("%s: %d times, tot %lld, avg %f, min %lld, max %lld\n",
 			opname[i],

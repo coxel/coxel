@@ -50,7 +50,7 @@ static int num_parse_base(int base2, const char* begin, const char* end, number*
 		if (bcnt > FRAC_BITS)
 			frac_value >>= bcnt - FRAC_BITS;
 	}
-	*outnum = ((int16_t)int_value << FRAC_BITS) + frac_value;
+	*outnum = ((int16_t)int_value << INT_SHIFT_BITS) + (frac_value << FRAC_SHIFT_BITS);
 	return 1;
 }
 
@@ -108,7 +108,7 @@ int num_parse(const char* begin, const char* end, number* outnum) {
 			}
 		}
 	}
-	*outnum = (int_value << FRAC_BITS) + frac_value;
+	*outnum = (int_value << INT_SHIFT_BITS) + (frac_value << FRAC_SHIFT_BITS);
 	if (neg)
 		*outnum = num_neg(*outnum);
 	return 1;
@@ -132,8 +132,8 @@ int num_format(number num, int frac_digits, char* output) {
 			num = num_neg(num);
 			*outp++ = '-';
 		}
-		int_value = num >> FRAC_BITS;
-		int frac_binary = num & ((1 << FRAC_BITS) - 1);
+		int_value = num >> INT_SHIFT_BITS;
+		int frac_binary = (num & ((1 << INT_SHIFT_BITS) - 1)) >> FRAC_SHIFT_BITS;
 		frac_value = 0;
 		for (int i = 0; i < frac_digits; i++) {
 			frac_binary *= 10;

@@ -291,7 +291,7 @@ struct value lib_rand(struct cpu* cpu, int sp, int nargs) {
 struct value lib_statCpu(struct cpu* cpu, int sp, int nargs) {
 	if (nargs != 0)
 		argument_error(cpu);
-	number usage = (number)(((int64_t)(CYCLES_PER_FRAME - cpu->cycles) << FRAC_BITS) / (int64_t)CYCLES_PER_FRAME);
+	number usage = num_of_division(CYCLES_PER_FRAME - cpu->cycles, CYCLES_PER_FRAME);
 	usage = num_add(usage, num_kint(cpu->delayed_frames));
 	return value_num(cpu, usage);
 }
@@ -299,7 +299,7 @@ struct value lib_statCpu(struct cpu* cpu, int sp, int nargs) {
 struct value lib_statMem(struct cpu* cpu, int sp, int nargs) {
 	if (nargs != 0)
 		argument_error(cpu);
-	number usage = (number)((int64_t)cpu->alloc.used_memory << FRAC_BITS >> 10);
+	number usage = num_of_division(cpu->alloc.used_memory, 1024);
 	return value_num(cpu, usage);
 }
 

@@ -3,29 +3,38 @@
 
 #include <stdint.h>
 
+/* 16.15 fixed point format, last bit ignored
+ */
 #define INT_BITS			16
-#define FRAC_BITS			(32 - INT_BITS)
+#define FRAC_BITS			15
+#define FRAC_SHIFT_BITS		1
+#define INT_SHIFT_BITS		(FRAC_BITS + FRAC_SHIFT_BITS)
 #define FRAC_SAFE_DIGITS	8
 #define NUM_OVERFLOW		(number)0x80000000
+#define CLEAR_LOWBITS(n)	((n) & ((-1) << FRAC_SHIFT_BITS))
 typedef uint32_t number;
 
 static inline number num_kint(int16_t x) {
-	return x << FRAC_BITS;
+	return x << INT_SHIFT_BITS;
 }
 
 static inline number num_kuint(uint16_t x) {
-	return x << FRAC_BITS;
+	return x << INT_SHIFT_BITS;
 }
 
 static inline int16_t num_int(number x) {
 	if ((int32_t)x > 0)
-		return (int32_t)x >> FRAC_BITS;
+		return (int32_t)x >> INT_SHIFT_BITS;
 	else
-		return (int32_t)(x + ((1 << FRAC_BITS) - 1)) >> FRAC_BITS;
+		return (int32_t)(x + (((1 << FRAC_BITS) - 1) << FRAC_SHIFT_BITS)) >> INT_SHIFT_BITS;
 }
 
 static inline uint16_t num_uint(number x) {
 	return (uint16_t)num_int(x);
+}
+
+static inline number num_of_division(int64_t a, int64_t b) {
+	return CLEAR_LOWBITS((a << INT_SHIFT_BITS) / b);
 }
 
 static inline number num_neg(number a) {
@@ -45,16 +54,18 @@ static inline number num_sub(number a, number b) {
 }
 
 static inline number num_mul(number a, number b) {
-	return (number)((uint64_t)((int64_t)(int32_t)a * (int64_t)(int32_t)b) >> FRAC_BITS);
+	return (number)CLEAR_LOWBITS((uint64_t)((int64_t)(int32_t)a * (int64_t)(int32_t)b) >> INT_SHIFT_BITS);
 }
 
 static inline number num_div(number a, number b) {
-	// TODO: Corner cases
-	return (number)(((int64_t)(int32_t)a << FRAC_BITS) / (int64_t)(int32_t)b);
+	if (b == 0)
+		return (int32_t)a >= 0 ? 0x7FFFFFFE : 0x80000000;
+	return (number)CLEAR_LOWBITS(((int64_t)(int32_t)a << INT_SHIFT_BITS) / (int64_t)(int32_t)b);
 }
 
 static inline number num_mod(number a, number b) {
-	// TODO: Corner cases
+	if (b == 0)
+		return 0;
 	return (number)((int64_t)(int32_t)a % (int64_t)(int32_t)b);
 }
 
@@ -91,11 +102,11 @@ static inline number num_ushr(number a, number b) {
 }
 
 static inline number num_floor(number a) {
-	return a & 0xFFFF0000;
+	return a & ((-1) << INT_SHIFT_BITS);
 }
 
 static inline number num_ceil(number a) {
-	return (a + 0xFFFF) & 0xFFFF0000;
+	return num_floor(a + ((1 << INT_SHIFT_BITS) - 1));
 }
 
 /* positive numbers only */

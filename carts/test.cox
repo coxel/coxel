@@ -27,8 +27,9 @@ test("Num-parsing", function() {
   checks(-32767, "-32767");
   checks(-32768, "-32768");
   checks(32768, "-32768");
-  checks(32767.99995, "32767.9999");
-  checks(32767.99996, "32768");
+  checks(32767.99996, 0x7FFF.FFFC);
+  checks(32767.99996, "32767.9999");
+  checks(32767.99997, "32768");
   checks(0.0000000, "0");
   checks(0.01, "0.01");
   checks(-0.00, "0");
@@ -61,15 +62,21 @@ test("Arithmetic", function() {
   check(1 / 1, 1);
   check(1 / 16, 0.0625);
   check(-1 / 0.0625, -16);
-  check(1 / -0.01, -100.05495);
+  check(1 / -0.01, -100.20796);
   check(-16 / -2, 8);
   check(3 / 4, 0.75);
+  check(1 / 0, 32767.99999);
+  check(0 / 0, 32767.99999);
+  check(-1 / 0, -32768);
   check(1 % 1, 0);
   check(1 % 2, 1);
   check(1 % 0.75, 0.25);
   check(1 % 0.3, 0.10005);
   check(-1 % -3, -1);
   check(2 % -5, 2);
+  check(0 % 0, 0);
+  check(-1 % 0, 0);
+  check(1 % 0, 0);
 });
 
 test("Logic", function() {
