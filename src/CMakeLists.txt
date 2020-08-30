@@ -14,6 +14,7 @@ set(SOURCES
 	config.h
 	cpu.c
 	cpu.h
+	cpu_dispatch.h
 	font.c
 	gc.c
 	gc.h
@@ -42,6 +43,10 @@ set(BUILTIN_CARTS
 
 if("${CMAKE_SIZEOF_VOID_P}" STREQUAL "8")
 	add_definitions(-DBIT64)
+endif()
+
+if(CMAKE_C_COMPILER_ID STREQUAL "GNU")
+	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fno-gcse -fno-crossjumping")
 endif()
 
 if(MSVC)

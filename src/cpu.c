@@ -497,6 +497,32 @@ void cpu_execute(struct cpu* cpu, struct funcobj* func) {
 	cpu_continue(cpu);
 }
 
+#if !defined(_MSC_VER)
+#define USE_COMPUTED_GOTO
+#endif
+
+#if defined(DEBUG_TIMING)
+#define COMPUTED_GOTO_DEBUG_TIMING_UPDATE() do { \
+		MEASURE_END(); \
+		cpu_timing_record(iopcode, MEASURE_DURATION()); \
+		MEASURE_START(); \
+	} while (0)
+#else
+#define COMPUTED_GOTO_DEBUG_TIMING_UPDATE()
+#endif
+
+#if defined(USE_COMPUTED_GOTO)
+#define DISPATCH()	do { \
+		COMPUTED_GOTO_DEBUG_TIMING_UPDATE(); \
+		ins = *pc++; \
+		goto *dispatch_table[iopcode]; \
+	} while (0)
+#define CASE(op)	target_##op:
+#else
+#define DISPATCH()	break
+#define CASE(op)	case op:
+#endif
+
 void cpu_continue(struct cpu* cpu) {
 	struct value* frame;
 	struct funcobj* func = (struct funcobj*)readptr(cpu->curfunc);
@@ -512,53 +538,59 @@ void cpu_continue(struct cpu* cpu) {
 	ktable = (uint32_t*)readptr(code->k);
 	pc = &((uint32_t*)readptr(code->ins))[cpu->curpc];
 	update_stack();
-#ifdef DEBUG_TIMING
+#if defined(DEBUG_TIMING)
 	MEASURE_DEFINES();
 	enum opcode last_opcode = -1;
 #endif
+#if defined(USE_COMPUTED_GOTO)
+#include "cpu_dispatch.h"
+#else
 	for (;;) {
-		if (unlikely(cpu->cycles >= CYCLES_PER_FRAME)) {
-			cpu->cycles -= CYCLES_PER_FRAME;
-			cpu->curfunc = writeptr(func);
-			cpu->curpc = (uint16_t)(pc - (uint32_t*)readptr(code->ins));
-			cpu->paused = 1;
-			return;
-		}
-#ifdef DEBUG_TIMING
+#endif
+		uint32_t ins = 0;
+		if (unlikely(cpu->cycles >= CYCLES_PER_FRAME))
+			goto timeout;
+#if defined(USE_COMPUTED_GOTO)
+		DISPATCH();
+		target_default: internal_error(cpu);
+#else
+#if defined(DEBUG_TIMING)
 		MEASURE_END();
-		if (last_opcode != -1)
+		if (likely(last_opcode != -1))
 			cpu_timing_record(last_opcode, MEASURE_DURATION());
 		MEASURE_START();
 #endif
-		uint32_t ins = *pc++;
+		ins = *pc++;
 		cpu->cycles += CYCLES_BASE;
-#ifdef DEBUG_TIMING
+#if defined(DEBUG_TIMING)
 		last_opcode = iopcode;
 #endif
 		switch (iopcode) {
-		case op_kundef: retval = value_undef(cpu); break;
-		case op_knull: retval = value_null(cpu); break;
-		case op_kfalse: retval = value_bool(cpu, 0); break;
-		case op_ktrue: retval = value_bool(cpu, 1); break;
-		case op_knum: {
+		default: internal_error(cpu);
+#endif
+		CASE(op_kundef) retval = value_undef(cpu); DISPATCH();
+		CASE(op_knull) retval = value_null(cpu); DISPATCH();
+		CASE(op_kfalse) retval = value_bool(cpu, 0); DISPATCH();
+		CASE(op_ktrue) retval = value_bool(cpu, 1); DISPATCH();
+		CASE(op_knum) {
 			uint32_t val = ktable[iimm];
 			retval = value_num(cpu, (number)val);
-			break;
+			DISPATCH();
 		}
-		case op_kstr: {
+		CASE(op_kstr) {
 			uint32_t ptr = ktable[iimm];
 			struct strobj* str = (struct strobj*)((uint8_t*)cpu + ptr);
 			retval = value_str(cpu, str);
-			break;
+			DISPATCH();
 		}
-		case op_mov: retval = lval; break;
-		case op_xchg: {
+		CASE(op_mov) retval = lval; DISPATCH();
+		CASE(op_xchg) {
 			struct value tmp = retval;
 			retval = lval;
 			lval = tmp;
-			break;
+			DISPATCH();
 		}
-		case op_add: {
+		CASE(op_add) {
 			if (unlikely(lval.type == t_str || rval.type == t_str)) {
 				struct strobj* l = lvalstr;
 				struct strobj* r = rvalstr;
@@ -567,9 +599,9 @@ void cpu_continue(struct cpu* cpu) {
 			}
 			else
 				retval = value_num(cpu, num_add(lvalnum, rvalnum));
-			break;
+			DISPATCH();
 		}
-		case op_addrn: {
+		CASE(op_addrn) {
 			if (unlikely(lval.type == t_str)) {
 				struct strobj* l = lvalstr;
 				struct strobj* r = num_to_str(cpu, rnum);
@@ -578,9 +610,9 @@ void cpu_continue(struct cpu* cpu) {
 			}
 			else
 				retval = value_num(cpu, num_add(lvalnum, rnum));
-			break;
+			DISPATCH();
 		}
-		case op_addnr: {
+		CASE(op_addnr) {
 			if (unlikely(rval.type == t_str)) {
 				struct strobj* l = num_to_str(cpu, lnum);
 				struct strobj* r = rvalstr;
@@ -589,93 +621,93 @@ void cpu_continue(struct cpu* cpu) {
 			}
 			else
 				retval = value_num(cpu, num_add(lnum, rvalnum));
-			break;
+			DISPATCH();
 		}
-		case op_sub: retval = value_num(cpu, num_sub(lvalnum, rvalnum)); break;
-		case op_subrn: retval = value_num(cpu, num_sub(lvalnum, rnum)); break;
-		case op_subnr: retval = value_num(cpu, num_sub(lnum, rvalnum)); break;
-		case op_mul: retval = value_num(cpu, num_mul(lvalnum, rvalnum)); break;
-		case op_mulrn: retval = value_num(cpu, num_mul(lvalnum, rnum)); break;
-		case op_mulnr: retval = value_num(cpu, num_mul(lnum, rvalnum)); break;
-		case op_div: retval = value_num(cpu, num_div(lvalnum, rvalnum)); break;
-		case op_divrn: retval = value_num(cpu, num_div(lvalnum, rnum)); break;
-		case op_divnr: retval = value_num(cpu, num_div(lnum, rvalnum)); break;
-		case op_mod: retval = value_num(cpu, num_mod(lvalnum, rvalnum)); break;
-		case op_modrn: retval = value_num(cpu, num_mod(lvalnum, rnum)); break;
-		case op_modnr: retval = value_num(cpu, num_mod(lnum, rvalnum)); break;
-		case op_exp: retval = value_num(cpu, num_exp(lvalnum, rvalnum)); break;
-		case op_exprn: retval = value_num(cpu, num_exp(lvalnum, rnum)); break;
-		case op_expnr: retval = value_num(cpu, num_exp(lnum, rvalnum)); break;
-		case op_inc: retval = value_num(cpu, num_add(lvalnum, num_kint(1))); break;
-		case op_dec: retval = value_num(cpu, num_sub(lvalnum, num_kint(1))); break;
-		case op_plus: retval = value_num(cpu, lvalnum); break;
-		case op_neg: retval = value_num(cpu, num_neg(lvalnum)); break;
-		case op_not: retval = value_bool(cpu, !lvalbool); break;
-		case op_band: retval = value_num(cpu, num_and(lvalnum, rvalnum)); break;
-		case op_bandrn: retval = value_num(cpu, num_and(lvalnum, rnum)); break;
-		case op_bandnr: retval = value_num(cpu, num_and(lnum, rvalnum)); break;
-		case op_bor: retval = value_num(cpu, num_or(lvalnum, rvalnum)); break;
-		case op_borrn: retval = value_num(cpu, num_or(lvalnum, rnum)); break;
-		case op_bornr: retval = value_num(cpu, num_or(lnum, rvalnum)); break;
-		case op_bxor: retval = value_num(cpu, num_xor(lvalnum, rvalnum)); break;
-		case op_bxorrn: retval = value_num(cpu, num_xor(lvalnum, rnum)); break;
-		case op_bxornr: retval = value_num(cpu, num_xor(lnum, rvalnum)); break;
-		case op_bnot: retval = value_num(cpu, num_not(lvalnum)); break;
-		case op_shl: retval = value_num(cpu, num_shl(lvalnum, rvalnum)); break;
-		case op_shlrn: retval = value_num(cpu, num_shl(lvalnum, rnum)); break;
-		case op_shlnr: retval = value_num(cpu, num_shl(lnum, rvalnum)); break;
-		case op_shr: retval = value_num(cpu, num_shr(lvalnum, rvalnum)); break;
-		case op_shrrn: retval = value_num(cpu, num_shr(lvalnum, rnum)); break;
-		case op_shrnr: retval = value_num(cpu, num_shr(lnum, rvalnum)); break;
-		case op_ushr: retval = value_num(cpu, num_ushr(lvalnum, rvalnum)); break;
-		case op_ushrrn: retval = value_num(cpu, num_ushr(lvalnum, rnum)); break;
-		case op_ushrnr: retval = value_num(cpu, num_ushr(lnum, rvalnum)); break;
-		// TODO: String comparisons
-		case op_eq: retval = value_bool(cpu, strict_equal(cpu, lval, rval)); break;
-		case op_eqrn: retval = value_bool(cpu, strict_equal_num(cpu, lval, rnum)); break;
-		case op_eqnr: retval = value_bool(cpu, strict_equal_num(cpu, rval, lnum)); break;
-		case op_ne: retval = value_bool(cpu, !strict_equal(cpu, lval, rval)); break;
-		case op_nern: retval = value_bool(cpu, !strict_equal_num(cpu, lval, rnum)); break;
-		case op_nenr: retval = value_bool(cpu, !strict_equal_num(cpu, rval, lnum)); break;
-		case op_lt: retval = value_bool(cpu, (int32_t)lvalnum < (int32_t)rvalnum); break;
-		case op_ltrn: retval = value_bool(cpu, (int32_t)lvalnum < (int32_t)rnum); break;
-		case op_ltnr: retval = value_bool(cpu, (int32_t)lnum < (int32_t)rvalnum); break;
-		case op_le: retval = value_bool(cpu, (int32_t)lvalnum <= (int32_t)rvalnum); break;
-		case op_lern: retval = value_bool(cpu, (int32_t)lvalnum <= (int32_t)rnum); break;
-		case op_lenr: retval = value_bool(cpu, (int32_t)lnum <= (int32_t)rvalnum); break;
-		case op_gt: retval = value_bool(cpu, (int32_t)lvalnum > (int32_t)rvalnum); break;
-		case op_gtrn: retval = value_bool(cpu, (int32_t)lvalnum > (int32_t)rnum); break;
-		case op_gtnr: retval = value_bool(cpu, (int32_t)lnum > (int32_t)rvalnum); break;
-		case op_ge: retval = value_bool(cpu, (int32_t)lvalnum >= (int32_t)rvalnum); break;
-		case op_gern: retval = value_bool(cpu, (int32_t)lvalnum >= (int32_t)rnum); break;
-		case op_genr: retval = value_bool(cpu, (int32_t)lnum >= (int32_t)rvalnum); break;
-		case op_in: retval = value_bool(cpu, tab_in(cpu, to_tab(cpu, rval), lvalstr)); break;
-		case op_arr: retval = value_arr(cpu, arr_new(cpu)); cpu->cycles += CYCLES_ALLOC; break;
-		case op_apush: arr_push(cpu, to_arr(cpu, retval), lval); cpu->cycles += CYCLES_ALLOC; break;
-		case op_tab: retval = value_tab(cpu, tab_new(cpu)); cpu->cycles += CYCLES_ALLOC; break;
-		case op_fget: retval = fget(cpu, lval, rval); break;
-		case op_fgetn: retval = fgetnum(cpu, lval, rnum); break;
-		case op_fgets: retval = fgetstr(cpu, lval, rstr); break;
-		case op_fset: fset(cpu, retval, lval, rval); break;
-		case op_fsetn: fsetn(cpu, retval, lnum, rval); break;
-		case op_fsets: fsets(cpu, retval, lstr, rval); break;
-		case op_gget: retval = tab_get(cpu, (struct tabobj*)readptr(cpu->globals), lvalstr); cpu->cycles += CYCLES_LOOKUP; break;
-		case op_ggets: retval = tab_get(cpu, (struct tabobj*)readptr(cpu->globals), lstr); cpu->cycles += CYCLES_LOOKUP; break;
-		case op_gset: tab_set(cpu, (struct tabobj*)readptr(cpu->globals), retvalstr, lval); cpu->cycles += CYCLES_LOOKUP; break;
-		case op_gsets: tab_set(cpu, (struct tabobj*)readptr(cpu->globals), retstr, lval); cpu->cycles += CYCLES_LOOKUP; break;
-		case op_uget: retval = *(struct value*)readptr(((struct upval*)readptr(func->upval[iop2]))->val); break;
-		case op_uset: *(struct value*)readptr(((struct upval*)readptr(func->upval[iop1]))->val) = lval; break;
-		case op_iter: retval = get_iter(cpu, lval); cpu->cycles += CYCLES_ALLOC; break;
-		case op_next: retval = value_bool(cpu, iter_next(cpu, rval, &lval)); break;
-		case op_j: pc += iimm; break;
-		case op_closej: {
+		CASE(op_sub) retval = value_num(cpu, num_sub(lvalnum, rvalnum)); DISPATCH();
+		CASE(op_subrn) retval = value_num(cpu, num_sub(lvalnum, rnum)); DISPATCH();
+		CASE(op_subnr) retval = value_num(cpu, num_sub(lnum, rvalnum)); DISPATCH();
+		CASE(op_mul) retval = value_num(cpu, num_mul(lvalnum, rvalnum)); DISPATCH();
+		CASE(op_mulrn) retval = value_num(cpu, num_mul(lvalnum, rnum)); DISPATCH();
+		CASE(op_mulnr) retval = value_num(cpu, num_mul(lnum, rvalnum)); DISPATCH();
+		CASE(op_div) retval = value_num(cpu, num_div(lvalnum, rvalnum)); DISPATCH();
+		CASE(op_divrn) retval = value_num(cpu, num_div(lvalnum, rnum)); DISPATCH();
+		CASE(op_divnr) retval = value_num(cpu, num_div(lnum, rvalnum)); DISPATCH();
+		CASE(op_mod) retval = value_num(cpu, num_mod(lvalnum, rvalnum)); DISPATCH();
+		CASE(op_modrn) retval = value_num(cpu, num_mod(lvalnum, rnum)); DISPATCH();
+		CASE(op_modnr) retval = value_num(cpu, num_mod(lnum, rvalnum)); DISPATCH();
+		CASE(op_exp) retval = value_num(cpu, num_exp(lvalnum, rvalnum)); DISPATCH();
+		CASE(op_exprn) retval = value_num(cpu, num_exp(lvalnum, rnum)); DISPATCH();
+		CASE(op_expnr) retval = value_num(cpu, num_exp(lnum, rvalnum)); DISPATCH();
+		CASE(op_inc) retval = value_num(cpu, num_add(lvalnum, num_kint(1))); DISPATCH();
+		CASE(op_dec) retval = value_num(cpu, num_sub(lvalnum, num_kint(1))); DISPATCH();
+		CASE(op_plus) retval = value_num(cpu, lvalnum); DISPATCH();
+		CASE(op_neg) retval = value_num(cpu, num_neg(lvalnum)); DISPATCH();
+		CASE(op_not) retval = value_bool(cpu, !lvalbool); DISPATCH();
+		CASE(op_band) retval = value_num(cpu, num_and(lvalnum, rvalnum)); DISPATCH();
+		CASE(op_bandrn) retval = value_num(cpu, num_and(lvalnum, rnum)); DISPATCH();
+		CASE(op_bandnr) retval = value_num(cpu, num_and(lnum, rvalnum)); DISPATCH();
+		CASE(op_bor) retval = value_num(cpu, num_or(lvalnum, rvalnum)); DISPATCH();
+		CASE(op_borrn) retval = value_num(cpu, num_or(lvalnum, rnum)); DISPATCH();
+		CASE(op_bornr) retval = value_num(cpu, num_or(lnum, rvalnum)); DISPATCH();
+		CASE(op_bxor) retval = value_num(cpu, num_xor(lvalnum, rvalnum)); DISPATCH();
+		CASE(op_bxorrn) retval = value_num(cpu, num_xor(lvalnum, rnum)); DISPATCH();
+		CASE(op_bxornr) retval = value_num(cpu, num_xor(lnum, rvalnum)); DISPATCH();
+		CASE(op_bnot) retval = value_num(cpu, num_not(lvalnum)); DISPATCH();
+		CASE(op_shl) retval = value_num(cpu, num_shl(lvalnum, rvalnum)); DISPATCH();
+		CASE(op_shlrn) retval = value_num(cpu, num_shl(lvalnum, rnum)); DISPATCH();
+		CASE(op_shlnr) retval = value_num(cpu, num_shl(lnum, rvalnum)); DISPATCH();
+		CASE(op_shr) retval = value_num(cpu, num_shr(lvalnum, rvalnum)); DISPATCH();
+		CASE(op_shrrn) retval = value_num(cpu, num_shr(lvalnum, rnum)); DISPATCH();
+		CASE(op_shrnr) retval = value_num(cpu, num_shr(lnum, rvalnum)); DISPATCH();
+		CASE(op_ushr) retval = value_num(cpu, num_ushr(lvalnum, rvalnum)); DISPATCH();
+		CASE(op_ushrrn) retval = value_num(cpu, num_ushr(lvalnum, rnum)); DISPATCH();
+		CASE(op_ushrnr) retval = value_num(cpu, num_ushr(lnum, rvalnum)); DISPATCH();
+		// TODO) String comparisons
+		CASE(op_eq) retval = value_bool(cpu, strict_equal(cpu, lval, rval)); DISPATCH();
+		CASE(op_eqrn) retval = value_bool(cpu, strict_equal_num(cpu, lval, rnum)); DISPATCH();
+		CASE(op_eqnr) retval = value_bool(cpu, strict_equal_num(cpu, rval, lnum)); DISPATCH();
+		CASE(op_ne) retval = value_bool(cpu, !strict_equal(cpu, lval, rval)); DISPATCH();
+		CASE(op_nern) retval = value_bool(cpu, !strict_equal_num(cpu, lval, rnum)); DISPATCH();
+		CASE(op_nenr) retval = value_bool(cpu, !strict_equal_num(cpu, rval, lnum)); DISPATCH();
+		CASE(op_lt) retval = value_bool(cpu, (int32_t)lvalnum < (int32_t)rvalnum); DISPATCH();
+		CASE(op_ltrn) retval = value_bool(cpu, (int32_t)lvalnum < (int32_t)rnum); DISPATCH();
+		CASE(op_ltnr) retval = value_bool(cpu, (int32_t)lnum < (int32_t)rvalnum); DISPATCH();
+		CASE(op_le) retval = value_bool(cpu, (int32_t)lvalnum <= (int32_t)rvalnum); DISPATCH();
+		CASE(op_lern) retval = value_bool(cpu, (int32_t)lvalnum <= (int32_t)rnum); DISPATCH();
+		CASE(op_lenr) retval = value_bool(cpu, (int32_t)lnum <= (int32_t)rvalnum); DISPATCH();
+		CASE(op_gt) retval = value_bool(cpu, (int32_t)lvalnum > (int32_t)rvalnum); DISPATCH();
+		CASE(op_gtrn) retval = value_bool(cpu, (int32_t)lvalnum > (int32_t)rnum); DISPATCH();
+		CASE(op_gtnr) retval = value_bool(cpu, (int32_t)lnum > (int32_t)rvalnum); DISPATCH();
+		CASE(op_ge) retval = value_bool(cpu, (int32_t)lvalnum >= (int32_t)rvalnum); DISPATCH();
+		CASE(op_gern) retval = value_bool(cpu, (int32_t)lvalnum >= (int32_t)rnum); DISPATCH();
+		CASE(op_genr) retval = value_bool(cpu, (int32_t)lnum >= (int32_t)rvalnum); DISPATCH();
+		CASE(op_in) retval = value_bool(cpu, tab_in(cpu, to_tab(cpu, rval), lvalstr)); DISPATCH();
+		CASE(op_arr) retval = value_arr(cpu, arr_new(cpu)); cpu->cycles += CYCLES_ALLOC; DISPATCH();
+		CASE(op_apush) arr_push(cpu, to_arr(cpu, retval), lval); cpu->cycles += CYCLES_ALLOC; DISPATCH();
+		CASE(op_tab) retval = value_tab(cpu, tab_new(cpu)); cpu->cycles += CYCLES_ALLOC; DISPATCH();
+		CASE(op_fget) retval = fget(cpu, lval, rval); DISPATCH();
+		CASE(op_fgetn) retval = fgetnum(cpu, lval, rnum); DISPATCH();
+		CASE(op_fgets) retval = fgetstr(cpu, lval, rstr); DISPATCH();
+		CASE(op_fset) fset(cpu, retval, lval, rval); DISPATCH();
+		CASE(op_fsetn) fsetn(cpu, retval, lnum, rval); DISPATCH();
+		CASE(op_fsets) fsets(cpu, retval, lstr, rval); DISPATCH();
+		CASE(op_gget) retval = tab_get(cpu, (struct tabobj*)readptr(cpu->globals), lvalstr); cpu->cycles += CYCLES_LOOKUP; DISPATCH();
+		CASE(op_ggets) retval = tab_get(cpu, (struct tabobj*)readptr(cpu->globals), lstr); cpu->cycles += CYCLES_LOOKUP; DISPATCH();
+		CASE(op_gset) tab_set(cpu, (struct tabobj*)readptr(cpu->globals), retvalstr, lval); cpu->cycles += CYCLES_LOOKUP; DISPATCH();
+		CASE(op_gsets) tab_set(cpu, (struct tabobj*)readptr(cpu->globals), retstr, lval); cpu->cycles += CYCLES_LOOKUP; DISPATCH();
+		CASE(op_uget) retval = *(struct value*)readptr(((struct upval*)readptr(func->upval[iop2]))->val); DISPATCH();
+		CASE(op_uset) *(struct value*)readptr(((struct upval*)readptr(func->upval[iop1]))->val) = lval; DISPATCH();
+		CASE(op_iter) retval = get_iter(cpu, lval); cpu->cycles += CYCLES_ALLOC; DISPATCH();
+		CASE(op_next) retval = value_bool(cpu, iter_next(cpu, rval, &lval)); DISPATCH();
+		CASE(op_j) pc += iimm; DISPATCH();
+		CASE(op_closej) {
 			close_upvals(cpu, frame, iop1);
-			pc += iimm; break;
-			break;
+			pc += iimm;
+			DISPATCH();
 		}
-		case op_jtrue: if (retvalbool) pc += iimm; break;
-		case op_jfalse: if (!retvalbool) pc += iimm; break;
-		case op_func: {
+		CASE(op_jtrue) if (retvalbool) pc += iimm; DISPATCH();
+		CASE(op_jfalse) if (!retvalbool) pc += iimm; DISPATCH();
+		CASE(op_func) {
 			struct code* code = &((struct code*)readptr(cpu->code))[iimm];
 			struct funcobj* f = (struct funcobj*)gc_alloc(cpu, t_func,
 				sizeof(struct funcobj) + sizeof(struct upval) * code->upval_cnt);
@@ -715,13 +747,13 @@ void cpu_continue(struct cpu* cpu) {
 			}
 			retval = value_func(cpu, f);
 			cpu->cycles += CYCLES_ALLOC * (1 + code->upval_cnt);
-			break;
+			DISPATCH();
 		}
-		case op_close: {
+		CASE(op_close) {
 			close_upvals(cpu, frame, iop1);
-			break;
+			DISPATCH();
 		}
-		case op_call: {
+		CASE(op_call) {
 			if (retval.type == t_cfunc) {
 				int sp = cpu->sp + iop1;
 				cfunc func = cfunc_get(retval.cfunc);
@@ -753,10 +785,10 @@ void cpu_continue(struct cpu* cpu) {
 			}
 			else
 				runtime_error(cpu, "Not callable object.");
-			break;
+			DISPATCH();
 		}
-		case op_retu:
-		case op_ret: {
+		CASE(op_retu)
+		CASE(op_ret) {
 			close_upvals(cpu, frame, 0);
 			if (cpu->sp == 0) {
 				cpu->paused = 0;
@@ -775,11 +807,17 @@ void cpu_continue(struct cpu* cpu) {
 			code = (struct code*)readptr(func->code);
 			ktable = (uint32_t*)readptr(code->k);
 			pc = &((uint32_t*)readptr(code->ins))[ci2.pc];
-			break;
+			DISPATCH();
 		}
-		default: internal_error(cpu);
-		}
+#if !defined(USE_COMPUTED_GOTO)
+		} /* switch */
 	}
+#endif
+timeout:
+	cpu->cycles -= CYCLES_PER_FRAME;
+	cpu->curfunc = writeptr(func);
+	cpu->curpc = (uint16_t)(pc - (uint32_t*)readptr(code->ins));
+	cpu->paused = 1;
 }
 
 enum operand_type {
