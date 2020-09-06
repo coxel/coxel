@@ -1,6 +1,6 @@
 #include "cfunc.h"
 
-#define X(name) extern struct value name(struct cpu* cpu, int sp, int nargs);
+#define X(name) extern value_t name(struct cpu* cpu, int sp, int nargs);
 CFUNC_DEFS(X)
 #undef X
 

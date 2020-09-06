@@ -54,7 +54,7 @@ void buf_set(struct cpu* cpu, struct bufobj* buf, number index, value_t value) {
 	uint8_t* data;
 	uint32_t len;
 	buf_getdata(cpu, buf, &data, &len);
-	if (unlikely(value_is_num(value)))
+	if (!unlikely(value_is_num(value)))
 		return;
 	int idx = num_uint(index);
 	if (unlikely(idx >= len))
