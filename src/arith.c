@@ -150,12 +150,14 @@ static number highprec_exp2(uint64_t x) {
 	uint64_t result = p;
 	result += frac_mul((uint32_t)p, f);
 	result += (uint64_t)(uint32_t)(p >> 32) * f;
-	return CLEAR_LOWBITS(result >> 16);
+	return NUM_ROUND(result >> 16);
 }
 
 number num_pow(number a, number b) {
+	if (b == 0)
+		return num_kuint(1);
 	if (a == 0)
-		return num_uint(0);
+		return num_kuint(0);
 	int neg = 0;
 	uint64_t l;
 	if ((int32_t)a >= 0)
@@ -174,7 +176,7 @@ number num_pow(number a, number b) {
 	uint32_t l_lo = (uint32_t)l;
 	uint64_t r = ((int64_t)l_hi * (int64_t)(int32_t)b) << 16;
 	r += ((int64_t)l_lo * (int64_t)(int32_t)b) >> 16;
-	number result = CLEAR_LOWBITS(highprec_exp2(r));
+	number result = highprec_exp2(r);
 	if (neg)
 		result = num_neg(result);
 	return result;

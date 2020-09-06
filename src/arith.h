@@ -13,7 +13,6 @@
 #define NUM_OVERFLOW		(number)0x80000000
 #define NUM_MAX				(number)0x7FFFFFFE
 #define NUM_MIN				(number)0x80000000
-#define CLEAR_LOWBITS(n)	((n) & -(1 << FRAC_SHIFT_BITS))
 typedef uint32_t number;
 
 static inline number num_kint(int16_t x) {
@@ -35,8 +34,15 @@ static inline uint16_t num_uint(number x) {
 	return (uint16_t)num_int(x);
 }
 
+static inline number NUM_ROUND(uint32_t x) {
+	if (x == 0x7FFFFFFF)
+		return NUM_MAX;
+	else
+		return x + (x & 1);
+}
+
 static inline number num_of_division(int64_t a, int64_t b) {
-	return CLEAR_LOWBITS((a << INT_SHIFT_BITS) / b);
+	return NUM_ROUND((a << INT_SHIFT_BITS) / b);
 }
 
 static inline number num_neg(number a) {
@@ -56,13 +62,13 @@ static inline number num_sub(number a, number b) {
 }
 
 static inline number num_mul(number a, number b) {
-	return (number)CLEAR_LOWBITS((uint64_t)((int64_t)(int32_t)a * (int64_t)(int32_t)b) >> INT_SHIFT_BITS);
+	return (number)NUM_ROUND((uint64_t)((int64_t)(int32_t)a * (int64_t)(int32_t)b) >> INT_SHIFT_BITS);
 }
 
 static inline number num_div(number a, number b) {
 	if (b == 0)
 		return (int32_t)a >= 0 ? NUM_MAX : NUM_MIN;
-	return (number)CLEAR_LOWBITS(((int64_t)(int32_t)a << INT_SHIFT_BITS) / (int64_t)(int32_t)b);
+	return (number)NUM_ROUND(((int64_t)(int32_t)a << INT_SHIFT_BITS) / (int64_t)(int32_t)b);
 }
 
 static inline number num_mod(number a, number b) {

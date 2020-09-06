@@ -77,6 +77,20 @@ test("Arithmetic", function() {
   check(0 % 0, 0);
   check(-1 % 0, 0);
   check(1 % 0, 0);
+  check(0 ** 0, 1);
+  check(2 ** 0, 1);
+  check(2 ** 14, 16384);
+  check(2 ** 15, 32767.99999);
+  check(2 ** -1, 0.5);
+  check(3 ** 3, 27);
+  check(3 ** 9, 19683);
+  check(-2 ** 2, 4);
+  check(-2 ** 3, -8);
+  check(3 ** 0.625, 1.9870);
+  check(10 ** 0.0625, 1.1548);
+  check(256 ** 0.5, 16);
+  check(777 ** 0.5, 27.87473);
+  check(-100 ** 0.5, 0);
 });
 
 test("Logic", function() {
@@ -181,7 +195,7 @@ test("Assignment", function() {
   check(a **= 0.5, 2);
   check(a <<= 14, -32768);
   check(a >>= 3, -4096);
-  check(a >>>= 1, 28672);
+  check(a >>>= 1, 30720);
 });
 
 test("Coercion", function() {
