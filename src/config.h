@@ -78,12 +78,19 @@ static FORCEINLINE uint32_t rotl32(uint32_t x, int8_t r) {
 
 #endif
 
-/* Count trailing zeros */
+/* Count leading/trailing zeros */
 #if defined(__GNUC__)
+#define mostbitidx(x)	__builtin_clz(x)
 #define leastbitidx(x)	__builtin_ctz(x)
 #elif defined(_MSC_VER)
 #include <intrin.h>
+#pragma intrinsic(_BitScanReverse)
 #pragma intrinsic(_BitScanForward)
+static FORCEINLINE int mostbitidx(uint32_t x) {
+	unsigned long index;
+	_BitScanReverse(&index, x);
+	return (int)index;
+}
 static FORCEINLINE int leastbitidx(uint32_t x) {
 	unsigned long index;
 	_BitScanForward(&index, x);

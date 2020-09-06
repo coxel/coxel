@@ -635,9 +635,9 @@ void cpu_continue(struct cpu* cpu) {
 		CASE(op_mod) retval = value_num(num_mod(lvalnum, rvalnum)); DISPATCH();
 		CASE(op_modrn) retval = value_num(num_mod(lvalnum, rnum)); DISPATCH();
 		CASE(op_modnr) retval = value_num(num_mod(lnum, rvalnum)); DISPATCH();
-		CASE(op_exp) retval = value_num(num_exp(lvalnum, rvalnum)); DISPATCH();
-		CASE(op_exprn) retval = value_num(num_exp(lvalnum, rnum)); DISPATCH();
-		CASE(op_expnr) retval = value_num(num_exp(lnum, rvalnum)); DISPATCH();
+		CASE(op_pow) retval = value_num(num_pow(lvalnum, rvalnum)); DISPATCH();
+		CASE(op_powrn) retval = value_num(num_pow(lvalnum, rnum)); DISPATCH();
+		CASE(op_pownr) retval = value_num(num_pow(lnum, rvalnum)); DISPATCH();
 		CASE(op_inc) retval = value_num(num_add(lvalnum, num_kint(1))); DISPATCH();
 		CASE(op_dec) retval = value_num(num_sub(lvalnum, num_kint(1))); DISPATCH();
 		CASE(op_plus) retval = value_num(lvalnum); DISPATCH();

@@ -46,9 +46,9 @@
 	X(op_mod, "mod", REG, REG, REG) \
 	X(op_modrn, "mod", REG, REG, NUM) \
 	X(op_modnr, "mod", REG, NUM, REG) \
-	X(op_exp, "exp", REG, REG, REG) \
-	X(op_exprn, "exp", REG, REG, NUM) \
-	X(op_expnr, "exp", REG, NUM, REG) \
+	X(op_pow, "pow", REG, REG, REG) \
+	X(op_powrn, "pow", REG, REG, NUM) \
+	X(op_pownr, "pow", REG, NUM, REG) \
 	X(op_inc, "inc", REG, REG, _) \
 	X(op_dec, "dec", REG, REG, _) \
 	X(op_plus, "plus", REG, REG, _) \

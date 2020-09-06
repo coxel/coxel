@@ -43,7 +43,7 @@
 	X(tk_mul, "*", op_mul, op_mulrn, op_mulnr, fold_mul, 11) \
 	X(tk_div, "/", op_div, op_divrn, op_divnr, fold_div, 11) \
 	X(tk_mod, "%", op_mod, op_modrn, op_modnr, fold_mod, 11) \
-	X(tk_exp, "**", op_exp, op_exprn, op_expnr, fold_exp, 12) \
+	X(tk_pow, "**", op_pow, op_powrn, op_pownr, fold_pow, 12) \
 	/* prefix/postfix operators */ \
 	X(tk_inc, "++", op_inc, _, _, _, _) \
 	X(tk_dec, "--", op_dec, _, _, _, _) \
@@ -74,7 +74,7 @@
 	X(tk_mul_assign, "*=", op_mul, op_mulrn, _, _, _) \
 	X(tk_div_assign, "/=", op_div, op_divrn, _, _, _) \
 	X(tk_mod_assign, "%=", op_mod, op_modrn, _, _, _) \
-	X(tk_exp_assign, "**=", op_exp, op_exprn, _, _, _) \
+	X(tk_exp_assign, "**=", op_pow, op_powrn, _, _, _) \
 	X(tk_band_assign, "&=", op_band, op_bandrn, _, _, _) \
 	X(tk_bor_assign, "|=", op_bor, op_borrn, _, _, _) \
 	X(tk_bxor_assign, "^=", op_bxor, op_bxorrn, _, _, _) \
@@ -359,7 +359,7 @@ start:
 					ctx->token = tk_exp_assign;
 				}
 				else
-					ctx->token = tk_exp;
+					ctx->token = tk_pow;
 			}
 			else if (ctx->ch == '=') {
 				next_char(ctx);
@@ -808,8 +808,8 @@ static struct sval fold_mod(struct context* ctx, struct sval lval, struct sval r
 	return sval_num(num_mod(sval_tonum(ctx, lval), sval_tonum(ctx, rval)));
 }
 
-static struct sval fold_exp(struct context* ctx, struct sval lval, struct sval rval) {
-	return sval_num(num_exp(sval_tonum(ctx, lval), sval_tonum(ctx, rval)));
+static struct sval fold_pow(struct context* ctx, struct sval lval, struct sval rval) {
+	return sval_num(num_pow(sval_tonum(ctx, lval), sval_tonum(ctx, rval)));
 }
 
 static struct sval fold_band(struct context* ctx, struct sval lval, struct sval rval) {
@@ -1479,7 +1479,7 @@ static struct sval compile_binary_subexp(struct context* ctx, struct sval lval) 
 				emit_imm(ctx, op_jtrue, lval.reg, 0);
 			sval_pop(ctx, lval);
 			struct sval rval = compile_unary(ctx);
-			while (token_precedence[ctx->token] > precedence || (op == op_exp && ctx->token == tk_exp))
+			while (token_precedence[ctx->token] > precedence || (op == op_pow && ctx->token == tk_pow))
 				rval = compile_binary_subexp(ctx, rval);
 			rval = sval_force_extract(ctx, rval);
 			sval_pop(ctx, rval);
@@ -1490,7 +1490,7 @@ static struct sval compile_binary_subexp(struct context* ctx, struct sval lval) 
 			if (!sval_numable(lval) || nr_op < 0)
 				lval = sval_extract(ctx, lval);
 			struct sval rval = compile_unary(ctx);
-			while (token_precedence[ctx->token] > precedence || (op == op_exp && ctx->token == tk_exp))
+			while (token_precedence[ctx->token] > precedence || (op == op_pow && ctx->token == tk_pow))
 				rval = compile_binary_subexp(ctx, rval);
 			if (sval_numable(rval) && rn_op >= 0) {
 				sval_pop(ctx, rval);

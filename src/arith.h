@@ -11,6 +11,8 @@
 #define INT_SHIFT_BITS		(FRAC_BITS + FRAC_SHIFT_BITS)
 #define FRAC_SAFE_DIGITS	8
 #define NUM_OVERFLOW		(number)0x80000000
+#define NUM_MAX				(number)0x7FFFFFFE
+#define NUM_MIN				(number)0x80000000
 #define CLEAR_LOWBITS(n)	((n) & -(1 << FRAC_SHIFT_BITS))
 typedef uint32_t number;
 
@@ -59,7 +61,7 @@ static inline number num_mul(number a, number b) {
 
 static inline number num_div(number a, number b) {
 	if (b == 0)
-		return (int32_t)a >= 0 ? 0x7FFFFFFE : 0x80000000;
+		return (int32_t)a >= 0 ? NUM_MAX : NUM_MIN;
 	return (number)CLEAR_LOWBITS(((int64_t)(int32_t)a << INT_SHIFT_BITS) / (int64_t)(int32_t)b);
 }
 
@@ -67,10 +69,6 @@ static inline number num_mod(number a, number b) {
 	if (b == 0)
 		return 0;
 	return (number)((int64_t)(int32_t)a % (int64_t)(int32_t)b);
-}
-
-static inline number num_exp(number a, number b) {
-	return 0;
 }
 
 static inline number num_and(number a, number b) {
@@ -108,6 +106,8 @@ static inline number num_floor(number a) {
 static inline number num_ceil(number a) {
 	return num_floor(a + ((1 << INT_SHIFT_BITS) - 1));
 }
+
+number num_pow(number a, number b);
 
 /* positive numbers only */
 int num_parse(const char* begin, const char* end, number* outnum);
