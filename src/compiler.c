@@ -34,6 +34,7 @@
 	X(tk_switch, "switch", _, _, _, _, _) \
 	X(tk_this, "this", _, _, _, _, _) \
 	X(tk_true, "true", _, _, _, _, _) \
+	X(tk_typeof, "typeof", _, _, _, _, _) \
 	X(tk_undefined, "undefined", _, _, _, _, _) \
 	X(tk_while, "while", _, _, _, _, _) \
 	X(tk_keyword_end, _, _, _, _, _, _) \
@@ -1420,13 +1421,14 @@ static struct sval compile_postfix(struct context* ctx) {
 }
 
 static struct sval compile_unary(struct context* ctx) {
-	if (ctx->token == tk_not || ctx->token == tk_bnot || ctx->token == tk_add || ctx->token == tk_sub) {
+	if (ctx->token == tk_not || ctx->token == tk_bnot || ctx->token == tk_add || ctx->token == tk_sub || ctx->token == tk_typeof) {
 		enum opcode op;
 		switch (ctx->token) {
 		case tk_not: op = op_not; break;
 		case tk_bnot: op = op_bnot; break;
 		case tk_add: op = op_plus; break;
 		case tk_sub: op = op_neg; break;
+		case tk_typeof: op = op_typeof; break;
 		default: internal_error(ctx);
 		}
 		next_token(ctx);

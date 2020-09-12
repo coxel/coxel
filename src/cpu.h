@@ -97,6 +97,7 @@
 	X(op_gern, "ge", REG, REG, NUM) \
 	X(op_genr, "ge", REG, NUM, REG) \
 	X(op_in, "in", REG, REG, REG) \
+	X(op_typeof, "typeof", REG, REG, _) \
 	/* object creation */ \
 	X(op_arr, "arr", REG, _, _) \
 	X(op_apush, "apush", REG, REG, _) \
@@ -225,9 +226,11 @@ struct funcobj {
 #define HEIGHT	144
 
 #define STRLIT_DEF(X) \
+	X(boolean) \
 	X(data) \
 	X(draw) \
 	X(false) \
+	X(function) \
 	X(get) \
 	X(global) \
 	X(height) \
@@ -235,11 +238,14 @@ struct funcobj {
 	X(lastIndexOf) \
 	X(length) \
 	X(null) \
+	X(number) \
+	X(object) \
 	X(onframe) \
 	X(pop) \
 	X(push) \
 	X(set) \
 	X(slice) \
+	X(string) \
 	X(substr) \
 	X(true) \
 	X(undefined) \
