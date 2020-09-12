@@ -60,6 +60,8 @@ void buf_set(struct cpu* cpu, struct bufobj* buf, number index, value_t value) {
 	if (unlikely(idx >= len))
 		return;
 	int byte = num_uint(value_get_num(value));
+	if (unlikely(byte > 255))
+		return;
 	data[idx] = (uint8_t)byte;
 }
 

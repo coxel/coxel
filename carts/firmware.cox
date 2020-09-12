@@ -462,81 +462,136 @@ function onframe_codeEditor() {
 }
 
 let sprite = dev_newbuf(8192);
-let sprVy = 0;
-let sprId = 0;
-let sprSize = 8;
 let color = 0;
 let mcpos = { x:-1, y:-1 };
-let mcsprVy = 0;
+let sprPickerState = {};
 
-function onframe_spriteEditor() {
+function scrollBar(x,y,w,h,n,dir,state){
   let mpos = dev_mpos();
-  if (dev_keyp("mleft"))
-    mcpos = mpos;
-  if (dev_key("ctrl") && dev_keyp("tab"))
-    onframe = onframe_codeEditor;
-
-  cls();
-  fillRect(0, 8, 160, 128, 8);
-  
-  // Draw sprite sheet scrollbar
-  fillRect(64, 8, 4, 128, 4);
+  if (state.scrl == undefined) {
+    state.scrl = 0;
+    state.mcscrl = 0;
+  }
+  let l = dir == "vert" ? h : w;
+  let step = max(1, floor(l / n) - 2);
+  let bar = l - n * step;
+  fillRect(x, y, w, h, 4);
   let dc = 9;
-  if (mpos.x >= 64 && mpos.x < 68
-    && mpos.y >= 8+6*sprVy
-    && mpos.y < 40+6*sprVy) {
-    dc = 10;
-    if (dev_keyp("mleft"))
-      mcsprVy = sprVy;
+  if (mpos.x >= x && mpos.x < x+w
+    && mpos.y >= y && mpos.y < y+h) {
+    let clicked = false;
+    if (dir == "vert"
+      && mpos.y>=y+step*state.scrl
+      && mpos.y<y+bar+step*state.scrl)
+      clicked = true;
+    if (dir == "hori"
+      && mpos.x>=x+step*state.scrl
+      && mpos.x<x+bar+step*state.scrl)
+      clicked = true;
+    if (clicked) {
+      dc = 10;
+      if (dev_keyp("mleft"))
+        state.mcscrl = state.scrl;
+    }
   }
   if (dev_key("mleft")
-    && mcpos.x >= 64 && mcpos.x < 68
-    && mcpos.y >= 8 && mcpos.y < 136) {
-    sprVy = floor((mpos.y-mcpos.y)/6)
-      + mcsprVy;
-    sprVy = max(0, min(sprVy, 16));
+    && mcpos.x >= x && mcpos.x < x+w
+    && mcpos.y >= y && mcpos.y < y+h) {
+    let dist;
+    if (dir == "vert")
+      dist = mpos.y - mcpos.y;
+    else
+      dist = mpos.x - mcpos.x;
+    state.scrl = floor(dist / step)
+      + state.mcscrl;
+    state.scrl = max(0,
+      min(state.scrl, n));
     dc = 9;
   }
-  fillRect(64, 8+6*sprVy, 4, 32, dc);
+  if (dir == "vert") {
+    fillRect(x, y+step*state.scrl, 
+      w, bar, dc);
+  }
+  else {
+    fillRect(x+step*state.scrl, y,
+      bar, h, dc);
+  }
+}
+
+function spritePicker(x, y, h, state) {
+  if (!state.init) {
+    state.sprId = 0;
+    state.sprSize = 8;
+    state.firstp = 0;
+    state.init = true;
+  }
+  let mpos = dev_mpos();
+  scrollBar(x+64,y,4,128,16,"vert",state);
 
   // Draw sprite sheet picker
   let VMEM_ = VMEM;
   let sprite_ = sprite;
-  let p = sprVy * 8 * 32;
-  for (let i = 0; i < 128; i++) {
-    let vp = (8 + i) * 160 / 2;
+  let p = state.scrl * 8 * 32;
+  for (let i = 0; i < h; i++) {
+    let vp = ((y + i) * 160 + x) / 2;
     for (let j = 0; j < 64; j += 2)
       VMEM_[vp++] = sprite_[p++];
   }
   if (dev_mwheel() != 0) {
     let wheel = dev_mwheel();
     if (wheel > 0) {
-      wheel = min(wheel,4);
-      sprSize=min(64,sprSize<<wheel);
+      wheel = min(wheel, 4);
+      state.sprSize = min(64,
+        state.sprSize << wheel);
     }
     else {
-      wheel = min(-wheel,4);
-      sprSize=max(8,sprSize>>wheel);
+      wheel = min(-wheel, 4);
+      state.sprSize = max(8,
+        state.sprSize >> wheel);
     }
   }
   if (dev_key("mleft")
-    && mpos.x>=0 && mpos.x<64
-    && mpos.y>=8 && mpos.y<136) {
-    let id = floor(mpos.x/8)
-      + 8*floor((mpos.y-8)/8);
-    sprId = sprVy * 8 + id;
+    && mcpos.x>=x && mcpos.x<x+64
+    && mcpos.y>=y && mcpos.y<y+h
+    && mpos.x>=x && mpos.x<x+64
+    && mpos.y>=y && mpos.y<y+h) {
+    let id = floor((mpos.x-x)/8)
+      + 8*floor((mpos.y-y)/8);
+    state.sprId = state.scrl * 8 + id;
   }
-  sprId = min(sprId & -8, 256-sprSize)
-    + min(sprId % 8, (64-sprSize)/8);
-  let row = floor(sprId / 8);
-  let col = sprId % 8;
+  state.sprId =
+    min(state.sprId & -8,
+      256 - state.sprSize)
+    + min(state.sprId % 8,
+      (64 - state.sprSize) / 8);
+  let row = floor(state.sprId / 8);
+  let col = state.sprId % 8;
   // First pixel position in buffer
-  let firstp = (row*512+col*8)>>1;
-  row -= sprVy;
-  rect(col*8,8+row*8,sprSize,sprSize,15);
+  state.firstp = (row*512+col*8)>>1;
+  row -= state.scrl;
+  rect(x + col * 8, y + row * 8,
+    state.sprSize, state.sprSize, 15);
+}
 
+function onframe_spriteEditor() {
+  let mpos = dev_mpos();
+  if (dev_keyp("mleft"))
+    mcpos = mpos;
+  if (dev_key("ctrl") & dev_keyp("tab"))
+    onframe = onframe_assetEditor;
+
+  cls();
+  fillRect(0, 8, 160, 128, 8);
+  
+  let s = sprPickerState;
+  spritePicker(0, 8, 128, s);
+  
+  let firstp = s.firstp;
+  
   // Draw canvas
-  let ps = 64 / sprSize;
+  let VMEM_ = VMEM;
+  let sprite_ = sprite;
+  let ps = 64 / s.sprSize;
   rect(79,17,66,66,0);
   if (ps == 1) {
     for (let i = 0; i < 64; i++) {
@@ -568,6 +623,8 @@ function onframe_spriteEditor() {
       sprite[p]=(sprite[p]&0xF)+c*16;
   };
   if (dev_key("mleft")
+    && mcpos.x>=80 && mcpos.x<144
+    && mcpos.y>=18 && mcpos.y<82
     && mpos.x>=80 && mpos.x<144
     && mpos.y>=18 && mpos.y<82) {
     let x = floor((mpos.x - 80) / ps);
@@ -598,20 +655,263 @@ function onframe_spriteEditor() {
   rect(119+(color%4)*8,
     95+floor(color/4)*8,10,10,15);
 
-  stat(sprId + "  "
-    + sprSize + "x" + sprSize);
+  stat(s.sprId + "  "
+    + s.sprSize + "x" + s.sprSize);
   drawToolbar();
+}
+
+let asset = [];
+let curAsset = 0;
+function onframe_assetEditor() {
+  let mpos = dev_mpos();
+  if (dev_keyp("mleft"))
+    mcpos = mpos;
+  if (dev_key("ctrl") && dev_keyp("tab"))
+    onframe = onframe_codeEditor;
+  cls();
+  if (asset.length == 0)
+    fillRect(0, 8, 84, 8, 4);
+  else {
+    fillRect(0, 8, 84, 8, 8);
+    print(asset[curAsset].name,1,9,0);
+  }
+  iconBtn(23, 84, 8, null, newAsset);
+  if (asset.length) {
+    switch (asset[curAsset].type) {
+    case "map": mapEditor(); break;
+    }
+  }
+  drawToolbar();
+}
+
+function newAsset() {
+  let old = onframe;
+  let items = [
+  { icon: 16, name: "Text",
+  f: function(obj) {
+    obj.type = "text";
+  }},
+  { icon: 17, name: "Map",
+  f: function(obj) {
+    obj.type = "map";
+    obj.width = 8;
+    obj.height = 8;
+    obj.data = dev_newbuf(
+      obj.width * obj.height);
+  }},
+  { icon: 18, name: "Music",
+  f: function(obj) {
+    obj.type = "music";
+  }}];
+  let select = function(i) {
+    onframe = old;
+    statInput(items[i].name + " Name:",
+      function(name) {
+      if (name) {
+        for (let a of asset)
+          if (a.name == name) {
+            stat(name+" already exists");
+            return;
+          }
+        let obj = {};
+        obj.name = name;
+        items[i].f(obj);
+        asset.push(obj);
+      }
+      else
+        stat("Cancelled");
+    });
+  };
+  let sel = 0;
+  onframe = function() {
+    let len = items.length;
+    let x = 10;
+    let y = 30;
+    let w = 60;
+    let h = 8;
+    if (dev_keyp("up"))
+      sel = max(0, sel - 1);
+    else if (dev_keyp("down"))
+      sel = min(items.length-1, sel+1);
+    else if (dev_keyp("return"))
+      select(sel);
+    fillRect(x, y, w, h * len, 4);
+    fillRect(x, y + sel * h, w, h, 5);
+    let mpos = dev_mpos();
+    for (let i = 0; i < len; i++) {
+      if (mpos.x >= x && mpos.x < x + w
+        && mpos.y >= y + i * h
+        && mpos.y < y + (i + 1) * h) {
+        pal(15, 6);
+        if (dev_keyp("mleft"))
+          select(i);
+      }
+      spr(items[i].icon, x, y+i*h);
+      print(items[i].name, x+8,2+y+i*h);
+      pal();
+    }
+    drawToolbar();
+  };
+}
+
+let mapSpritePickerState = {};
+let mapVS = {}, mapHS = {};
+function mapEditor() {
+  let mpos = dev_mpos();
+  let s = mapSpritePickerState;
+  spritePicker(92, 8, 128, s);
+  let w = 88, h = 108;
+  let wn = ceil(w / 8);
+  let hn = ceil(h / 8);
+  let map = asset[curAsset];
+  let xn = map.width - wn;
+  let yn = map.height - hn;
+  scrollBar(88,24,4,102,yn,"vert",mapVS);
+  scrollBar(0,132,85,4,xn,"hori",mapHS);
+  let endy = 132;
+  let x0 = mapHS.scrl, y0 = mapVS.scrl;
+  let ax = 0, ay = 24;
+  let VMEM_ = VMEM;
+  let sprite_ = sprite;
+  hn = min(hn, map.height);
+  wn = min(wn, map.width);
+  for (let y = 0; y < hn; y++) {
+    let ycnt = min(8, (endy-ay-y*8));
+    for (let x = 0; x < wn; x++) {
+      let t = map.data[(y0+y)*map.width
+        + (x0 + x)];
+      if (t == 0)
+        continue;
+      let p = (ay+y*8)*80 + (ax+x)*4;
+      let sp = floor(t / 8) * 8 * 32
+        + t % 8 * 4;
+      for (let i = 0; i < ycnt; i++) {
+        VMEM_[p + 0] = sprite_[sp + 0];
+        VMEM_[p + 1] = sprite_[sp + 1];
+        VMEM_[p + 2] = sprite_[sp + 2];
+        VMEM_[p + 3] = sprite_[sp + 3];
+        p += 80;
+        sp += 32;
+      }
+    }
+  }
+  if (dev_key("mleft")
+    && mcpos.x>=ax && mcpos.x<ax+8*wn
+    && mcpos.y>=ay && mcpos.y<ay+8*hn) {
+    let x = floor((mpos.x - ax) / 8);
+    let y = floor((mpos.y - ay) / 8);
+    if (x>=0 && x<wn && y>=0 && y<hn) {
+      x += x0, y += y0;
+      map.data[y*map.width+x] = s.sprId;
+    }
+  }
+  fillRect(0, 16, 92, 8, 14);
+  iconBtn(28, 0, 16, null, function() {
+    let dir = "";
+    let resize = function(tw, th,
+      sx, sy, tx, ty, cw, ch) {
+      let w = map.width, h = map.height;
+      let ndata = dev_newbuf(tw * th);
+      let data = map.data;
+      for (let i = 0; i < ch; i++) {
+        let s = (sy + i) * w + sx;
+        let t = (ty + i) * tw + tx;
+        for (let j = 0; j < cw; j++)
+          ndata[t++] = data[s++];
+      }
+      map.width = tw;
+      map.height = th;
+      map.data = ndata;
+    };
+    let incFunc = function() {
+      let w = map.width, h = map.height;
+      switch (dir) {
+      case "left":
+        resize(w+1,h,0,0,1,0,w,h);
+        break;
+      case "down":
+        resize(w,h+1,0,0,0,0,w,h);
+        break;
+      case "right":
+        resize(w+1,h,0,0,0,0,w,h);
+        break;
+      case "up":
+        resize(w,h+1,0,0,0,1,w,h);
+        break;
+      }
+    };
+    let decFunc = function() {
+      let w = map.width, h = map.height;
+      switch (dir) {
+      case "left":
+        if (w > 1)
+          resize(w-1,h,1,0,0,0,w-1,h);
+        break;
+      case "down":
+        if (h > 1)
+          resize(w,h-1,0,0,0,0,w,h-1);
+        break;
+      case "right":
+        if (w > 1)
+          resize(w-1,h,0,0,0,0,w-1,h);
+        break;
+      case "up":
+        if (h > 1)
+          resize(w,h-1,0,1,0,0,w,h-1);
+        break;
+      }
+    };
+    onframe = function() {
+      fillRect(10, 50, 70, 50, 4);
+      if (btnp("left"))
+        dir = "left";
+      iconBtn(27,10,70,null,function(){
+        dir = "left";
+      }, dir == "left");
+      if (btnp("down"))
+        dir = "down";
+      iconBtn(26,20,80,null,function(){
+        dir = "down";
+      }, dir == "down");
+      if (btnp("right"))
+        dir = "right";
+      iconBtn(25,30,70,null,function(){
+        dir = "right";
+      }, dir == "right");
+      if (btnp("up"))
+        dir = "up";
+      iconBtn(24,20,60,null,function(){
+        dir = "up";
+      }, dir == "up");
+      iconBtn(22,50,70,null,decFunc);
+      iconBtn(23,60,70,null,incFunc);
+      if (btnp("a"))
+        incFunc();
+      if (btnp("b"))
+        decFunc();
+      iconBtn(21,70,50,null,function(){
+        onframe = onframe_assetEditor;
+      });
+      if (btnp("x"))
+        onframe = onframe_assetEditor;
+      print(map.width+"x"+map.height,
+        50, 60);
+    };
+  });
 }
 
 function getCart() {
   return {
     code: code,
     sprite: sprite,
+    asset: asset,
   };
 }
 
 function iconBtn(id,x,y,cset,f,sel) {
   let pos = dev_mpos();
+  if (!cset)
+    cset = [15, 7, 6];
   let c = cset[0];
   if (sel)
     c = cset[2];
@@ -679,6 +979,11 @@ function drawToolbar() {
               sprite = res.sprite;
             else
               sprite = dev_newbuf(8192);
+            if (res.asset)
+              asset = res.asset;
+            else
+              asset = [];
+            curAsset = 0;
           }
         }
       }
@@ -686,13 +991,15 @@ function drawToolbar() {
   }
   fillRect(0, 0, 160, 8, 14);
   fillRect(0, 136, 160, 8, 14);
-  let tcset = [15, 7, 6];
-  iconBtn(0, 0, 0, tcset, function() {
+  iconBtn(0, 0, 0, null, function() {
     onframe = onframe_codeEditor;
   }, onframe == onframe_codeEditor);
-  iconBtn(1, 8, 0, tcset, function() {
+  iconBtn(1, 8, 0, null, function() {
     onframe = onframe_spriteEditor;
   }, onframe == onframe_spriteEditor);
+  iconBtn(2, 16, 0, null, function() {
+    onframe = onframe_assetEditor;
+  }, onframe == onframe_assetEditor);
   if (statMsg != "")
     print(statMsg,1,138,statColor);
   print(statCpu(),136,138,statColor);
@@ -815,12 +1122,12 @@ onframe = onframe_codeEditor;
 
 	>sprites
 0000000000000000000000000000000000000000000000000000000000000000
-00f00f0000ffff00000000000000000000000000000000000000000000000000
-0f0000f00ff00ff0000000000000000000000000000000000000000000000000
+00f00f0000ffff000ff0fff00000000000000000000000000000000000000000
+0f0000f00ff00ff00ff0fff00000000000000000000000000000000000000000
 0f0000f00f0000f0000000000000000000000000000000000000000000000000
-0f0000f000ffff00000000000000000000000000000000000000000000000000
-0f0000f00ff00ff0000000000000000000000000000000000000000000000000
-00f00f0000f00f00000000000000000000000000000000000000000000000000
+0f0000f000ffff000ff0fff00000000000000000000000000000000000000000
+0f0000f00ff00ff00ff0fff00000000000000000000000000000000000000000
+00f00f0000f00f000ff0fff00000000000000000000000000000000000000000
 0000000000000000000000000000000000000000000000000000000000000000
 0000000000000000000000000000000000000000000000000000000000000000
 0000f00000f00000000000000000000000000000000000000000000000000000
@@ -830,3 +1137,18 @@ onframe = onframe_codeEditor;
 f0fff00000fffff0000000000000000000000000000000000000000000000000
 f00f0000f00fff00000000000000000000000000000000000000000000000000
 fff00000f000f000000000000000000000000000000000000000000000000000
+0000000000000000000000000000000000000000000000000000000000000000
+0ffffff00f0ff0f000fffff000000000000000000f0000f000000000000ff000
+0ffffff00000000000f000f0000000000000000000f00f0000000000000ff000
+000ff0000f0ff0f000f000f00000000000000000000ff0000ffffff00ffffff0
+000ff0000f0ff0f000f000f00000000000000000000ff0000ffffff00ffffff0
+000ff000000000000ff00ff0000000000000000000f00f0000000000000ff000
+000ff0000f0ff0f00ff00ff000000000000000000f0000f000000000000ff000
+0000000000000000000000000000000000000000000000000000000000000000
+0000000000000000000000000000000000000000000000000000000000000000
+000ff0000000f000000ff000000f00000f0000f0000000000000000000000000
+00ffff000000ff00000ff00000ff00000f0ff0f0000000000000000000000000
+0ffffff00ffffff0000ff0000ffffff00ff00ff0000000000000000000000000
+000ff0000ffffff00ffffff00ffffff00ff00ff0000000000000000000000000
+000ff0000000ff0000ffff0000ff00000f0ff0f0000000000000000000000000
+000ff0000000f000000ff000000f00000f0000f0000000000000000000000000

@@ -17,6 +17,8 @@
 #define SPRITESHEET_HEIGHT	256
 #define SPRITESHEET_BYTES	(SPRITESHEET_WIDTH * SPRITESHEET_HEIGHT / 2)
 #define MAX_CODE_SIZE		65535
+#define MAX_ASSET_SIZE		65536
+#define MAX_MAP_SIZE		16384
 #define SYM_MAX_LEN			256
 #define MAX_K				65535
 #define MAX_KOP				255
@@ -223,8 +225,12 @@ struct funcobj {
 #define HEIGHT	144
 
 #define STRLIT_DEF(X) \
+	X(data) \
+	X(draw) \
 	X(false) \
+	X(get) \
 	X(global) \
+	X(height) \
 	X(indexOf) \
 	X(lastIndexOf) \
 	X(length) \
@@ -232,10 +238,12 @@ struct funcobj {
 	X(onframe) \
 	X(pop) \
 	X(push) \
+	X(set) \
 	X(slice) \
 	X(substr) \
 	X(true) \
-	X(undefined)
+	X(undefined) \
+	X(width)
 
 struct gfx {
 	uint8_t screen[WIDTH * HEIGHT / 2];
@@ -339,6 +347,7 @@ number to_number(struct cpu* cpu, value_t val);
 struct strobj* to_string(struct cpu* cpu, value_t val);
 struct arrobj* to_arr(struct cpu* cpu, value_t val);
 struct tabobj* to_tab(struct cpu* cpu, value_t val);
+struct assetmapobj* to_assetmap(struct cpu* cpu, value_t val);
 void func_destroy(struct cpu* cpu, struct funcobj* func);
 void upval_destroy(struct cpu* cpu, struct upval* upval);
 

@@ -95,6 +95,13 @@ static void gc_traverse_val(struct cpu* cpu, value_t value) {
 		gc_traverse_func(cpu, func);
 		return;
 	}
+	case t_assetmap: {
+		struct assetmapobj* assetmap = (struct assetmapobj*)value_get_object(value);
+		check_mark(assetmap);
+		struct bufobj* buf = (struct bufobj*)readptr(assetmap->buf);
+		gc_mark(buf);
+		return;
+	}
 	default: return;
 	}
 }

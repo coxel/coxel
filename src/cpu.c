@@ -1,5 +1,6 @@
 #include "arr.h"
 #include "arith.h"
+#include "assetmap.h"
 #include "buf.h"
 #include "cpu.h"
 #include "gc.h"
@@ -211,6 +212,12 @@ FORCEINLINE struct tabobj* to_tab(struct cpu* cpu, value_t val) {
 	return (struct tabobj*)value_get_object(val);
 }
 
+struct assetmapobj* to_assetmap(struct cpu* cpu, value_t val) {
+	if (unlikely(value_get_type(val) != t_assetmap))
+		runtime_error(cpu, "Not an asset map object.");
+	return (struct assetmapobj*)value_get_object(val);
+}
+
 static FORCEINLINE int strict_equal(struct cpu* cpu, value_t lval, value_t rval) {
 	return lval == rval;
 }
@@ -259,6 +266,11 @@ static FORCEINLINE value_t fget(struct cpu* cpu, value_t obj, value_t field) {
 		cpu->cycles -= CYCLES_LOOKUP;
 		return tab_get(cpu, tab, to_string(cpu, field));
 	}
+	case t_assetmap: {
+		struct assetmapobj* map = (struct assetmapobj*)value_get_object(obj);
+		cpu->cycles -= CYCLES_LOOKUP;
+		return assetmap_fget(cpu, map, to_string(cpu, field));
+	}
 	default: runtime_error(cpu, "Not an object.");
 	}
 }
@@ -283,6 +295,10 @@ static FORCEINLINE value_t fgetnum(struct cpu* cpu, value_t obj, number field) {
 		cpu->cycles -= CYCLES_LOOKUP;
 		return tab_get(cpu, (struct tabobj*)value_get_object(obj), num_to_str(cpu, field));
 	}
+
+	case t_assetmap:
+		return value_undef();
+
 	default: runtime_error(cpu, "Not an object.");
 	}
 }
@@ -294,6 +310,7 @@ static FORCEINLINE value_t fgetstr(struct cpu* cpu, value_t obj, struct strobj* 
 	case t_buf: return buf_fget(cpu, (struct bufobj*)value_get_object(obj), field);
 	case t_arr: return arr_fget(cpu, (struct arrobj*)value_get_object(obj), field);
 	case t_tab: return tab_get(cpu, (struct tabobj*)value_get_object(obj), field);
+	case t_assetmap: return assetmap_fget(cpu, (struct assetmapobj*)value_get_object(obj), field);
 	default: runtime_error(cpu, "Not an object.");
 	}
 }
@@ -304,6 +321,7 @@ static FORCEINLINE void fset(struct cpu* cpu, value_t obj, value_t field, value_
 	case t_buf: buf_set(cpu, (struct bufobj*)value_get_object(obj), to_number(cpu, field), value); cpu->cycles -= CYCLES_ARRAY_LOOKUP; break;
 	case t_arr: arr_set(cpu, (struct arrobj*)value_get_object(obj), to_number(cpu, field), value); cpu->cycles -= CYCLES_ARRAY_LOOKUP; break;
 	case t_tab: tab_set(cpu, (struct tabobj*)value_get_object(obj), to_string(cpu, field), value); cpu->cycles -= CYCLES_LOOKUP;  break;
+	case t_assetmap: runtime_error(cpu, "Setting immutable object.");
 	default: runtime_error(cpu, "Not an object.");
 	}
 }
@@ -314,6 +332,7 @@ static FORCEINLINE void fsetn(struct cpu* cpu, value_t obj, number field, value_
 	case t_buf: buf_set(cpu, (struct bufobj*)value_get_object(obj), field, value); cpu->cycles -= CYCLES_ARRAY_LOOKUP; break;
 	case t_arr: arr_set(cpu, (struct arrobj*)value_get_object(obj), field, value); cpu->cycles -= CYCLES_ARRAY_LOOKUP; break;
 	case t_tab: tab_set(cpu, (struct tabobj*)value_get_object(obj), num_to_str(cpu, field), value); cpu->cycles -= CYCLES_LOOKUP; break;
+	case t_assetmap: runtime_error(cpu, "Setting immutable object.");
 	default: runtime_error(cpu, "Not an object.");
 	}
 }
@@ -330,6 +349,7 @@ static FORCEINLINE void fsets(struct cpu* cpu, value_t obj, struct strobj* field
 		cpu->cycles -= CYCLES_LOOKUP;
 		break;
 
+	case t_assetmap: runtime_error(cpu, "Setting immutable object.");
 	default: runtime_error(cpu, "Not an object.");
 	}
 }

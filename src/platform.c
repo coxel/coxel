@@ -1,3 +1,4 @@
+#include "assetmap.h"
 #include "compiler.h"
 #include "cpu.h"
 #include "gc.h"
@@ -33,6 +34,17 @@ void cart_destroy(struct cart* cart) {
 		platform_free_fast((void*)cart->code);
 	if (cart->sprite)
 		platform_free_fast((void*)cart->sprite);
+	if (cart->assets) {
+		for (int i = 0; i < cart->asset_cnt; i++) {
+			struct asset* asset = &cart->assets[i];
+			switch (asset->type) {
+			case at_map:
+				platform_free(asset->map.data);
+				break;
+			}
+		}
+		platform_free((void*)cart->assets);
+	}
 }
 
 struct parse_context {
@@ -58,6 +70,23 @@ static void next_char(struct parse_context* ctx) {
 }
 
 static struct run_result parse_cart(void* file, uint32_t filesize, struct cart* cart) {
+#define READ_HEXCHAR(out)	do { \
+		int ok; \
+		int low = from_hex(ctx.ch, &ok); \
+		if (!ok) { \
+			ret.err = "Malformed cart data."; \
+			goto fail; \
+		} \
+		next_char(&ctx); \
+		int high = from_hex(ctx.ch, &ok); \
+		if (!ok) { \
+			ret.err = "Malformed cart data."; \
+			goto fail; \
+		} \
+		next_char(&ctx); \
+		out = low + (high << 4); \
+	} while (0)
+
 #define TEMP_BUF_SIZE	16
 	struct parse_context ctx;
 	ctx.file = file;
@@ -96,6 +125,8 @@ static struct run_result parse_cart(void* file, uint32_t filesize, struct cart* 
 	}
 	/* Read auxiliary sections */
 	cart->sprite = NULL;
+	cart->asset_cnt = 0;
+	cart->assets = (struct asset*)platform_malloc(MAX_ASSET_SIZE);
 	while (ctx.ch != 0) {
 		if (ctx.ch == '\r' || ctx.ch == '\n') {
 			next_char(&ctx);
@@ -122,25 +153,11 @@ static struct run_result parse_cart(void* file, uint32_t filesize, struct cart* 
 				char* sprite = (char*)platform_malloc_fast(SPRITESHEET_BYTES);
 				cart->sprite = sprite;
 				int t = 0;
-				int ok;
 				for (int i = 0; i < SPRITESHEET_HEIGHT; i++) {
 					if (ctx.ch == '\t' || ctx.ch == 0)
 						break;
-					for (int j = 0; j < SPRITESHEET_WIDTH; j += 2) {
-						int low = from_hex(ctx.ch, &ok);
-						if (!ok) {
-							ret.err = "Malformed cart data.";
-							goto fail;
-						}
-						next_char(&ctx);
-						int high = from_hex(ctx.ch, &ok);
-						if (!ok) {
-							ret.err = "Malformed cart data.";
-							goto fail;
-						}
-						next_char(&ctx);
-						sprite[t++] = low + (high << 4);
-					}
+					for (int j = 0; j < SPRITESHEET_WIDTH; j += 2)
+						READ_HEXCHAR(sprite[t++]);
 					/* Skip EOLs */
 					while (ctx.ch == '\r' || ctx.ch == '\n')
 						next_char(&ctx);
@@ -148,12 +165,59 @@ static struct run_result parse_cart(void* file, uint32_t filesize, struct cart* 
 				/* Fill remaining data with zero */
 				memset(sprite + t, 0, SPRITESHEET_BYTES - t);
 			}
+			else if (str_equal(temp_buf, name_len, MAP_MAGIC, sizeof(MAP_MAGIC) - 1)) {
+				struct asset* asset = &cart->assets[cart->asset_cnt];
+				int name_len = 0;
+				while (name_len < TEMP_BUF_SIZE && ctx.ch != 0 && ctx.ch != '\n') {
+					if (ctx.ch != '\r')
+						temp_buf[name_len++] = ctx.ch;
+					next_char(&ctx);
+				}
+				if (name_len > ASSET_NAME_LEN) {
+					ret.err = "Asset name too long.";
+					goto fail;
+				}
+				next_char(&ctx);
+				memcpy(asset->name, temp_buf, name_len);
+				asset->type = at_map;
+				char* buf = (char *)&cart->assets[cart->asset_cnt + 1];
+				int p = 0;
+				// TODO: Length check
+				int w = -1;
+				int h;
+				for (h = 0;; h++) {
+					if (ctx.ch == '\n' || ctx.ch == 0)
+						break;
+					int j;
+					for (j = 0;; j++) {
+						if (ctx.ch == '\r' || ctx.ch == '\n')
+							break;
+						READ_HEXCHAR(buf[p++]);
+					}
+					if (w == -1)
+						w = j;
+					else if (w != j) {
+						ret.err = "Width mismatch in map lines.";
+						goto fail;
+					}
+					/* Skip EOLs */
+					while (ctx.ch == '\r' || ctx.ch == '\n')
+						next_char(&ctx);
+				}
+				asset->map.width = w;
+				asset->map.height = h;
+				asset->map.data = platform_malloc(w * h);
+				memcpy(asset->map.data, buf, p);
+				cart->asset_cnt++;
+			}
 			else {
 				ret.err = "Invalid section name.";
 				goto fail;
 			}
 		}
 	}
+	if (!cart->asset_cnt)
+		cart->assets = NULL;
 	return ret;
 
 fail:
@@ -195,6 +259,15 @@ struct run_result console_save(const char* filename, const struct cart* cart) {
 		char __v = (x); \
 		WRITE(&__v, 1); \
 	} while (0)
+#define WRITE_HEXCHAR(ch) do { \
+		unsigned char c = (unsigned char)ch; \
+		WRITE_CHAR(to_hex(c & 15)); \
+		WRITE_CHAR(to_hex(c >> 4)); \
+	} while (0)
+#define WRITE_INT(i) do { \
+		char buf[16]; \
+		WRITE(buf, int_format(i, buf)); \
+	} while (0)
 
 	struct run_result ret;
 	ret.err = NULL;
@@ -204,26 +277,41 @@ struct run_result console_save(const char* filename, const struct cart* cart) {
 		ret.err = "Create cart file failed.";
 		return ret;
 	}
-	else {
-		WRITE(cart->code, cart->codelen);
-		int spritesheet_len = get_buf_len(cart->sprite, SPRITESHEET_BYTES);
-		if (spritesheet_len > 0) {
-			WRITE(SEPARATOR_MAGIC, sizeof(SEPARATOR_MAGIC) - 1);
-			WRITE(SPRITESHEET_MAGIC, sizeof(SPRITESHEET_MAGIC) - 1);
+	WRITE(cart->code, cart->codelen);
+	int spritesheet_len = get_buf_len(cart->sprite, SPRITESHEET_BYTES);
+	if (spritesheet_len > 0) {
+		WRITE(SEPARATOR_MAGIC, sizeof(SEPARATOR_MAGIC) - 1);
+		WRITE(SPRITESHEET_MAGIC, sizeof(SPRITESHEET_MAGIC) - 1);
+		WRITE_CHAR('\n');
+		int lines = (spritesheet_len + (SPRITESHEET_WIDTH / 2 - 1)) / (SPRITESHEET_WIDTH / 2);
+		int t = 0;
+		for (int i = 0; i < lines; i++) {
+			for (int j = 0; j < SPRITESHEET_WIDTH; j += 2)
+				WRITE_HEXCHAR(cart->sprite[t++]);
 			WRITE_CHAR('\n');
-			int lines = (spritesheet_len + (SPRITESHEET_WIDTH / 2 - 1)) / (SPRITESHEET_WIDTH / 2);
+		}
+	}
+	for (int asset_num = 0; asset_num < cart->asset_cnt; asset_num++) {
+		WRITE(SEPARATOR_MAGIC, sizeof(SEPARATOR_MAGIC) - 1);
+		struct asset* asset = &cart->assets[asset_num];
+		switch (asset->type) {
+		case at_map: {
+			struct mapasset* map = &asset->map;
+			WRITE(MAP_MAGIC, sizeof(MAP_MAGIC) - 1);
+			WRITE_CHAR('\n');
+			WRITE(asset->name, strlen(asset->name));
+			WRITE_CHAR('\n');
 			int t = 0;
-			for (int i = 0; i < lines; i++) {
-				for (int j = 0; j < SPRITESHEET_WIDTH; j += 2) {
-					WRITE_CHAR(to_hex((unsigned char)cart->sprite[t] & 15));
-					WRITE_CHAR(to_hex((unsigned char)cart->sprite[t] >> 4));
-					t++;
-				}
+			for (int i = 0; i < map->height; i++) {
+				for (int j = 0; j < map->width; j++)
+					WRITE_HEXCHAR(map->data[t++]);
 				WRITE_CHAR('\n');
 			}
+			break;
 		}
-		platform_close(file);
+		}
 	}
+	platform_close(file);
 	return ret;
 }
 
@@ -406,6 +494,21 @@ struct run_result console_run(const struct cart* cart) {
 		memcpy(&cpu->gfx.sprite, cart->sprite, SPRITESHEET_BYTES);
 	else
 		memset(&cpu->gfx.sprite, 0, SPRITESHEET_BYTES);
+
+	/* Load assets */
+	struct tabobj* assets_tab = tab_new(cpu);
+	for (int i = 0; i < cart->asset_cnt; i++) {
+		struct asset* asset = &cart->assets[i];
+		struct strobj* name = str_intern(cpu, asset->name, strlen(asset->name));
+		switch (asset->type) {
+		case at_map: {
+			struct assetmapobj* assetmap = assetmap_new_copydata(cpu, asset->map.width, asset->map.height, asset->map.data);
+			tab_set(cpu, assets_tab, name, value_assetmap(assetmap));
+			break;
+		}
+		}
+	}
+	tab_set(cpu, (struct tabobj*)readptr(cpu->globals), str_intern(cpu, "ASSET", 5), value_tab(assets_tab));
 
 	cpu->parent = g_cur_cpu;
 	g_cpus[slot] = cpu;

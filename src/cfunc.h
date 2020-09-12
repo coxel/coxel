@@ -47,7 +47,10 @@ typedef value_t(*cfunc)(struct cpu* cpu, int sp, int nargs);
 	X(libarr_slice) \
 	X(libstr_indexOf) \
 	X(libstr_lastIndexOf) \
-	X(libstr_substr)
+	X(libstr_substr) \
+	X(libassetmap_draw) \
+	X(libassetmap_get) \
+	X(libassetmap_set)
 
 enum cfuncname {
 #define X(name) cf_##name,

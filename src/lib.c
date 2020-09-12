@@ -1,3 +1,4 @@
+#include "arr.h"
 #include "buf.h"
 #include "gfx.h"
 #include "lib.h"
@@ -404,6 +405,56 @@ static struct cart get_cartobj(struct cpu* cpu, struct tabobj* tab) {
 		else
 			cart.sprite = (const char*)buf->data;
 	}
+	value_t assets_value = tab_get(cpu, tab, str_intern(cpu, "asset", 5));
+	if (value_get_type(assets_value) != t_arr) {
+		cart.assets = NULL;
+		cart.asset_cnt = 0;
+	}
+	else {
+		// TODO: Memory leak when runtime error
+		struct arrobj* assets = (struct arrobj*)value_get_object(assets_value);
+		cart.asset_cnt = assets->len;
+		cart.assets = (struct asset*)platform_malloc_fast(sizeof(struct asset) * cart.asset_cnt);
+		for (int i = 0; i < cart.asset_cnt; i++) {
+			struct asset* cart_asset = &cart.assets[i];
+			value_t asset_value = ((value_t*)readptr(assets->data))[i];
+			if (value_get_type(asset_value) != t_tab)
+				runtime_error(cpu, "Asset is not an object.");
+			struct tabobj* asset = (struct tabobj*)value_get_object(asset_value);
+			value_t name_value = tab_get(cpu, asset, str_intern(cpu, "name", 4));
+			if (value_get_type(name_value) != t_str)
+				runtime_error(cpu, "Asset name is not a string.");
+			struct strobj* name_str = (struct strobj*)value_get_object(name_value);
+			memcpy(cart_asset->name, name_str->data, name_str->len);
+			value_t type_value = tab_get(cpu, asset, str_intern(cpu, "type", 4));
+			if (value_get_type(type_value) != t_str)
+				runtime_error(cpu, "Asset type is not a string.");
+			struct strobj* type_str = (struct strobj*)value_get_object(type_value);
+			if (str_equal(type_str->data, type_str->len, "map", 3)) {
+				value_t width_value = tab_get(cpu, asset, str_intern(cpu, "width", 5));
+				if (!value_is_num(width_value))
+					runtime_error(cpu, "Map width is not a number.");
+				value_t height_value = tab_get(cpu, asset, str_intern(cpu, "height", 6));
+				if (!value_is_num(height_value))
+					runtime_error(cpu, "Map height is not a number.");
+				value_t data_value = tab_get(cpu, asset, str_intern(cpu, "data", 4));
+				if (value_get_type(data_value) != t_buf)
+					runtime_error(cpu, "Map data is not a buffer.");
+				int width = num_uint(value_get_num(width_value));
+				int height = num_uint(value_get_num(height_value));
+				if (width * height > MAX_MAP_SIZE)
+					runtime_error(cpu, "Map too large");
+				struct bufobj* data = (struct bufobj*)value_get_object(data_value);
+				if (width * height != data->len)
+					runtime_error(cpu, "Map and buffer size mismatch.");
+				cart_asset->map.width = width;
+				cart_asset->map.height = height;
+				cart_asset->map.data = data->data;
+			}
+			else
+				runtime_error(cpu, "Unrecognized asset type.");
+		}
+	}
 	return cart;
 }
 
@@ -414,6 +465,26 @@ static struct tabobj* parse_cartobj(struct cpu* cpu, const struct cart* cart) {
 	if (cart->sprite) {
 		value_t sprite_value = value_buf(buf_new_copydata(cpu, cart->sprite, SPRITESHEET_BYTES));
 		tab_set(cpu, tab, str_intern(cpu, "sprite", 6), sprite_value);
+	}
+	if (cart->asset_cnt) {
+		struct arrobj* assets = arr_new(cpu);
+		for (int i = 0; i < cart->asset_cnt; i++) {
+			struct asset* cart_asset = &cart->assets[i];
+			struct tabobj* asset = tab_new(cpu);
+			struct strobj* name = str_intern(cpu, cart_asset->name, strlen(cart_asset->name));
+			tab_set(cpu, asset, str_intern(cpu, "name", 4), value_str(name));
+			switch (cart_asset->type) {
+			case at_map:
+				tab_set(cpu, asset, str_intern(cpu, "type", 4), value_str(str_intern(cpu, "map", 3)));
+				tab_set(cpu, asset, str_intern(cpu, "width", 5), value_num(num_kuint(cart_asset->map.width)));
+				tab_set(cpu, asset, str_intern(cpu, "height", 6), value_num(num_kuint(cart_asset->map.height)));
+				struct bufobj* buf = buf_new_copydata(cpu, cart_asset->map.data, cart_asset->map.width * cart_asset->map.height);
+				tab_set(cpu, asset, str_intern(cpu, "data", 4), value_buf(buf));
+				break;
+			}
+			arr_push(cpu, assets, value_tab(asset));
+		}
+		tab_set(cpu, tab, str_intern(cpu, "asset", 5), value_arr(assets));
 	}
 	return tab;
 }

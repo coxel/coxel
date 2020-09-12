@@ -165,6 +165,36 @@ void gfx_spr(struct gfx* gfx, int sx, int sy, int sw, int sh, int x, int y, int 
 		}
 }
 
+void gfx_map(struct gfx* gfx, int mapw, int maph, uint8_t* mapdata, int cx, int cy, int cw, int ch, int x, int y) {
+	x -= gfx->cam_x;
+	y -= gfx->cam_y;
+	for (int i = 0; i < ch; i++) {
+		if (cy + i < 0 || cy + i >= maph)
+			continue;
+		for (int j = 0; j < cw; j++) {
+			int tx = x + SPRITE_WIDTH * j;
+			int ty = y + SPRITE_HEIGHT * i;
+			if (cx + j < 0 || cx + j >= mapw)
+				continue;
+			int spr_id = mapdata[(cy + i) * mapw + (cx + j)];
+			if (spr_id == 0)
+				continue;
+			int sx = spr_id % (SPRITESHEET_WIDTH / SPRITE_WIDTH) * SPRITE_WIDTH;
+			int sy = spr_id / (SPRITESHEET_WIDTH / SPRITE_WIDTH);
+			for (int si = 0; si < SPRITE_HEIGHT; si++) {
+				for (int sj = 0; sj < SPRITE_WIDTH; sj++) {
+					int c = gfx->sprite[((sy + si) * SPRITESHEET_WIDTH + (sx + sj)) / 2];
+					if (tx % 2 == 0)
+						c = c & 0xF;
+					else
+						c = c >> 4;
+					gfx_setpixel(gfx, tx + sj, ty + si, c);
+				}
+			}
+		}
+	}
+}
+
 extern const char font[][3];
 
 static void gfx_vscroll(struct gfx* gfx, int up_amount) {

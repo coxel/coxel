@@ -5,6 +5,8 @@ set(SOURCES
 	arith.h
 	arr.c
 	arr.h
+	assetmap.c
+	assetmap.h
 	buf.c
 	buf.h
 	cfunc.c

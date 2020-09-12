@@ -1,6 +1,8 @@
 #ifndef _VALUE_H
 #define _VALUE_H
 
+#include "config.h"
+
 #include <stdint.h>
 
 #define forcereadptr(aptr)	(((aptr) == 0) ? NULL : (void*)((uint8_t*)cpu + (aptr)))
@@ -43,6 +45,7 @@ enum type {
 	t_cfunc = 21,
 	t_callinfo = 23,
 	t_upval = 25,
+	t_assetmap = 27,
 };
 
 #define value_is_num(val)			(((val) & 1) == 0)
@@ -69,6 +72,7 @@ enum type {
 #define value_func(func)			(value_type_object(t_func, func))
 #define value_cfunc(cfunc)			(value_type_payload(t_cfunc, cfunc))
 #define value_callinfo(ss, pc)		(value_type_payload(t_callinfo, ((pc) << 8) + (ss)))
+#define value_assetmap(map)			(value_type_object(t_assetmap, map))
 
 struct obj {
 	OBJ_HEADER;
@@ -123,6 +127,12 @@ struct tabobj {
 	uint16_t freelist;
 	int bucket_cnt;
 	ptr(uint16_t) bucket;
+};
+
+struct assetmapobj {
+	OBJ_HEADER;
+	int width, height;
+	ptr(struct bufobj) buf;
 };
 
 #endif

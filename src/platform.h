@@ -8,6 +8,7 @@
 
 #define SEPARATOR_MAGIC		"\n\t"
 #define SPRITESHEET_MAGIC	">sprites"
+#define MAP_MAGIC			">map"
 
 NORETURN void platform_error(const char* msg);
 NORETURN void platform_exit(int code);
@@ -32,10 +33,31 @@ int platform_read(void* file, char* data, int len);
 int platform_write(void* file, const char* data, int len);
 void platform_close(void* file);
 
+enum assettype {
+	at_map,
+};
+
+#define ASSET_NAME_LEN	16
+
+struct mapasset {
+	int width, height;
+	uint8_t* data;
+};
+
+struct asset {
+	enum assettype type;
+	char name[ASSET_NAME_LEN + 1];
+	union {
+		struct mapasset map;
+	};
+};
+
 struct cart {
 	const char* code;
 	int codelen;
 	const char* sprite;
+	int asset_cnt;
+	struct asset* assets;
 };
 struct run_result {
 	const char* err;
