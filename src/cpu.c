@@ -226,7 +226,7 @@ static FORCEINLINE int strict_equal_num(struct cpu* cpu, value_t lval, number nu
 	return value_get_num(lval) == num;
 }
 
-static FORCEINLINE struct strobj* typeof(struct cpu* cpu, value_t val) {
+static FORCEINLINE struct strobj* get_typeof(struct cpu* cpu, value_t val) {
 	if (value_is_num(val))
 		return LIT(number);
 	switch (value_get_type(val)) {
@@ -714,7 +714,7 @@ void cpu_continue(struct cpu* cpu) {
 		CASE(op_gern) retval = value_bool((int32_t)lvalnum >= (int32_t)rnum); DISPATCH();
 		CASE(op_genr) retval = value_bool((int32_t)lnum >= (int32_t)rvalnum); DISPATCH();
 		CASE(op_in) retval = value_bool(tab_in(cpu, to_tab(cpu, rval), lvalstr)); DISPATCH();
-		CASE(op_typeof) retval = value_str(typeof(cpu, lval)); DISPATCH();
+		CASE(op_typeof) retval = value_str(get_typeof(cpu, lval)); DISPATCH();
 		CASE(op_arr) retval = value_arr(arr_new(cpu)); cpu->cycles -= CYCLES_ALLOC; DISPATCH();
 		CASE(op_apush) arr_push(cpu, to_arr(cpu, retval), lval); cpu->cycles -= CYCLES_ALLOC; DISPATCH();
 		CASE(op_tab) retval = value_tab(tab_new(cpu)); cpu->cycles -= CYCLES_ALLOC; DISPATCH();
