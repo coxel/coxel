@@ -232,7 +232,7 @@ value_t lib_abs(struct cpu* cpu, int sp, int nargs) {
 }
 
 value_t lib_max(struct cpu* cpu, int sp, int nargs) {
-	number ret = 0x80000000;
+	number ret = NUM_MIN;
 	for (int i = 0; i < nargs; i++) {
 		number cur = to_number(cpu, ARG(i));
 		if ((int32_t)cur > (int32_t)ret)
@@ -242,7 +242,7 @@ value_t lib_max(struct cpu* cpu, int sp, int nargs) {
 }
 
 value_t lib_min(struct cpu* cpu, int sp, int nargs) {
-	number ret = 0x7FFFFFFF;
+	number ret = NUM_MAX;
 	for (int i = 0; i < nargs; i++) {
 		number cur = to_number(cpu, ARG(i));
 		if ((int32_t)cur < (int32_t)ret)

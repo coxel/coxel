@@ -30,6 +30,7 @@ let kws = [
   "switch",
   "this",
   "true",
+  "typeof",
   "undefined",
   "while",
 ];
@@ -165,12 +166,26 @@ let vx = 0, vy = 0;
 
 let blinkTimer = 0;
 
+function ult(a, b) {
+  if (a >= 0) {
+    if (a < b || b < 0)
+      return true;
+  }
+  else if (b < 0 && a < b)
+    return true;
+  return false;
+}
+
+function ule(a, b) {
+  return a == b || ult(a, b);
+}
+
 function umin(a, b) {
-  return min(a, b);
+  return ult(a, b) ? a : b;
 }
 
 function umax(a, b) {
-  return max(a, b);
+  return ult(a, b) ? b : a;
 }
 
 function updateX(tx) {
@@ -181,7 +196,7 @@ function updateX(tx) {
   else
     ex = tx;
   vx = umin(vx, rx);
-  vx = umax(vx, rx - 39); /* TODO: u */
+  vx = umax(vx + 39, rx) - 39;
   return rx;
 }
 
@@ -193,7 +208,7 @@ function updateY() {
     ++y;
   }
   vy = umin(vy, y);
-  vy = umax(vy, y - 17); /* TODO: u */
+  vy = umax(vy + 17, y) - 17;
   return y;
 }
 
@@ -219,7 +234,7 @@ function drawCode() {
   fillRect(0, 8, 160, 128, 8);
   camera(vx * 4, 0);
   for (;; c++) {
-    let insel = beg <= c && c < end;
+    let insel = ule(beg,c)&&ult(c,end);
     if (insel)
       fillRect(cx-1,cy-1,4,7);
     if (c == cend) {
@@ -230,7 +245,7 @@ function drawCode() {
     }
     if (c == code.length)
       break;
-    if (c >= tokEnd)
+    if (ule(tokEnd, c))
       nextTok(c);
     let ch = code[c];
     if (ch == "\n") {
@@ -347,7 +362,7 @@ function goto() {
 function getIndent(p) {
   let s = 1 + code.lastIndexOf("\n", p);
   let ret = 0;
-  for (let i = s; i<code.length; i++) {
+  for (let i = s; i!=code.length; i++) {
     if (code[i] == " ")
       ret++;
     else
@@ -371,7 +386,7 @@ function onframe_codeEditor() {
     insert("\n");
     let indent = getIndent(cend - 2);
     let t = "";
-    for (let i = 0; i < indent; i++)
+    for (let i = 0; i != indent; i++)
       t += " ";
     insert(t);
   }
