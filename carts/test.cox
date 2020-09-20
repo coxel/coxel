@@ -695,6 +695,7 @@ test("String", function() {
   check("" + "a", "a");
   check('a' + '', "a");
   check("'" + '"', "\'\"");
+  check("0" + "123456789", "0123456789");
 });
 
 test("String-indexOf", function() {
@@ -815,6 +816,19 @@ test("Object", function() {
   obj.e = obj;
   check(obj.e, obj);
   check(obj.e.e.e, obj);
+});
+
+test("typeof", function() {
+  check(typeof undefined, "undefined");
+  check(typeof null, "object");
+  check(typeof false, "boolean");
+  check(typeof true, "boolean");
+  check(typeof 0x12345, "number");
+  check(typeof "abc", "string");
+  check(typeof '', "string");
+  check(typeof [], "object");
+  check(typeof {}, "object");
+  check(typeof VMEM, "object");
 });
 
 test("Recursive", function() {
