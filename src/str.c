@@ -19,40 +19,80 @@ int copy_allowed_chars(char* dest, int destlen, const char* src, int srclen) {
 	return n;
 }
 
-/* murmurhash3 x86_32 */
 uint32_t str_hash(const void* key, int len) {
-	const uint8_t* data = (const uint8_t*)key;
-	const int nblocks = len / 4;
+	struct str_part part = { .data = key, .len = len };
+	return str_parts_hash(&part, 1);
+}
 
-	uint32_t h1 = 0; /* seed */
-
+/* Derived from murmurhash3 x86_32 algorithm */
+uint32_t str_parts_hash(const struct str_part* parts, int nparts) {
 	const uint32_t c1 = 0xcc9e2d51;
 	const uint32_t c2 = 0x1b873593;
 
-	const uint32_t* blocks = (const uint32_t*)(data + nblocks * 4);
+	uint32_t tot_len = 0;
+	uint32_t h1 = 0;
+	uint32_t k1 = 0;
+	uint32_t leftover_bytes = 0;
+	for (int ipart = 0; ipart < nparts; ipart++) {
+		const struct str_part* part = &parts[ipart];
+		uint32_t plen = part->len;
+		const uint8_t* data = (const uint8_t*)part->data;
+		tot_len += plen;
+		if (leftover_bytes + plen >= 4) {
+			const uint32_t consume_bytes = 4 - leftover_bytes;
+			uint32_t p = 0;
+			switch (consume_bytes) {
+			case 4: p += data[3] << 24; /* fallthrough */
+			case 3: p += data[2] << 16; /* fallthrough */
+			case 2: p += data[1] << 8; /* fallthrough */
+			case 1: p += data[0];
+			}
+			k1 += p << (leftover_bytes * 8);
 
-	for (int i = -nblocks; i; i++) {
-		uint32_t k1 = blocks[i];
+			k1 *= c1;
+			k1 = ROTL32(k1, 15);
+			k1 *= c2;
 
+			h1 ^= k1;
+			h1 = ROTL32(h1, 13);
+			h1 = h1 * 5 + 0xe6546b64;
+
+			data += consume_bytes;
+			plen -= consume_bytes;
+
+			const int nblocks = plen / 4;
+			const uint32_t* blocks = (const uint32_t*)(data + nblocks * 4);
+			for (int i = -nblocks; i; i++) {
+				k1 = blocks[i];
+
+				k1 *= c1;
+				k1 = ROTL32(k1, 15);
+				k1 *= c2;
+
+				h1 ^= k1;
+				h1 = ROTL32(h1, 13);
+				h1 = h1 * 5 + 0xe6546b64;
+			}
+			k1 = 0;
+			leftover_bytes = 0;
+			data = (const uint8_t*)blocks;
+		}
+		uint32_t p = 0;
+		switch (plen & 3) {
+		case 3: p += data[2] << 16; /* fallthrough */
+		case 2: p += data[1] << 8; /* fallthrough */
+		case 1: p += data[0];
+		}
+		k1 += p << (leftover_bytes * 8);
+		leftover_bytes += plen & 3;
+	}
+	if (leftover_bytes) {
 		k1 *= c1;
 		k1 = ROTL32(k1, 15);
 		k1 *= c2;
-
 		h1 ^= k1;
-		h1 = ROTL32(h1, 13);
-		h1 = h1 * 5 + 0xe6546b64;
 	}
-
-	const uint8_t* tail = (const uint8_t*)(data + nblocks * 4);
-	uint32_t k1 = 0;
-	switch (len & 3)
-	{
-	case 3: k1 ^= tail[2] << 16; /* fallthrough */
-	case 2: k1 ^= tail[1] << 8; /* fallthrough */
-	case 1: k1 ^= tail[0];
-		k1 *= c1; k1 = ROTL32(k1, 15); k1 *= c2; h1 ^= k1;
-	};
-	h1 ^= len;
+	h1 ^= tot_len;
 	h1 = fmix32(h1);
 	return h1;
 }
@@ -62,10 +102,21 @@ int str_equal(const void* key1, int len1, const void* key2, int len2) {
 		return 0;
 	const uint8_t* k1 = (const uint8_t*)key1;
 	const uint8_t* k2 = (const uint8_t*)key2;
-	for (int i = 0; i < len1; i++)
-		if (k1[i] != k2[i])
+	return memcmp(k1, k2, len1) == 0;
+}
+
+int str_parts_equal(const struct str_part* parts, int nparts, const void* key, int len) {
+	const uint8_t* k = (const uint8_t*)key;
+	for (int i = 0; i < nparts; i++) {
+		const struct str_part* part = &parts[i];
+		if (part->len > len)
 			return 0;
-	return 1;
+		if (memcmp(part->data, k, part->len))
+			return 0;
+		k += part->len;
+		len -= part->len;
+	}
+	return len == 0;
 }
 
 int str_vsprintf(char* buf, const char* format, va_list args) {
@@ -153,12 +204,12 @@ void str_destroy(struct cpu* cpu, struct strobj* str) {
 	platform_error("Internal error.");
 }
 
-static struct strobj* str_intern_impl(struct cpu* cpu, const char* str, int len, int nogc) {
-	uint32_t hash = str_hash(str, len);
+static struct strobj* str_parts_intern_impl(struct cpu* cpu, const struct str_part* parts, int nparts, int nogc) {
+	uint32_t hash = str_parts_hash(parts, nparts);
 	uint32_t bucket = hash % cpu->strtab_size;
 	ptr(struct strobj)* strtab = (ptr(struct strobj)*)readptr(cpu->strtab);
 	for (struct strobj* p = readptr(strtab[bucket]); p; p = readptr(p->next)) {
-		if (str_equal(p->data, p->len, str, len))
+		if (hash == p->hash && str_parts_equal(parts, nparts, p->data, p->len))
 			return p;
 	}
 	if (cpu->strtab_cnt * 4 >= cpu->strtab_size * 3) { /* >75% load? */
@@ -167,6 +218,9 @@ static struct strobj* str_intern_impl(struct cpu* cpu, const char* str, int len,
 		strtab = (ptr(struct strobj)*)readptr(cpu->strtab);
 		bucket = hash % cpu->strtab_size;
 	}
+	uint32_t len = 0;
+	for (int i = 0; i < nparts; i++)
+		len += parts[i].len;
 	struct strobj* obj;
 	if (nogc)
 		obj = (struct strobj*)mem_alloc(&cpu->alloc, sizeof(struct strobj) + len);
@@ -174,33 +228,45 @@ static struct strobj* str_intern_impl(struct cpu* cpu, const char* str, int len,
 		obj = (struct strobj*)gc_alloc(cpu, t_str, sizeof(struct strobj) + len);
 	obj->hash = hash;
 	obj->len = len;
-	memcpy(obj->data, str, len);
+	char* p = obj->data;
+	for (int i = 0; i < nparts; i++) {
+		const struct str_part* part = &parts[i];
+		memcpy(p, part->data, part->len);
+		p += part->len;
+	}
 	obj->next = strtab[bucket];
 	strtab[bucket] = writeptr(obj);
 	return obj;
 }
 
 struct strobj* str_intern(struct cpu* cpu, const char* str, int len) {
-	return str_intern_impl(cpu, str, len, 0);
+	struct str_part part = { .data = str, .len = len };
+	return str_parts_intern_impl(cpu, &part, 1, 0);
 }
 
 struct strobj* str_intern_nogc(struct cpu* cpu, const char* str, int len) {
-	return str_intern_impl(cpu, str, len, 1);
+	struct str_part part = { .data = str, .len = len };
+	return str_parts_intern_impl(cpu, &part, 1, 1);
+}
+
+struct strobj* str_parts_intern(struct cpu* cpu, const struct str_part* parts, int nparts) {
+	return str_parts_intern_impl(cpu, parts, nparts, 0);
+}
+
+struct strobj* str_parts_intern_nogc(struct cpu* cpu, const struct str_part* parts, int nparts) {
+	return str_parts_intern_impl(cpu, parts, nparts, 1);
 }
 
 struct strobj* str_concat(struct cpu* cpu, struct strobj* lval, struct strobj* rval) {
-	// TODO: Reduce temporary memory consumption
 	if (lval->len == 0)
 		return rval;
 	if (rval->len == 0)
 		return lval;
-	int totlen = lval->len + rval->len;
-	char* temp = (char*)mem_alloc(&cpu->alloc, totlen);
-	memcpy(temp, lval->data, lval->len);
-	memcpy(temp + lval->len, rval->data, rval->len);
-	struct strobj* retval = str_intern(cpu, temp, lval->len + rval->len);
-	mem_dealloc(&cpu->alloc, temp);
-	return retval;
+	struct str_part parts[2] = {
+		{.data = lval->data, .len = lval->len},
+		{.data = rval->data, .len = rval->len},
+	};
+	return str_parts_intern(cpu, parts, 2);
 }
 
 value_t str_get(struct cpu* cpu, struct strobj* str, number index) {
