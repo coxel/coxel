@@ -5,19 +5,50 @@
 
 #include <stdint.h>
 
-#define forcereadptr(aptr)	(((aptr) == 0) ? NULL : (void*)((uint8_t*)cpu + (aptr)))
-#define forcewriteptr(aptr)	(((aptr) == NULL) ? 0 : (uint32_t)((uint8_t*)(aptr) - (uint8_t*)cpu))
+#ifdef DEBUG_NULLABLE_PTR
+static FORCEINLINE void* forcereadptr_impl(struct cpu* cpu, uint32_t aptr) {
+	if (aptr == 0)
+		__debugbreak();
+	return (void*)((uint8_t*)cpu + (aptr));
+}
+static FORCEINLINE uint32_t forcewriteptr_impl(struct cpu* cpu, void* aptr) {
+	if (aptr == NULL)
+		__debugbreak();
+	return (uint32_t)((uint8_t*)(aptr)-(uint8_t*)cpu);
+}
+#define forcereadptr(aptr)		forcereadptr_impl(cpu, aptr)
+#define forcewriteptr(aptr)		forcewriteptr_impl(cpu, aptr)
+#else
+#define forcereadptr(aptr)	((void*)((uint8_t*)cpu + (aptr)))
+#define forcewriteptr(aptr)	((uint32_t)((uint8_t*)(aptr) - (uint8_t*)cpu))
+#endif
+
+static FORCEINLINE void* forcereadptr_nullable_impl(struct cpu* cpu, uint32_t aptr) {
+	return aptr == 0 ? NULL : forcereadptr(aptr);
+}
+
+static FORCEINLINE uint32_t forcewriteptr_nullable_impl(struct cpu* cpu, void* aptr) {
+	return aptr == NULL ? 0 : forcewriteptr(aptr);
+}
+#define forcereadptr_nullable(aptr)		forcereadptr_nullable_impl(cpu, aptr)
+#define forcewriteptr_nullable(aptr)	forcewriteptr_nullable_impl(cpu, aptr)
+
 #ifdef RELATIVE_ADDRESSING
 typedef uint32_t ptr_t;
 #define readptr(aptr)		forcereadptr(aptr)
 #define writeptr(aptr)		forcewriteptr(aptr)
+#define readptr_nullable(aptr)		forcereadptr_nullable(aptr)
+#define writeptr_nullable(aptr)		forcewriteptr_nullable(aptr)
 #define ptr(type)			ptr_t
 #else
 typedef void* ptr_t;
 #define readptr(aptr)		(aptr)
 #define writeptr(aptr)		(aptr)
+#define readptr_nullable(aptr)		(aptr)
+#define writeptr_nullable(aptr)		(aptr)
 #define ptr(type)			type*
 #endif
+#define ptr_nullable(type)	ptr(type)
 
 #define OBJ_HEADER	ptr(struct obj) gcnext; enum type type
 
@@ -102,7 +133,7 @@ struct bufobj {
 struct arrobj {
 	OBJ_HEADER;
 	uint32_t len, cap;
-	ptr(value_t) data;
+	ptr_nullable(value_t) data;
 };
 
 struct arriterobj {
@@ -123,10 +154,10 @@ struct tabent {
 struct tabobj {
 	OBJ_HEADER;
 	int entry_cnt;
-	ptr(struct tabent) entry;
+	ptr_nullable(struct tabent) entry;
 	uint16_t freelist;
 	int bucket_cnt;
-	ptr(uint16_t) bucket;
+	ptr_nullable(uint16_t) bucket;
 };
 
 struct assetmapobj {

@@ -5,23 +5,23 @@
 struct tabobj* tab_new(struct cpu* cpu) {
 	struct tabobj* tab = (struct tabobj*)gc_alloc(cpu, t_tab, sizeof(struct tabobj));
 	tab->entry_cnt = 0;
-	tab->entry = writeptr(NULL);
+	tab->entry = writeptr_nullable(NULL);
 	tab->freelist = TAB_NULL;
 	tab->bucket_cnt = 0;
-	tab->bucket = writeptr(NULL);
+	tab->bucket = writeptr_nullable(NULL);
 	return tab;
 }
 
 void tab_destroy(struct cpu* cpu, struct tabobj* tab) {
-	mem_dealloc(&cpu->alloc, readptr(tab->entry));
-	mem_dealloc(&cpu->alloc, readptr(tab->bucket));
+	mem_dealloc(&cpu->alloc, readptr_nullable(tab->entry));
+	mem_dealloc(&cpu->alloc, readptr_nullable(tab->bucket));
 	mem_dealloc(&cpu->alloc, tab);
 }
 
 static void tab_grow(struct cpu* cpu, struct tabobj* tab) {
 	/* grow freelist */
 	int new_entry_cnt = tab->entry_cnt == 0 ? 4 : tab->entry_cnt * 2;
-	struct tabent* entries = (struct tabent*)mem_realloc(&cpu->alloc, readptr(tab->entry), new_entry_cnt * sizeof(struct tabent));
+	struct tabent* entries = (struct tabent*)mem_realloc(&cpu->alloc, readptr_nullable(tab->entry), new_entry_cnt * sizeof(struct tabent));
 	tab->entry = writeptr(entries);
 	tab->freelist = tab->entry_cnt;
 	for (uint16_t i = tab->entry_cnt; i < new_entry_cnt; i++)
@@ -30,7 +30,7 @@ static void tab_grow(struct cpu* cpu, struct tabobj* tab) {
 	if (new_entry_cnt * 4 > tab->bucket_cnt * 3) {
 		/* grow hash table */
 		int new_bucket_cnt = tab->bucket_cnt == 0 ? 16 : tab->bucket_cnt * 2;
-		uint16_t* buckets = (uint16_t*)mem_realloc(&cpu->alloc, readptr(tab->bucket), new_bucket_cnt * sizeof(uint16_t));
+		uint16_t* buckets = (uint16_t*)mem_realloc(&cpu->alloc, readptr_nullable(tab->bucket), new_bucket_cnt * sizeof(uint16_t));
 		tab->bucket = writeptr(buckets);
 		for (uint16_t i = 0; i < new_bucket_cnt; i++)
 			buckets[i] = TAB_NULL;

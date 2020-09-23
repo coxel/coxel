@@ -547,7 +547,7 @@ static void add_lineinfo(struct context* ctx, enum licmdtype type, int delta) {
 		internal_error(ctx);
 	struct cpu* cpu = ctx->cpu;
 	struct code* code = topcode();
-	struct licmd* lineinfo = readptr(code->lineinfo);
+	struct licmd* lineinfo = readptr_nullable(code->lineinfo);
 	while (delta) {
 		vec_add(ctx->alloc, lineinfo, code->lineinfo_cnt, code->lineinfo_cap);
 		struct licmd* cmd = &lineinfo[code->lineinfo_cnt - 1];
@@ -567,7 +567,7 @@ static void add_lineinfo(struct context* ctx, enum licmdtype type, int delta) {
 static struct ins* add_ins(struct context* ctx) {
 	struct cpu* cpu = ctx->cpu;
 	struct code* code = topcode();
-	struct ins* ins = readptr(code->ins);
+	struct ins* ins = readptr_nullable(code->ins);
 	vec_add(ctx->alloc, ins, code->ins_cnt, code->ins_cap);
 	code->ins = writeptr(ins);
 	int ins_id = code->ins_cnt - 1;
@@ -586,7 +586,7 @@ static int add_const(struct context* ctx, uint32_t val) {
 	/* find duplicate constant */
 	struct cpu* cpu = ctx->cpu;
 	struct code* code = topcode();
-	uint32_t* k = readptr(code->k);
+	uint32_t* k = readptr_nullable(code->k);
 	for (int i = 0; i < code->k_cnt; i++)
 		if (k[i] == val)
 			return i;
@@ -1059,7 +1059,7 @@ static void add_patch(struct context* ctx, enum patch_type type, int pc) {
 }
 
 static int add_code(struct cpu* cpu) {
-	struct code* codearr = readptr(cpu->code);
+	struct code* codearr = readptr_nullable(cpu->code);
 	vec_add(&cpu->alloc, codearr, cpu->code_cnt, cpu->code_cap);
 	cpu->code = writeptr(codearr);
 	struct code* code = &codearr[cpu->code_cnt - 1];
@@ -1067,16 +1067,16 @@ static int add_code(struct cpu* cpu) {
 	code->enclosure = -1;
 	code->ins_cnt = 0;
 	code->ins_cap = 0;
-	code->ins = writeptr(NULL);
+	code->ins = writeptr_nullable(NULL);
 	code->lineinfo_cnt = 0;
 	code->lineinfo_cap = 0;
-	code->lineinfo = writeptr(NULL);
+	code->lineinfo = writeptr_nullable(NULL);
 	code->k_cnt = 0;
 	code->k_cap = 0;
-	code->k = writeptr(NULL);
+	code->k = writeptr_nullable(NULL);
 	code->upval_cnt = 0;
 	code->upval_cap = 0;
-	code->upval = writeptr(NULL);
+	code->upval = writeptr_nullable(NULL);
 	return cpu->code_cnt - 1;
 }
 
@@ -1099,7 +1099,7 @@ static int add_updef(struct context* ctx, struct functx* fctx, int level, int re
 	struct cpu* cpu = ctx->cpu;
 	/* find duplicate */
 	struct code* code = &((struct code*)readptr(cpu->code))[fctx->code_id];
-	struct updef* upvals = readptr(code->upval);
+	struct updef* upvals = readptr_nullable(code->upval);
 	for (int i = 0; i < code->upval_cnt; i++) {
 		struct updef* def = &upvals[i];
 		if (def->in_stack == in_stack && def->idx == idx)
@@ -1160,7 +1160,7 @@ static struct sval compile_function(struct context* ctx, int global) {
 	struct code* code = &((struct code*)readptr(cpu->code))[func.code_id];
 	code->nargs = nargs;
 	code->enclosure = ctx->topfunc->code_id;
-	code->name = writeptr(name);
+	code->name = writeptr_nullable(name);
 	func.sym_level = ctx->sym_table.level;
 	ctx->topfunc = &func;
 	int old_sp = ctx->sp;

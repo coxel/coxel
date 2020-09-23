@@ -5,12 +5,12 @@ struct arrobj* arr_new(struct cpu* cpu) {
 	struct arrobj* arr = (struct arrobj*)gc_alloc(cpu, t_arr, sizeof(struct arrobj));
 	arr->len = 0;
 	arr->cap = 0;
-	arr->data = writeptr(NULL);
+	arr->data = writeptr_nullable(NULL);
 	return arr;
 }
 
 void arr_destroy(struct cpu* cpu, struct arrobj* arr) {
-	mem_dealloc(&cpu->alloc, readptr(arr->data));
+	mem_dealloc(&cpu->alloc, readptr_nullable(arr->data));
 	mem_dealloc(&cpu->alloc, arr);
 }
 
@@ -31,7 +31,7 @@ void arr_set(struct cpu* cpu, struct arrobj* arr, number index, value_t value) {
 }
 
 void arr_push(struct cpu* cpu, struct arrobj* arr, value_t value) {
-	value_t* data = (value_t*)readptr(arr->data);
+	value_t* data = (value_t*)readptr_nullable(arr->data);
 	vec_add(&cpu->alloc, data, arr->len, arr->cap);
 	arr->data = writeptr(data);
 	data[arr->len - 1] = value;
@@ -85,7 +85,7 @@ value_t libarr_slice(struct cpu* cpu, int sp, int nargs) {
 			end = normalize_index(end, arr->len);
 		}
 	}
-	value_t* values = (value_t*)readptr(arr->data);
+	value_t* values = (value_t*)readptr_nullable(arr->data);
 	struct arrobj* narr = arr_new(cpu);
 	// TODO: Optimization
 	for (int i = start; i < end; i++)

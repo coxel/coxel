@@ -181,7 +181,7 @@ void strtab_init(struct cpu* cpu) {
 	cpu->strtab_size = INITIAL_STRTAB_SIZE;
 	ptr(struct strobj)* strtab = (ptr(struct strobj)*)mem_alloc(&cpu->alloc, cpu->strtab_size * sizeof(ptr_t));
 	for (int i = 0; i < cpu->strtab_size; i++)
-		strtab[i] = writeptr(NULL);
+		strtab[i] = writeptr_nullable(NULL);
 	cpu->strtab = writeptr(strtab);
 }
 
@@ -207,8 +207,8 @@ void str_destroy(struct cpu* cpu, struct strobj* str) {
 static struct strobj* str_parts_intern_impl(struct cpu* cpu, const struct str_part* parts, int nparts, int nogc) {
 	uint32_t hash = str_parts_hash(parts, nparts);
 	uint32_t bucket = hash % cpu->strtab_size;
-	ptr(struct strobj)* strtab = (ptr(struct strobj)*)readptr(cpu->strtab);
-	for (struct strobj* p = readptr(strtab[bucket]); p; p = readptr(p->next)) {
+	ptr_nullable(struct strobj)* strtab = (ptr_nullable(struct strobj)*)readptr(cpu->strtab);
+	for (struct strobj* p = readptr_nullable(strtab[bucket]); p; p = readptr_nullable(p->next)) {
 		if (hash == p->hash && str_parts_equal(parts, nparts, p->data, p->len))
 			return p;
 	}

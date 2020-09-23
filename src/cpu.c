@@ -21,7 +21,7 @@ static NOINLINE void print_name(struct cpu* cpu, struct code* code) {
 		print_name(cpu, &((struct code*)readptr(cpu->code))[code->enclosure]);
 		gfx_print_simple(gfx, ":", 1, 14);
 	}
-	struct strobj* name = (struct strobj*)readptr(code->name);
+	struct strobj* name = (struct strobj*)readptr_nullable(code->name);
 	if (name)
 		gfx_print_simple(gfx, name->data, name->len, 14);
 	else if (code->enclosure == -1)
@@ -97,7 +97,7 @@ struct cpu* cpu_new() {
 	struct cpu* cpu = (struct cpu*)mem_new(CPU_MEM_SIZE, sizeof(struct cpu));
 	if (cpu == NULL)
 		return NULL;
-	cpu->gchead = writeptr(NULL);
+	cpu->gchead = writeptr_nullable(NULL);
 	cpu->parent = -1;
 	cpu->cycles = 0;
 	cpu->top_executed = 0;
@@ -106,13 +106,13 @@ struct cpu* cpu_new() {
 	strtab_init(cpu);
 	struct tabobj* globals = tab_new(cpu);
 	cpu->globals = writeptr(globals);
-	cpu->code = writeptr(NULL);
+	cpu->code = writeptr_nullable(NULL);
 	cpu->code_cnt = 0;
 	cpu->code_cap = 0;
-	cpu->stack = writeptr(NULL);
+	cpu->stack = writeptr_nullable(NULL);
 	cpu->sp = 0;
 	cpu->stack_cap = 0;
-	cpu->upval_open = writeptr(NULL);
+	cpu->upval_open = writeptr_nullable(NULL);
 	cpu->completed_frames = 0;
 	cpu->delayed_frames = 0;
 	cpu->last_delayed_frames = 0;
@@ -137,12 +137,12 @@ void cpu_destroy(struct cpu* cpu) {
 
 static void cpu_growstack(struct cpu* cpu) {
 	int new_cap = cpu->stack_cap == 0 ? 1024 : cpu->stack_cap * 2;
-	value_t* old_stack = (value_t*)readptr(cpu->stack);
+	value_t* old_stack = (value_t*)readptr_nullable(cpu->stack);
 	value_t* new_stack = (value_t*)mem_realloc(&cpu->alloc, old_stack, new_cap * sizeof(value_t));
 	cpu->stack = writeptr(new_stack);
 	cpu->stack_cap = new_cap;
 	/* adjust open upvalues */
-	for (struct upval* val = readptr(cpu->upval_open); val; val = readptr(val->next))
+	for (struct upval* val = readptr_nullable(cpu->upval_open); val; val = readptr(val->next))
 		val->val = writeptr((value_t*)readptr(val->val) - old_stack + new_stack);
 }
 
@@ -367,12 +367,12 @@ static FORCEINLINE void fsets(struct cpu* cpu, value_t obj, struct strobj* field
 }
 
 static void upval_unlink(struct cpu* cpu, struct upval* val) {
-	struct upval* prev = readptr(val->prev);
+	struct upval* prev = readptr_nullable(val->prev);
 	if (prev)
 		prev->next = val->next;
 	else
 		cpu->upval_open = val->next;
-	struct upval* next = readptr(val->next);
+	struct upval* next = readptr_nullable(val->next);
 	if (next)
 		next->prev = val->prev;
 }
@@ -380,9 +380,9 @@ static void upval_unlink(struct cpu* cpu, struct upval* val) {
 static void close_upvals(struct cpu* cpu, value_t* frame, int base) {
 	struct upval* val;
 	int cnt = 0;
-	for (val = readptr(cpu->upval_open); val && (value_t*)readptr(val->val) >= frame;) {
+	for (val = readptr_nullable(cpu->upval_open); val && (value_t*)readptr(val->val) >= frame;) {
 		value_t* v = readptr(val->val);
-		struct upval* next = readptr(val->next);
+		struct upval* next = readptr_nullable(val->next);
 		if (v - frame >= base) {
 			upval_unlink(cpu, val);
 			val->val_holder = *v;
@@ -745,12 +745,12 @@ void cpu_continue(struct cpu* cpu) {
 			struct funcobj* f = (struct funcobj*)gc_alloc(cpu, t_func,
 				sizeof(struct funcobj) + sizeof(struct upval) * code->upval_cnt);
 			f->code = writeptr(code);
-			struct updef* defs = readptr(code->upval);
+			struct updef* defs = readptr_nullable(code->upval);
 			for (int i = 0; i < code->upval_cnt; i++) {
 				struct updef* def = &defs[i];
 				if (def->in_stack) {
 					/* find existing open upvalue */
-					struct upval* val = readptr(cpu->upval_open);
+					struct upval* val = readptr_nullable(cpu->upval_open);
 					while (val) {
 						value_t* v = readptr(val->val);
 						if (v >= frame) {
@@ -760,15 +760,15 @@ void cpu_continue(struct cpu* cpu) {
 								break;
 							}
 						}
-						val = readptr(val->next);
+						val = readptr_nullable(val->next);
 					}
 					if (!val) {
 						/* not found, create new one */
 						val = (struct upval*)gc_alloc(cpu, t_upval, sizeof(struct upval));
 						val->val = writeptr(&frame[def->idx]);
-						val->prev = writeptr(NULL);
+						val->prev = writeptr_nullable(NULL);
 						val->next = cpu->upval_open;
-						struct upval* next = readptr(val->next);
+						struct upval* next = readptr_nullable(val->next);
 						if (next)
 							next->prev = writeptr(val);
 						cpu->upval_open = writeptr(val);
@@ -808,7 +808,7 @@ void cpu_continue(struct cpu* cpu) {
 				stack[ci + 1] = value_callinfo(stack_size, (uint16_t)(pc - (uint32_t*)readptr(code->ins)));
 				func = f;
 				code = (struct code*)readptr(func->code);
-				ktable = (uint32_t*)readptr(code->k);
+				ktable = (uint32_t*)readptr_nullable(code->k);
 				pc = (uint32_t*)readptr(code->ins);
 			}
 			else
@@ -832,7 +832,7 @@ void cpu_continue(struct cpu* cpu) {
 			cpu->sp -= value_get_ci_stacksize(ci);
 			update_stack();
 			code = (struct code*)readptr(func->code);
-			ktable = (uint32_t*)readptr(code->k);
+			ktable = (uint32_t*)readptr_nullable(code->k);
 			pc = &((uint32_t*)readptr(code->ins))[value_get_ci_pc(ci)];
 			DISPATCH();
 		}

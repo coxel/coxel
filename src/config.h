@@ -7,6 +7,7 @@
 #define COXEL_STATE_MAGIC		' xoc'
 #define COXEL_STATE_VERSION		0
 
+//#define DEBUG_NULLABLE_PTR
 //#define DEBUG_TIMING
 
 #ifdef DEBUG_TIMING

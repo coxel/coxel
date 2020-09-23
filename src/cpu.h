@@ -186,19 +186,19 @@ struct licmd {
 struct code {
 	int nargs;
 	int enclosure;
-	ptr(struct strobj) name;
+	ptr_nullable(struct strobj) name;
 	/* instructions */
 	int ins_cnt, ins_cap;
-	ptr(struct ins) ins;
+	ptr_nullable(struct ins) ins;
 	/* line info */
 	int lineinfo_cnt, lineinfo_cap;
-	ptr(struct licmd) lineinfo;
+	ptr_nullable(struct licmd) lineinfo;
 	/* constants */
 	int k_cnt, k_cap;
-	ptr(uint32_t) k;
+	ptr_nullable(uint32_t) k;
 	/* upvalues */
 	int upval_cnt, upval_cap;
-	ptr(struct updef) upval;
+	ptr_nullable(struct updef) upval;
 };
 
 struct upval {
@@ -207,8 +207,8 @@ struct upval {
 	union {
 		/* open field */
 		struct {
-			ptr(struct upval) prev;
-			ptr(struct upval) next;
+			ptr_nullable(struct upval) prev;
+			ptr_nullable(struct upval) next;
 		};
 		/* close field */
 		value_t val_holder;
@@ -266,7 +266,7 @@ struct cpu {
 
 	/* code objects */
 	int code_cnt, code_cap;
-	ptr(struct code) code;
+	ptr_nullable(struct code) code;
 
 	/* main function object */
 	ptr(struct funcobj) topfunc;
@@ -281,7 +281,7 @@ struct cpu {
 	int curpc;
 
 	/* interned string hash table */
-	ptr(ptr(struct strobj)) strtab;
+	ptr(ptr_nullable(struct strobj)) strtab;
 	int strtab_size, strtab_cnt;
 
 	/* interned string literals */
@@ -294,14 +294,14 @@ struct cpu {
 	ptr(struct tabobj) globals;
 
 	/* garbage collection */
-	ptr(struct obj) gchead;
+	ptr_nullable(struct obj) gchead;
 
 	/* stack additional info */
 	int sp, stack_cap;
-	ptr(value_t) stack;
+	ptr_nullable(value_t) stack;
 
 	/* points to first open upvalue (weak ref) */
-	ptr(struct upval) upval_open;
+	ptr_nullable(struct upval) upval_open;
 
 	/* frame counter */
 	int completed_frames;

@@ -15,7 +15,7 @@ struct obj* gc_alloc(struct cpu* cpu, enum type type, uint32_t size) {
 }
 
 #define gc_mark(obj)	((obj)->gcnext = (ptr_t)((uintptr_t)obj->gcnext | 1))
-#define gc_next(obj)	((void*)(((uintptr_t)readptr((uintptr_t)obj->gcnext & ~1))))
+#define gc_next(obj)	((void*)(((uintptr_t)readptr_nullable((uintptr_t)obj->gcnext & ~1))))
 #define gc_clear(obj)	((obj)->gcnext = (ptr_t)((uintptr_t)(obj)->gcnext & ~1))
 #define gc_getmark(obj)	((uintptr_t)obj->gcnext & 1)
 
@@ -127,7 +127,7 @@ void gc_collect(struct cpu* cpu) {
 
 	/* Sweep unreachable objects */
 	ptr_t* prev = &cpu->gchead;
-	for (struct obj* cur = readptr(*prev); cur;) {
+	for (struct obj* cur = readptr_nullable(*prev); cur;) {
 		if (gc_getmark(cur)) {
 			/* Clear mark */
 			*prev = writeptr(cur);
@@ -135,10 +135,10 @@ void gc_collect(struct cpu* cpu) {
 			cur = gc_next(cur);
 		}
 		else {
-			struct obj* next = readptr(cur->gcnext);
+			struct obj* next = readptr_nullable(cur->gcnext);
 			gc_free(cpu, cur);
 			cur = next;
 		}
 	}
-	*prev = writeptr(NULL);
+	*prev = writeptr_nullable(NULL);
 }
