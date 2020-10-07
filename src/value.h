@@ -50,36 +50,61 @@ typedef void* ptr_t;
 #endif
 #define ptr_nullable(type)	ptr(type)
 
-#define OBJ_HEADER	ptr(struct obj) gcnext; enum type type
+/* Object header format LSB ... MSB
+ * sstttttt | o......o
+ * ss: GC mark (white/black/gray)
+ * tttttt: Object type 
+ * o......o: 24-bit object offset pointer (gcnext)
+ */
 
-/* Value format
+#define gm_mark0				0
+#define gm_mark1				1
+#define gm_gray					2
+#define gm_white				(cpu->gcwhite)
+#define gm_black				(1 - cpu->gcwhite)
+#define OBJ_HEADER				uint32_t obj_header
+#define CONTAINER_OBJ_HEADER	OBJ_HEADER; ptr_nullable(struct containerobj) graylist
+
+#define obj_get_mark(obj)		((obj)->obj_header & 3)
+#define obj_get_type(obj)		(((obj)->obj_header >> 2) & 63)
+#define obj_get_gcnext(obj)		forcereadptr_nullable((obj)->obj_header >> 8)
+#define obj_mark(obj, mark)		do { \
+		uint32_t* _header = (uint32_t*)(obj); \
+		*_header = (*_header & ~3) | (mark); \
+	} while (0)
+#define make_obj_header(mark, type, next)	(mark + ((type) << 2) + (forcewriteptr_nullable(next) << 8))
+#define obj_header_get_gcnext(header)		forcereadptr_nullable((header) >> 8)
+#define obj_header_set_gcnext(header, next)	(((header) & 255) + (forcewriteptr_nullable(next) << 8))
+
+/* Value format LSB ... MSB
  * 0 f.......f  | i..i : Q16.15 fixed point number
- * 1ttttttt | 00000000 : Undefined and null
- * 1ttttttt | b 0....0 : Boolean
- * 1ttttttt | o......o : 24-bit object offset pointer
- * 1ttttttt | ss | p.p : Call info: 8-bit stack size, 16-bit pc
+ * 10tttttt | 00000000 : Undefined and null
+ * 10tttttt | b 0....0 : Boolean
+ * 10tttttt | ss | p.p : Call info: 8-bit stack size, 16-bit pc
+ * 11tttttt | o......o : 24-bit object offset pointer
  */
 typedef uint32_t value_t;
 
 enum type {
 	t_num = 0,
 	t_undef = 1,
-	t_null = 3,
-	t_bool = 5,
-	t_str = 7,
-	t_striter = 9,
-	t_buf = 11,
-	t_arr = 13,
-	t_arriter = 15,
-	t_tab = 17,
-	t_func = 19,
-	t_cfunc = 21,
-	t_callinfo = 23,
-	t_upval = 25,
-	t_assetmap = 27,
+	t_null = 5,
+	t_bool = 9,
+	t_cfunc = 13,
+	t_callinfo = 17,
+	t_str = 19,
+	t_striter = 23,
+	t_buf = 27,
+	t_arr = 31,
+	t_arriter = 35,
+	t_tab = 39,
+	t_func = 43,
+	t_upval = 47,
+	t_assetmap = 51,
 };
 
 #define value_is_num(val)			(((val) & 1) == 0)
+#define value_is_object(val)		(((val) & 3) == 3)
 #define value_get_num(val)			((number)(val))
 #define value_get_type(val)			((val) & 0xFF)
 #define value_get_bool(val)			((val) >> 8)
@@ -94,6 +119,8 @@ enum type {
 #define value_undef()				(value_type_payload(t_undef, 0))
 #define value_null()				(value_type_payload(t_null, 0))
 #define value_bool(b)				(value_type_payload(t_bool, b))
+#define value_cfunc(cfunc)			(value_type_payload(t_cfunc, cfunc))
+#define value_callinfo(ss, pc)		(value_type_payload(t_callinfo, ((pc) << 8) + (ss)))
 #define value_str(str)				(value_type_object(t_str, str))
 #define value_striter(striter)		(value_type_object(t_striter, striter))
 #define value_buf(buf)				(value_type_object(t_buf, buf))
@@ -101,12 +128,14 @@ enum type {
 #define value_arriter(arriter)		(value_type_object(t_arriter, arriter))
 #define value_tab(tab)				(value_type_object(t_tab, tab))
 #define value_func(func)			(value_type_object(t_func, func))
-#define value_cfunc(cfunc)			(value_type_payload(t_cfunc, cfunc))
-#define value_callinfo(ss, pc)		(value_type_payload(t_callinfo, ((pc) << 8) + (ss)))
 #define value_assetmap(map)			(value_type_object(t_assetmap, map))
 
 struct obj {
 	OBJ_HEADER;
+};
+
+struct containerobj {
+	CONTAINER_OBJ_HEADER;
 };
 
 struct strobj {
@@ -131,7 +160,7 @@ struct bufobj {
 };
 
 struct arrobj {
-	OBJ_HEADER;
+	CONTAINER_OBJ_HEADER;
 	uint32_t len, cap;
 	ptr_nullable(value_t) data;
 };
@@ -152,7 +181,7 @@ struct tabent {
 };
 
 struct tabobj {
-	OBJ_HEADER;
+	CONTAINER_OBJ_HEADER;
 	int entry_cnt;
 	ptr_nullable(struct tabent) entry;
 	uint16_t freelist;

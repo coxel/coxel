@@ -3,12 +3,6 @@
 
 #include <string.h>
 
-#ifdef _DEBUG
-#define check(x)			do { if (!(x)) __debugbreak(); } while (0)
-#else
-#define check(x)
-#endif
-
 #ifdef RELATIVE_ADDRESSING
 #define readptr(aptr)			((void*)((uint8_t*)alloc + (aptr)))
 #define writeptr(ptr, aptr)		((ptr) = (ptr_t)((uint8_t*)(aptr) - (uint8_t*)alloc))

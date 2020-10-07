@@ -162,6 +162,12 @@ struct updef {
 	uint8_t idx;
 };
 
+enum gcstate {
+	gs_reset,
+	gs_mark,
+	gs_sweep,
+};
+
 /* Line info VM format
  * Every byte is a command in a simple line info state machine.
  * The state machine has two state: instruction pointer and line pointer.
@@ -216,7 +222,7 @@ struct upval {
 };
 
 struct funcobj {
-	OBJ_HEADER;
+	CONTAINER_OBJ_HEADER;
 	ptr(struct code) code;
 	ptr(struct upval) upval[];
 };
@@ -295,6 +301,11 @@ struct cpu {
 
 	/* garbage collection */
 	ptr_nullable(struct obj) gchead;
+	ptr_nullable(struct containerobj) grayhead;
+	uint32_t sweephead; /* in obj_header format */
+	ptr_nullable(uint32_t) sweepcur;
+	enum gcstate gcstate;
+	int gcwhite;
 
 	/* stack additional info */
 	int sp, stack_cap;
@@ -304,7 +315,6 @@ struct cpu {
 	ptr_nullable(struct upval) upval_open;
 
 	/* frame counter */
-	int completed_frames;
 	int delayed_frames;
 	int last_delayed_frames;
 
@@ -367,6 +377,7 @@ void upval_destroy(struct cpu* cpu, struct upval* upval);
  * - Processing 4 string characters costs 1 additional cycle
  * - Copying 1 value costs 1 additional cycle
  * - Any cart IO related functions costs 16384 additional cycles
+ * - Traversing a value in garbage collector marking phase costs 1 cycle
  * string to number conversion anywhere costs 1 additional cycle
  * number/bool to string conversion anywhere costs 1 plus memory allocation cycles
  * Library functions define their own cycle counts
@@ -386,6 +397,7 @@ void upval_destroy(struct cpu* cpu, struct upval* upval);
 #define CYCLES_CARTIO		16384
 #define CYCLES_STR2NUM		1
 #define CYCLES_NUM2STR		(CYCLES_ALLOC + 1)
+#define CYCLES_TRAVERSE		1
 
 /* How many cycles can be run in a frame */
 #define CYCLES_PER_FRAME	139810

@@ -26,8 +26,10 @@ void arr_set(struct cpu* cpu, struct arrobj* arr, number index, value_t value) {
 	int idx = num_uint(index);
 	if (unlikely(idx >= arr->len))
 		runtime_error(cpu, "Index out of bound.");
-	else
+	else {
 		((value_t*)readptr(arr->data))[idx] = value;
+		gc_barrier(cpu, arr, value);
+	}
 }
 
 void arr_push(struct cpu* cpu, struct arrobj* arr, value_t value) {
@@ -35,6 +37,7 @@ void arr_push(struct cpu* cpu, struct arrobj* arr, value_t value) {
 	vec_add(&cpu->alloc, data, arr->len, arr->cap);
 	arr->data = writeptr(data);
 	data[arr->len - 1] = value;
+	gc_barrier(cpu, arr, value);
 }
 
 value_t arr_pop(struct cpu* cpu, struct arrobj* arr) {

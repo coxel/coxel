@@ -7,6 +7,8 @@
 #define COXEL_STATE_MAGIC		' xoc'
 #define COXEL_STATE_VERSION		0
 
+/* Debug helpers */
+
 //#define DEBUG_NULLABLE_PTR
 //#define DEBUG_TIMING
 
@@ -28,6 +30,12 @@
 #error Timing primitives not defined for this platform.
 #endif
 
+#endif
+
+#ifdef _DEBUG
+#define check(x)			do { if (!(x)) __debugbreak(); } while (0)
+#else
+#define check(x)
 #endif
 
 #if !defined(_DEBUG) && !defined(ESP_PLATFORM)

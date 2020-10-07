@@ -76,6 +76,7 @@ int tab_in(struct cpu* cpu, struct tabobj* tab, struct strobj* key) {
 }
 
 void tab_set(struct cpu* cpu, struct tabobj* tab, struct strobj* key, value_t value) {
+	gc_barrier_kv(cpu, tab, key, value);
 	uint16_t p = tab_find(cpu, tab, key, NULL);
 	if (p != TAB_NULL) {
 		((struct tabent*)readptr(tab->entry))[p].value = value;

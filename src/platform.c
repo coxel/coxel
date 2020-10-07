@@ -560,10 +560,7 @@ void console_update() {
 			else {
 				cpu->last_delayed_frames = cpu->delayed_frames;
 				cpu->delayed_frames = 0;
-				if (++cpu->completed_frames == 60) {
-					cpu->completed_frames = 0;
-					gc_collect(cpu);
-				}
+				gc_collect(cpu);
 			}
 		}
 #ifdef _DEBUG

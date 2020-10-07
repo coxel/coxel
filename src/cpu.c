@@ -98,6 +98,11 @@ struct cpu* cpu_new() {
 	if (cpu == NULL)
 		return NULL;
 	cpu->gchead = writeptr_nullable(NULL);
+	cpu->grayhead = writeptr_nullable(NULL);
+	cpu->sweephead = 0;
+	cpu->sweepcur = writeptr_nullable(NULL);
+	cpu->gcstate = gs_reset;
+	cpu->gcwhite = 0;
 	cpu->parent = -1;
 	cpu->cycles = 0;
 	cpu->top_executed = 0;
@@ -113,7 +118,6 @@ struct cpu* cpu_new() {
 	cpu->sp = 0;
 	cpu->stack_cap = 0;
 	cpu->upval_open = writeptr_nullable(NULL);
-	cpu->completed_frames = 0;
 	cpu->delayed_frames = 0;
 	cpu->last_delayed_frames = 0;
 
