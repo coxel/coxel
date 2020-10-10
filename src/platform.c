@@ -555,13 +555,15 @@ void console_update() {
 					cpu_execute(cpu, fobj);
 				}
 			}
-			if (cpu->paused)
-				cpu->delayed_frames++;
-			else {
-				cpu->last_delayed_frames = cpu->delayed_frames;
-				cpu->delayed_frames = 0;
-				gc_collect(cpu);
-			}
+		}
+		if (cpu->paused)
+			cpu->delayed_frames++;
+		else {
+			cpu->last_delayed_frames = cpu->delayed_frames;
+			cpu->delayed_frames = 0;
+			struct gfx* gfx = console_getgfx();
+			gfx->bufno = !gfx->bufno;
+			gc_collect(cpu);
 		}
 #ifdef _DEBUG
 		mem_check(&cpu->alloc);
@@ -580,4 +582,13 @@ struct gfx* console_getgfx() {
 #else
 	return &g_cpus[g_cur_cpu]->gfx;
 #endif
+}
+
+int console_getpixel(int x, int y) {
+	struct gfx* gfx = console_getgfx();
+	int i = (y * WIDTH + x) / 2;
+	if (x % 2)
+		return gfx->screen[!gfx->bufno][i] >> 4;
+	else
+		return gfx->screen[!gfx->bufno][i] & 0x0F;
 }

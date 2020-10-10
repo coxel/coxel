@@ -28,17 +28,17 @@ void gfx_setpixel(struct gfx* gfx, int x, int y, int c) {
 	c = gfx->pal[c];
 	int i = (y * WIDTH + x) / 2;
 	if (x % 2)
-		gfx->screen[i] = (gfx->screen[i] & 0x0F) + (c << 4);
+		gfx->screen[gfx->bufno][i] = (gfx->screen[gfx->bufno][i] & 0x0F) + (c << 4);
 	else
-		gfx->screen[i] = (gfx->screen[i] & 0xF0) + c;
+		gfx->screen[gfx->bufno][i] = (gfx->screen[gfx->bufno][i] & 0xF0) + c;
 }
 
 int gfx_getpixel(struct gfx* gfx, int x, int y) {
 	int i = (y * WIDTH + x) / 2;
 	if (x % 2)
-		return gfx->screen[i] >> 4;
+		return gfx->screen[gfx->bufno][i] >> 4;
 	else
-		return gfx->screen[i] & 0x0F;
+		return gfx->screen[gfx->bufno][i] & 0x0F;
 }
 
 void gfx_init(struct gfx* gfx) {
@@ -47,6 +47,7 @@ void gfx_init(struct gfx* gfx) {
 	gfx->color = 15;
 	gfx->cam_x = 0;
 	gfx->cam_y = 0;
+	gfx->bufno = 0;
 	memset(gfx->screen, 0, sizeof(gfx->screen));
 	gfx_reset_pal(gfx);
 	gfx_reset_palt(gfx);

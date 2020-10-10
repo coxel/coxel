@@ -25,7 +25,7 @@ char pixels[HEIGHT * WIDTH * 3];
 -(void)drawRect:(CGRect)rect {
 	for (int y = 0; y < HEIGHT; y++) {
 		for (int x = 0; x < WIDTH; x++) {
-			int c = palette[gfx_getpixel(console_getgfx(), x, y)];
+			int c = palette[console_getpixel(x, y)];
 			int i = ((HEIGHT - y - 1) * WIDTH + x) * 3;
 			pixels[i + 0] = c >> 16;
 			pixels[i + 1] = (c & 0xFF00) >> 8;

@@ -258,7 +258,8 @@ struct funcobj {
 	X(width)
 
 struct gfx {
-	uint8_t screen[WIDTH * HEIGHT / 2];
+	uint8_t screen[2][WIDTH * HEIGHT / 2];
+	int bufno;
 	uint8_t sprite[SPRITESHEET_BYTES];
 	int color; /* foreground color */
 	int cx, cy; /* cursor location */

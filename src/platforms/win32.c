@@ -442,7 +442,7 @@ void main() {
 		console_update();
 		for (int y = 0; y < HEIGHT; y++) {
 			for (int x = 0; x < WIDTH; x++) {
-				int c = palette[gfx_getpixel(console_getgfx(), x, y)];
+				int c = palette[console_getpixel(x, y)];
 				int i = (y * WIDTH + x) * 3;
 				bits[i + 0] = c & 0xFF;
 				bits[i + 1] = (c & 0xFF00) >> 8;

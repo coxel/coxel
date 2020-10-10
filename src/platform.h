@@ -78,5 +78,6 @@ struct run_result console_run(const struct cart* cart);
 void console_update();
 struct gfx* console_getgfx();
 struct io* console_getio();
+int console_getpixel(int x, int y);
 
 #endif
