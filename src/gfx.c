@@ -199,9 +199,10 @@ void gfx_map(struct gfx* gfx, int mapw, int maph, uint8_t* mapdata, int cx, int 
 extern const char font[][3];
 
 static void gfx_vscroll(struct gfx* gfx, int up_amount) {
+	int bufno = gfx->bufno;
 	if (up_amount < HEIGHT)
-		memmove(&gfx->screen[0], &gfx->screen[up_amount * WIDTH / 2], (HEIGHT - up_amount) * WIDTH / 2);
-	memset(&gfx->screen[(HEIGHT - up_amount) * WIDTH / 2], 0, up_amount * WIDTH / 2);
+		memmove(&gfx->screen[bufno][0], &gfx->screen[bufno][up_amount * WIDTH / 2], (HEIGHT - up_amount) * WIDTH / 2);
+	memset(&gfx->screen[bufno][(HEIGHT - up_amount) * WIDTH / 2], 0, up_amount * WIDTH / 2);
 }
 
 static void gfx_print_internal(struct gfx* gfx, const char* str, int len, int x, int y, int c, int newline) {

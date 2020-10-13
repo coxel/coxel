@@ -2,6 +2,7 @@
 #include "buf.h"
 #include "gfx.h"
 #include "lib.h"
+#include "menu.h"
 #include "platform.h"
 #include "rand.h"
 #include "str.h"
@@ -636,6 +637,49 @@ value_t devlib_fastParse(struct cpu* cpu, int sp, int nargs) {
 	return value_tab(tab);
 }
 
+value_t devlib_closeOverlay(struct cpu* cpu, int sp, int nargs) {
+	if (nargs != 0)
+		argument_error(cpu);
+	console_close_overlay();
+	return value_undef();
+}
+
+value_t devlib_getTaskId(struct cpu* cpu, int sp, int nargs) {
+	if (nargs != 0)
+		argument_error(cpu);
+	return value_num(num_kint(console_getpid()));
+}
+
+value_t devlib_getTaskInfo(struct cpu* cpu, int sp, int nargs) {
+	if (nargs != 1)
+		argument_error(cpu);
+	int pid = num_int(to_number(cpu, ARG(0)));
+	struct tabobj* tab = tab_new(cpu);
+	tab_set(cpu, tab, str_intern(cpu, "id", 2), value_num(num_kint(pid)));
+	tab_set(cpu, tab, str_intern(cpu, "parent", 6), value_num(num_kint(cpu->parent)));
+	tab_set(cpu, tab, str_intern(cpu, "vmem", 4), value_buf(buf_new_vmem(cpu, pid)));
+	tab_set(cpu, tab, str_intern(cpu, "backvmem", 8), value_buf(buf_new_backvmem(cpu, pid)));
+	return value_tab(tab);
+}
+
+value_t devlib_killTask(struct cpu* cpu, int sp, int nargs) {
+	if (nargs != 1)
+		argument_error(cpu);
+	int pid = num_uint(to_number(cpu, ARG(0)));
+	console_kill(pid);
+	return value_undef();
+}
+
+value_t devlib_getMenu(struct cpu* cpu, int sp, int nargs) {
+	struct arrobj* arr = menu_getmenu(cpu);
+	return value_arr(arr);
+}
+
+value_t devlib_menuOp(struct cpu* cpu, int sp, int nargs) {
+	menu_menuop(cpu, sp, nargs);
+	return value_undef();
+}
+
 struct libdef {
 	const char* name;
 	enum cfuncname func;
@@ -681,6 +725,12 @@ static const struct libdef devlibdefs[] = {
 	{"dev_run", cf_devlib_run },
 	{"dev_save", cf_devlib_save },
 	{"dev_load", cf_devlib_load },
+	{"dev_closeOverlay", cf_devlib_closeOverlay },
+	{"dev_getTaskId", cf_devlib_getTaskId },
+	{"dev_getTaskInfo", cf_devlib_getTaskInfo },
+	{"dev_killTask", cf_devlib_killTask },
+	{"dev_getMenu", cf_devlib_getMenu },
+	{"dev_menuOp", cf_devlib_menuOp },
 	{ NULL, 0 },
 };
 

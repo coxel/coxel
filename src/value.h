@@ -5,6 +5,7 @@
 
 #include <stdint.h>
 
+struct cpu;
 #ifdef DEBUG_NULLABLE_PTR
 static FORCEINLINE void* forcereadptr_impl(struct cpu* cpu, uint32_t aptr) {
 	if (aptr == 0)

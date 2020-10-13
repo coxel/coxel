@@ -1,8 +1,23 @@
 #ifndef _KEY_H
 #define _KEY_H
 
-#define BTN_CNT		8
 #define PLAYER_CNT	8
+
+#define BTNDEF(X) \
+	X(left) \
+	X(right) \
+	X(up) \
+	X(down) \
+	X(a) \
+	X(b) \
+	X(x) \
+	X(y)
+#define X(a) btn_##a,
+enum btn {
+	BTNDEF(X)
+	BTN_CNT
+};
+#undef X
 
 #define KEYDEF(X) \
 	X(none, _, _) \
@@ -100,6 +115,7 @@ enum key {
 	kc_cnt = kc__end + BTN_CNT * PLAYER_CNT
 };
 #undef X
+#define KC_BTN(player, btn)		(kc__end + BTN_CNT * (player) + (btn))
 
 struct cpu;
 struct io;

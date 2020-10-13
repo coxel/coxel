@@ -42,6 +42,12 @@ typedef value_t(*cfunc)(struct cpu* cpu, int sp, int nargs);
 	X(devlib_run) \
 	X(devlib_save) \
 	X(devlib_load) \
+	X(devlib_closeOverlay) \
+	X(devlib_getTaskId) \
+	X(devlib_getTaskInfo) \
+	X(devlib_killTask) \
+	X(devlib_getMenu) \
+	X(devlib_menuOp) \
 	X(libarr_pop) \
 	X(libarr_push) \
 	X(libarr_slice) \

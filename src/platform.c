@@ -2,6 +2,7 @@
 #include "compiler.h"
 #include "cpu.h"
 #include "gc.h"
+#include "gfx.h"
 #include "platform.h"
 #include "str.h"
 #include "tab.h"
@@ -25,6 +26,13 @@ NORETURN void critical_error(const char* fmt, ...) {
 static struct io g_io;
 static struct cpu* g_cpus[MAX_CPUS];
 static int g_cur_cpu, g_next_cpu;
+static enum {
+	overlay_inactive,
+	overlay_pending,
+	overlay_active,
+	overlay_close_pending,
+} g_overlay_mode;
+static struct gfx g_overlay_gfx;
 #ifdef HIERARCHICAL_MEMORY
 static struct gfx g_gfx;
 #endif
@@ -331,6 +339,7 @@ static void load_cpu_state() {
 
 static void console_init_internal(int factory_firmware) {
 	g_cur_cpu = -1;
+	g_overlay_mode = overlay_inactive;
 	key_init(&g_io);
 	struct cart cart;
 	struct run_result res;
@@ -391,6 +400,8 @@ struct run_result console_serialize(void* f) {
 		}
 	}
 	SERIALIZE_INT(g_cur_cpu);
+	SERIALIZE_INT(g_overlay_mode);
+	SERIALIZE(&g_overlay_gfx, sizeof(struct gfx));
 	return ret;
 }
 
@@ -401,7 +412,8 @@ void console_deserialize_init(void* f) {
 		} \
 	} while (0)
 #define STATE_CORRUPTED() critical_error("State corrupted.")
-
+	
+	g_overlay_mode = overlay_inactive;
 	key_init(&g_io);
 	int magic;
 	DESERIALIZE(&magic, 4);
@@ -430,6 +442,8 @@ void console_deserialize_init(void* f) {
 	DESERIALIZE(&g_cur_cpu, 4);
 	if (g_cur_cpu < 0 || g_cur_cpu >= MAX_CPUS || g_cpus[g_cur_cpu] == NULL)
 		STATE_CORRUPTED();
+	DESERIALIZE(&g_overlay_gfx, sizeof(struct gfx));
+	DESERIALIZE(&g_overlay_mode, 4);
 	g_next_cpu = g_cur_cpu;
 	load_cpu_state();
 }
@@ -463,7 +477,7 @@ struct run_result console_run(const struct cart* cart) {
 	}
 	
 	/* Initialize CPU */
-	struct cpu* cpu = cpu_new();
+	struct cpu* cpu = cpu_new(slot);
 	if (cpu == NULL) {
 		ret.err = "Out of memory.";
 		return ret;
@@ -519,6 +533,19 @@ struct run_result console_run(const struct cart* cart) {
 	return ret;
 }
 
+void console_open_overlay() {
+	if (g_overlay_mode == overlay_inactive) {
+		g_overlay_mode = overlay_pending;
+		save_cpu_state();
+		gfx_init(&g_overlay_gfx);
+	}
+}
+
+void console_close_overlay() {
+	if (g_overlay_mode != overlay_inactive)
+		g_overlay_mode = overlay_close_pending;
+}
+
 void console_update() {
 	key_preupdate(&g_io);
 	if (g_cur_cpu != g_next_cpu) {
@@ -526,20 +553,19 @@ void console_update() {
 		g_cur_cpu = g_next_cpu;
 		load_cpu_state();
 	}
-	if (key_is_pressed(kc_esc) && g_cur_cpu != 0) {
-		int parent = g_cpus[g_cur_cpu]->parent;
-		cpu_destroy(g_cpus[g_cur_cpu]);
-		g_cpus[g_cur_cpu] = NULL;
-		g_cur_cpu = g_next_cpu = parent == -1 ? 0 : parent;
-		load_cpu_state();
-	}
-	struct cpu* cpu = g_cpus[g_cur_cpu];
+	if (key_is_pressed(kc_f4))
+		console_open_overlay();
+	struct cpu* cpu;
+	if (g_overlay_mode != overlay_inactive)
+		cpu = g_cpus[0];
+	else
+		cpu = g_cpus[g_cur_cpu];
 	if (!cpu->stopped) {
 		if (!cpu->top_executed) {
 #ifdef DEBUG_TIMING
 			cpu_timing_reset();
 #endif
-			cpu_execute(cpu, (struct funcobj*)readptr(cpu->topfunc));
+			cpu_execute(cpu, (struct funcobj*)readptr(cpu->topfunc), 0);
 #ifdef DEBUG_TIMING
 			cpu_timing_print_report(-1);
 #endif
@@ -548,11 +574,23 @@ void console_update() {
 		else {
 			if (cpu->paused)
 				cpu_continue(cpu);
+			else if (g_overlay_mode != overlay_inactive) {
+				value_t fval = tab_get(cpu, (struct tabobj*)readptr(cpu->globals), str_intern(cpu, "onoverlay", 9));
+				if (value_get_type(fval) == t_func) {
+					if (g_overlay_mode == overlay_pending) {
+						g_overlay_mode = overlay_active;
+						cpu->overlay_state = writeptr(tab_new(cpu));
+					}
+					struct funcobj* fobj = (struct funcobj*)value_get_object(fval);
+					struct tabobj* overlay_state = (struct tabobj*)readptr(cpu->overlay_state);
+					cpu_execute(cpu, fobj, 1, value_tab(overlay_state));
+				}
+			}
 			else {
 				value_t fval = tab_get(cpu, (struct tabobj*)readptr(cpu->globals), LIT(onframe));
 				if (value_get_type(fval) == t_func) {
 					struct funcobj* fobj = (struct funcobj*)value_get_object(fval);
-					cpu_execute(cpu, fobj);
+					cpu_execute(cpu, fobj, 0);
 				}
 			}
 		}
@@ -561,9 +599,17 @@ void console_update() {
 		else {
 			cpu->last_delayed_frames = cpu->delayed_frames;
 			cpu->delayed_frames = 0;
-			struct gfx* gfx = console_getgfx();
-			gfx->bufno = !gfx->bufno;
 			gc_collect(cpu);
+			if (g_overlay_mode == overlay_close_pending) {
+				g_overlay_mode = overlay_inactive;
+				cpu->overlay_state = writeptr_nullable(NULL);
+				load_cpu_state();
+			}
+			else {
+				struct gfx* gfx = console_getgfx();
+				gfx->bufno = !gfx->bufno;
+				memcpy(gfx->screen[gfx->bufno], gfx->screen[!gfx->bufno], sizeof(gfx->screen[0]));
+			}
 		}
 #ifdef _DEBUG
 		mem_check(&cpu->alloc);
@@ -577,11 +623,39 @@ struct io* console_getio() {
 }
 
 struct gfx* console_getgfx() {
+	if (g_overlay_mode >= overlay_active)
+		return &g_overlay_gfx;
 #ifdef HIERARCHICAL_MEMORY
 	return &g_gfx;
 #else
 	return &g_cpus[g_cur_cpu]->gfx;
 #endif
+}
+
+struct gfx* console_getgfx_pid(int pid) {
+#ifdef HIERARCHICAL_MEMORY
+	if (pid == g_cur_cpu && g_overlay_mode < overlay_active)
+		return &g_gfx;
+#endif
+	return &g_cpus[pid]->gfx;
+}
+
+struct gfx* console_getgfx_overlay() {
+	return &g_overlay_gfx;
+}
+
+int console_getpid() {
+	return g_cur_cpu;
+}
+
+void console_kill(int pid) {
+	if (pid == 0)
+		return;
+	int parent = g_cpus[g_cur_cpu]->parent;
+	cpu_destroy(g_cpus[g_cur_cpu]);
+	g_cpus[g_cur_cpu] = NULL;
+	g_cur_cpu = g_next_cpu = parent == -1 ? 0 : parent;
+	load_cpu_state();
 }
 
 int console_getpixel(int x, int y) {

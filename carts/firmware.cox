@@ -1017,7 +1017,8 @@ function drawToolbar() {
   }, onframe == onframe_assetEditor);
   if (statMsg != "")
     print(statMsg,1,138,statColor);
-  print(statCpu(),136,138,statColor);
+  print(statCpu(),106,138,statColor);
+  print(statMem(),136,138,statColor);
 }
 
 function stat(msg, c) {
@@ -1131,6 +1132,77 @@ function statInput(prompt, f, text, v) {
         insert(dev_paste());
     }
   };
+}
+
+function onoverlay(state) {
+  cls();
+  let taskId = dev_getTaskId();
+  let task = dev_getTaskInfo(taskId);
+  // Copy task VMEM
+  let OVMEM_ = OVMEM;
+  let VMEM_ = task.backvmem;
+  for (let i = 0; i < 160*144/2; i++)
+    OVMEM_[i] = VMEM_[i];
+  if (!state.inited) {
+    state.inited = true;
+    state.menuid = "TOP";
+    state.cur = 0;
+  }
+  let menu = [];
+  switch (state.menuid) {
+  case "PLATFORM": {
+    menu = dev_getMenu();
+    if (menu.length > 0)
+      break;
+    state.menuid = "TOP";
+    // passthrough
+  }
+  case "TOP": {
+    if (taskId != 0) {
+      menu.push({ text: "Kill task", func: function() {
+        dev_killTask(taskId);
+        dev_closeOverlay();
+      }});
+    }
+    menu.push({ text: "Settings", func: function() {
+      state.menuid = "PLATFORM";
+      dev_menuOp();
+    }});
+    menu.push({ text: "Back", func: function() {
+      dev_closeOverlay();
+    }});
+    break;
+  }
+  }
+  state.cur = min(state.cur, menu.length - 1);
+  let w = 80;
+  let h = menu.length * 6;
+  let x0 = (160 - w) / 2;
+  let y0 = (144 - h) / 2;
+  fillRect(x0 - 2, y0 - 2, w + 4, h + 4, 0);
+  rect(x0 - 2, y0 - 2, w + 4, h + 4, 15);
+  for (let i = 0; i < menu.length; i++) {
+    let color = 15;
+    if (menu[i].func == undefined
+      && menu[i].id == undefined)
+      color = 14;
+    if (i == state.cur)
+      print(">", x0, y0 + i * 6, color);
+    print(menu[i].text, x0 + 4, y0 + i * 6, color);
+  }
+  if (dev_keyp("return") || btnp("a")) {
+    let item = menu[state.cur];
+    if (item.func)
+      item.func();
+    else
+      dev_menuOp(item.id);
+  }
+  else if (dev_keyp("esc") || btnp("b"))
+    dev_closeOverlay();
+  else if (btnp("down"))
+    state.cur = min(state.cur + 1, menu.length - 1);
+  else if (btnp("up"))
+    state.cur = max(state.cur - 1, 0);
 }
 
 onframe = onframe_codeEditor;

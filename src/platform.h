@@ -75,8 +75,14 @@ void console_deserialize_init(void* f);
 #endif
 void console_destroy();
 struct run_result console_run(const struct cart* cart);
+void console_open_overlay();
+void console_close_overlay();
 void console_update();
 struct gfx* console_getgfx();
+struct gfx* console_getgfx_pid(int pid);
+struct gfx* console_getgfx_overlay();
+int console_getpid();
+void console_kill(int pid);
 struct io* console_getio();
 int console_getpixel(int x, int y);
 

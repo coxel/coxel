@@ -300,6 +300,9 @@ struct cpu {
 	/* global table object (strong ref) */
 	ptr(struct tabobj) globals;
 
+	/* overlay state object (strong ref) */
+	ptr_nullable(struct tabobj) overlay_state;
+
 	/* garbage collection */
 	ptr_nullable(struct obj) gchead;
 	ptr_nullable(struct containerobj) grayhead;
@@ -349,9 +352,9 @@ struct io {
 NORETURN void runtime_error(struct cpu* cpu, const char* msg);
 NORETURN void argument_error(struct cpu* cpu);
 NORETURN void out_of_memory_error(struct cpu* cpu);
-struct cpu* cpu_new();
+struct cpu* cpu_new(int pid);
 void cpu_destroy(struct cpu* cpu);
-void cpu_execute(struct cpu* cpu, struct funcobj* func);
+void cpu_execute(struct cpu* cpu, struct funcobj* func, int nargs, ...);
 void cpu_continue(struct cpu* cpu);
 int cpu_dump_code(struct cpu* cpu, const char* codebuf, int codelen, char* buf, int buflen);
 #ifdef DEBUG_TIMING

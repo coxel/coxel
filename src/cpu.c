@@ -11,6 +11,7 @@
 #include "tab.h"
 
 #include <setjmp.h>
+#include <stdarg.h>
 #include <string.h>
 
 static jmp_buf g_jmp_buf;
@@ -93,7 +94,7 @@ static NORETURN void internal_error(struct cpu* cpu) {
 	runtime_error(cpu, "Internal CPU error occurred.");
 }
 
-struct cpu* cpu_new() {
+struct cpu* cpu_new(int pid) {
 	struct cpu* cpu = (struct cpu*)mem_new(CPU_MEM_SIZE, sizeof(struct cpu));
 	if (cpu == NULL)
 		return NULL;
@@ -111,6 +112,7 @@ struct cpu* cpu_new() {
 	strtab_init(cpu);
 	struct tabobj* globals = tab_new(cpu);
 	cpu->globals = writeptr(globals);
+	cpu->overlay_state = writeptr_nullable(NULL);
 	cpu->code = writeptr_nullable(NULL);
 	cpu->code_cnt = 0;
 	cpu->code_cap = 0;
@@ -129,8 +131,10 @@ struct cpu* cpu_new() {
 	gfx_init(&cpu->gfx);
 	tab_set(cpu, globals, LIT(global), value_tab(globals));
 
-	struct bufobj* vmem = buf_new_special(cpu, SBUF_VMEM);
+	struct bufobj* vmem = buf_new_vmem(cpu, pid);
 	tab_set(cpu, globals, str_intern(cpu, "VMEM", 4), value_buf(vmem));
+	struct bufobj* overlay_vmem = buf_new_overlayvmem(cpu);
+	tab_set(cpu, globals, str_intern(cpu, "OVMEM", 5), value_buf(overlay_vmem));
 
 	return cpu;
 }
@@ -504,14 +508,26 @@ void upval_destroy(struct cpu* cpu, struct upval* upval) {
 static NOINLINE void cpu_timing_record(enum opcode opcode, int64_t duration);
 #endif
 
-void cpu_execute(struct cpu* cpu, struct funcobj* func) {
+void cpu_execute(struct cpu* cpu, struct funcobj* func, int nargs, ...) {
 	value_t* frame;
 	update_stack();
 	value_t* stack = (value_t*)readptr(cpu->stack);
 	stack[0] = value_func(func);
-	stack[1] = value_undef();
-	stack[2] = value_undef(); // call info 1
-	stack[3] = value_undef(); // call info 2
+	stack[1] = value_undef(); // this
+	int fnargs = ((struct code*)readptr(func->code))->nargs;
+	if (fnargs < nargs)
+		nargs = fnargs;
+	va_list va;
+	va_start(va, nargs);
+	for (int i = 0; i < nargs; i++) {
+		value_t arg = va_arg(va, value_t);
+		stack[2 + i] = arg;
+	}
+	va_end(va);
+	for (int i = nargs; i < fnargs; i++)
+		stack[2 + i] = value_undef();
+	stack[fnargs + 2] = value_undef(); // call info 1
+	stack[fnargs + 3] = value_undef(); // call info 2
 	cpu->curfunc = writeptr(func);
 	cpu->curpc = 0;
 	cpu->cycles = CYCLES_PER_FRAME;

@@ -1,4 +1,6 @@
 set(SOURCES
+	hal/bluetooth.c
+	hal/bluetooth.h
 	alloc.c
 	alloc.h
 	arith.c
@@ -26,6 +28,8 @@ set(SOURCES
 	key.h
 	lib.c
 	lib.h
+	menu.c
+	menu.h
 	platform.c
 	platform.h
 	rand.c

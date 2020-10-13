@@ -23,16 +23,11 @@ static const char key_shift_char[] = {
 #undef X
 #undef _
 
+#define X(a) #a,
 static const char* btn_name[] = {
-	"left",
-	"right",
-	"up",
-	"down",
-	"a",
-	"b",
-	"x",
-	"y",
+	BTNDEF(X)
 };
+#undef X
 
 static enum key default_keymap[] = {
 	kc_left,

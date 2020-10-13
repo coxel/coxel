@@ -1,5 +1,14 @@
 [mapping:src]
 archive: libsrc.a
 entries:
+    firmware (default)
     compiler (default)
+    cpu (default)
+    platform (default)
+    esp32 (default)
+    gfx (default)
+    bluetooth (default)
+    key (default)
+    menu (default)
+    alloc (default)
     * (noflash)

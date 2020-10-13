@@ -131,6 +131,9 @@ void gc_collect(struct cpu* cpu) {
 		cpu->gcstate = gs_mark;
 		/* Mark root set */
 		gc_mark_gray(cpu, (struct containerobj*)readptr(cpu->globals));
+		struct containerobj* overlay_state = (struct containerobj*)readptr_nullable(cpu->overlay_state);
+		if (overlay_state)
+			gc_mark_gray(cpu, overlay_state);
 		/* passthrough */
 	}
 	case gs_mark: {
