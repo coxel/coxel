@@ -1,6 +1,8 @@
 set(SOURCES
 	hal/bluetooth.c
 	hal/bluetooth.h
+	hal/wifi.c
+	hal/wifi.h
 	alloc.c
 	alloc.h
 	arith.c

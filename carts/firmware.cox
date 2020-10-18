@@ -1037,12 +1037,11 @@ function statRes(res) {
   }
 }
 
-function statInput(prompt, f, text, v) {
+function textInput(prompt, f, text, v, r) {
   if (text == undefined)
     text = "";
   if (v == undefined)
     v = function(ch) { return true; };
-  let old = onframe;
   let blinkTimer = 0;
   let sbeg = 0;
   let send = text.length;
@@ -1065,7 +1064,7 @@ function statInput(prompt, f, text, v) {
     sbeg = send = l + vt.length;
     blinkTimer = 0;
   };
-  onframe = function() {
+  return function() {
     fillRect(0, 136, 160, 8, 15);
     print(prompt, 1, 138, 2);
     let l = min(sbeg, send);
@@ -1110,14 +1109,10 @@ function statInput(prompt, f, text, v) {
       move(0);
     else if (dev_keyp("end"))
       move(text.length);
-    else if (dev_keyp("esc")) {
+    else if (dev_keyp("esc"))
       f();
-      onframe = old;
-    }
-    else if (dev_keyp("return")) {
+    else if (dev_keyp("return"))
       f(text);
-      onframe = old;
-    }
     else if (dev_key("ctrl")) {
       if (dev_keyp("a")) {
         sbeg = 0;
@@ -1132,6 +1127,22 @@ function statInput(prompt, f, text, v) {
         insert(dev_paste());
     }
   };
+}
+
+function statInput(prompt, f, text, v, r) {
+  let old = onframe;
+  onframe = textInput(prompt, function(t) {
+    f(t);
+    onframe = old;
+  }, text, v, r);
+}
+
+function overlayInput(prompt, f, text, v, r) {
+  let old = onoverlay;
+  onoverlay = textInput(prompt, function(t) {
+    f(t);
+    onoverlay = old;
+  }, text, v, r);
 }
 
 function onoverlay(state) {
@@ -1192,7 +1203,24 @@ function onoverlay(state) {
   }
   if (dev_keyp("return") || btnp("a")) {
     let item = menu[state.cur];
-    if (item.func)
+    if (item.input != undefined
+      || item.password != undefined) {
+      let r = undefined;
+      let t = item.input;
+      if (item.password) {
+        r = "*";
+        t = item.password;
+      }
+      overlayInput(item.prompt, function(text) {
+        if (text == undefined)
+          return;
+        if (item.func)
+          item.func(text);
+        else
+          dev_menuOp(item.id, text);
+      }, t, undefined, r);
+    }
+    else if (item.func)
       item.func();
     else
       dev_menuOp(item.id);

@@ -32,14 +32,14 @@ static enum {
 	overlay_active,
 	overlay_close_pending,
 } g_overlay_mode;
-static struct gfx g_overlay_gfx;
+static struct gfx* g_overlay_gfx;
 #ifdef HIERARCHICAL_MEMORY
 static struct gfx g_gfx;
 #endif
 
 void cart_destroy(struct cart* cart) {
 	if (cart->code)
-		platform_free_fast((void*)cart->code);
+		platform_free((void*)cart->code);
 	if (cart->sprite)
 		platform_free_fast((void*)cart->sprite);
 	if (cart->assets) {
@@ -102,7 +102,7 @@ static struct run_result parse_cart(void* file, uint32_t filesize, struct cart* 
 	ctx.p = 0;
 	ctx.len = 0;
 	char temp_buf[TEMP_BUF_SIZE];
-	char* code_buf = (char*)platform_malloc_fast(MAX_CODE_SIZE + 1);
+	char* code_buf = (char*)platform_malloc(MAX_CODE_SIZE + 1);
 	cart->code = code_buf;
 	cart->codelen = 0;
 	struct run_result ret;
@@ -340,6 +340,7 @@ static void load_cpu_state() {
 static void console_init_internal(int factory_firmware) {
 	g_cur_cpu = -1;
 	g_overlay_mode = overlay_inactive;
+	g_overlay_gfx = platform_malloc(sizeof(struct gfx));
 	key_init(&g_io);
 	struct cart cart;
 	struct run_result res;
@@ -401,7 +402,7 @@ struct run_result console_serialize(void* f) {
 	}
 	SERIALIZE_INT(g_cur_cpu);
 	SERIALIZE_INT(g_overlay_mode);
-	SERIALIZE(&g_overlay_gfx, sizeof(struct gfx));
+	SERIALIZE(g_overlay_gfx, sizeof(struct gfx));
 	return ret;
 }
 
@@ -442,7 +443,7 @@ void console_deserialize_init(void* f) {
 	DESERIALIZE(&g_cur_cpu, 4);
 	if (g_cur_cpu < 0 || g_cur_cpu >= MAX_CPUS || g_cpus[g_cur_cpu] == NULL)
 		STATE_CORRUPTED();
-	DESERIALIZE(&g_overlay_gfx, sizeof(struct gfx));
+	DESERIALIZE(g_overlay_gfx, sizeof(struct gfx));
 	DESERIALIZE(&g_overlay_mode, 4);
 	g_next_cpu = g_cur_cpu;
 	load_cpu_state();
@@ -537,7 +538,7 @@ void console_open_overlay() {
 	if (g_overlay_mode == overlay_inactive) {
 		g_overlay_mode = overlay_pending;
 		save_cpu_state();
-		gfx_init(&g_overlay_gfx);
+		gfx_init(g_overlay_gfx);
 	}
 }
 
@@ -624,7 +625,7 @@ struct io* console_getio() {
 
 struct gfx* console_getgfx() {
 	if (g_overlay_mode >= overlay_active)
-		return &g_overlay_gfx;
+		return g_overlay_gfx;
 #ifdef HIERARCHICAL_MEMORY
 	return &g_gfx;
 #else
@@ -641,7 +642,7 @@ struct gfx* console_getgfx_pid(int pid) {
 }
 
 struct gfx* console_getgfx_overlay() {
-	return &g_overlay_gfx;
+	return g_overlay_gfx;
 }
 
 int console_getpid() {

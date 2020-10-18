@@ -6,6 +6,7 @@
 #include "../platform.h"
 #include "../platforms/hidkey.h"
 #include "../hal/bluetooth.h"
+#include "../hal/wifi.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/queue.h"
@@ -22,13 +23,17 @@
 #include "esp_bt_main.h"
 #include "esp_bt_device.h"
 #include "esp_gap_bt_api.h"
+#include "esp_heap_task_info.h"
 #include "esp_hidh.h"
 #include "esp_vfs_fat.h"
 #include "esp_sleep.h"
 #include "esp_system.h"
+#include "esp_wifi.h"
 #include "nvs.h"
 #include "nvs_flash.h"
 #include "sdmmc_cmd.h"
+
+#define HOSTNAME	"Coxel-ESP32"
 
 #define MCP23017_SCL	26
 #define MCP23017_SDA	33
@@ -472,6 +477,7 @@ enum console_msgtype {
 	msg_key_state,
 	msg_modifier_state,
 	msg_bt_discover_peer,
+	msg_wifi_discover_ap,
 };
 
 enum special_key {
@@ -497,6 +503,11 @@ struct modifier_state_msg {
 struct bt_discover_peer_msg {
 	enum console_msgtype type;
 	struct hal_bt_peerinfo peerinfo;
+};
+
+struct wifi_discover_ap_msg {
+	enum console_msgtype type;
+	struct hal_wifi_apinfo apinfo;
 };
 
 static void console_send_msg(void* data, size_t size) {
@@ -541,10 +552,15 @@ static void console_task_main(void *pvParameters) {
 				hal_bt_discover_peer(&msg->peerinfo);
 				break;
 			}
+			case msg_wifi_discover_ap: {
+				struct wifi_discover_ap_msg* msg = (struct wifi_discover_ap_msg*)data;
+				hal_wifi_discover_ap(&msg->apinfo);
+				break;
+			}
 			}
 			vRingbufferReturnItem(console_ringbuf, data);
 		}
-		btn_standard_update();
+		//btn_standard_update();
 		console_update();
 		xSemaphoreGive(paint_sem);
 		xSemaphoreTake(console_sem, portMAX_DELAY);
@@ -727,6 +743,8 @@ static int bt_get_bonded_devices(struct hal_bt_peerinfo* devices, int bufsize) {
 	int bonded_num = esp_bt_gap_get_bond_device_num();
 	if (bonded_num > bufsize)
 		bonded_num = bufsize;
+	if (bonded_num == 0)
+		return 0;
 	esp_bd_addr_t* dev_list = (esp_bd_addr_t*)malloc(sizeof(esp_bd_addr_t) * bonded_num);
 	esp_err_t err = esp_bt_gap_get_bond_device_list(&bonded_num, dev_list);
 	if (err != 0) {
@@ -755,6 +773,67 @@ static struct hal_bt_callbacks bt_callbacks = {
 	.connect = bt_connect,
 	.get_bonded_devices = bt_get_bonded_devices,
 	.remove_bonded_device = bt_remove_bonded_device,
+};
+
+static int wifi_enabled() {
+	return 0;
+}
+
+static void wifi_set_enable(int enabled) {
+	if (enabled)
+		esp_wifi_start();
+	else
+		esp_wifi_stop();
+}
+
+static void wifi_start_discovery() {
+	esp_wifi_scan_start(NULL, 0);
+}
+
+static void wifi_stop_discovery() {
+	esp_wifi_scan_stop();
+}
+
+static void wifi_scan_done(system_event_t* event) {
+	esp_err_t err;
+	wifi_event_sta_scan_done_t* e = &event->event_info.scan_done;
+	if (e->status == 1) {
+		printf("Wifi scan failed.\n");
+		return;
+	}
+	printf("Wifi scan done.\n");
+	wifi_ap_record_t* ap_records = (wifi_ap_record_t*)malloc(sizeof(wifi_ap_record_t) * HAL_WIFI_MAX_DISCOVERED_APS);
+	uint16_t ap_number = HAL_WIFI_MAX_DISCOVERED_APS;
+	err = esp_wifi_scan_get_ap_records(&ap_number, ap_records);
+	if (err != ESP_OK)
+		printf("esp_wifi_scan_get_ap_records() failed: %s.\n", esp_err_to_name(err));
+	for (int i = 0; i < ap_number; i++) {
+		struct wifi_discover_ap_msg msg;
+		msg.type = msg_wifi_discover_ap;
+		memset(&msg.apinfo.ssid, 0, sizeof(msg.apinfo.ssid));
+		strncpy(msg.apinfo.ssid, (const char*)ap_records[i].ssid, HAL_WIFI_SSID_MAXLEN);
+		msg.apinfo.connectable = 1;
+		console_send_msg(&msg, sizeof(msg));
+	}
+	free(ap_records);
+}
+
+static void wifi_connect(const char ssid[HAL_WIFI_SSID_MAXLEN + 1], const char password[HAL_WIFI_PASSWORD_MAXLEN + 1]) {
+	wifi_config_t config = { 0 };
+	strncpy((char*)config.sta.ssid, ssid, sizeof(config.sta.ssid) - 1);
+	strncpy((char*)config.sta.password, password, sizeof(config.sta.password) - 1);
+	config.sta.pmf_cfg.capable = 1;
+	config.sta.pmf_cfg.required = 0;
+	esp_wifi_set_config(ESP_IF_WIFI_STA, &config);
+	esp_wifi_connect();
+}
+
+static struct hal_wifi_callbacks wifi_callbacks = {
+	.enabled = wifi_enabled,
+	.set_enable = wifi_set_enable,
+	.start_discovery = wifi_start_discovery,
+	.stop_discovery = wifi_stop_discovery,
+	.connect = wifi_connect,
 };
 
 #define ACK_CHECK_EN	0x1
@@ -825,8 +904,25 @@ static int ip5306_read_register(uint8_t reg) {
 	return value;
 }
 
+static esp_err_t event_handler(void* ctx, system_event_t* event) {
+	switch (event->event_id) {
+	case WIFI_EVENT_SCAN_DONE:
+		wifi_scan_done(event);
+		break;
+
+	default:
+		break;
+	}
+	return ESP_OK;
+}
+
 void app_main() {
 	esp_err_t ret;
+	/* Initialize event handler */
+	ret = esp_event_loop_init(event_handler, NULL);
+	if (ret != 0)
+		printf("esp_event_loop_init() error: %s.\n", esp_err_to_name(ret));
+
 	/* Initialize NVS - it is used to store PHY calibration data */
 	printf("Initializing NVS...\n");
 	ret = nvs_flash_init();
@@ -872,7 +968,7 @@ void app_main() {
 	}
 
 	printf("Initializing gap...\n");
-	esp_bt_dev_set_device_name("Coxel ESP32");
+	esp_bt_dev_set_device_name(HOSTNAME);
 
 	esp_bt_cod_t cod;
 	cod.major = ESP_BT_COD_MAJOR_DEV_COMPUTER;
@@ -911,6 +1007,27 @@ void app_main() {
 		printf("esp_hidh_init() error.\n");
 
 	hal_bt_register(&bt_callbacks);
+
+	printf("Initializing Wi-Fi...\n");
+	ret = esp_netif_init();
+	if (ret != 0)
+		printf("esp_netif_init() error: %s\n", esp_err_to_name(ret));
+	esp_netif_t* netif = esp_netif_create_default_wifi_sta();
+	ret = esp_netif_set_hostname(netif, HOSTNAME);
+	if (ret != 0)
+		printf("esp_netif_set_hostname() error: %s\n", esp_err_to_name(ret));
+	wifi_init_config_t wifi_config = WIFI_INIT_CONFIG_DEFAULT();
+	ret = esp_wifi_init(&wifi_config);
+	if (ret != 0)
+		printf("esp_wifi_init() error: %s\n", esp_err_to_name(ret));
+	ret = esp_wifi_set_mode(WIFI_MODE_STA);
+	if (ret != 0)
+		printf("esp_wifi_set_mode() error: %s\n", esp_err_to_name(ret));
+
+	wifi_set_enable(1);
+	hal_wifi_register(&wifi_callbacks);
+
+	esp_wifi_connect();
 
 	printf("Initializing MCP23017...\n");
 	i2c_config_t i2c_cfg;
@@ -1094,6 +1211,30 @@ void app_main() {
 	printf("Heap information:\n");
 	heap_caps_print_heap_info(MALLOC_CAP_DMA);
 	heap_caps_print_heap_info(MALLOC_CAP_SPIRAM);
+#ifdef CONFIG_HEAP_TASK_TRACKING
+#define MAX_TRACKING_TASKS		32
+	size_t num_totals = 0;
+	heap_task_totals_t task_totals[MAX_TRACKING_TASKS];
+	heap_task_info_params_t heap_info_params = { 0 };
+	heap_info_params.caps[0] = MALLOC_CAP_8BIT;
+	heap_info_params.mask[0] = MALLOC_CAP_8BIT;
+	heap_info_params.caps[1] = MALLOC_CAP_32BIT;
+	heap_info_params.mask[1] = MALLOC_CAP_32BIT;
+	heap_info_params.tasks = NULL;
+	heap_info_params.num_tasks = 0;
+	heap_info_params.totals = task_totals;
+	heap_info_params.num_totals = &num_totals;
+	heap_info_params.max_totals = MAX_TRACKING_TASKS;
+	heap_info_params.blocks = NULL;
+	heap_info_params.max_blocks = 0;
+	int count = heap_caps_get_per_task_info(&heap_info_params);
+	printf("Per task heap info:\n");
+	for (int i = 0; i < num_totals; i++) {
+		heap_task_totals_t* totals = &task_totals[i];
+		const char* name = totals->task ? pcTaskGetTaskName(totals->task) : "Pre-Schedular allocs";
+		printf("Task %s => CAP_8BIT: %d CAP_32BIT: %d\n", name, totals->size[0], totals->size[1]);
+	}
+#endif
 
 	printf("Starting console task...\n");
 	TaskHandle_t console_task;

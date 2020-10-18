@@ -6,8 +6,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define MAX_DISCOVERED_PEERS		32
-
 static struct hal_bt_callbacks g_bt_callbacks;
 static enum {
 	bt_menu_top,
@@ -19,7 +17,7 @@ static int g_discovered_peer_count;
 void hal_bt_register(struct hal_bt_callbacks* callbacks) {
 	memcpy(&g_bt_callbacks, callbacks, sizeof(struct hal_bt_callbacks));
 	hal_bt_resetmenu();
-	g_discovered_peers = (struct hal_bt_peerinfo*)platform_malloc_fast(sizeof(struct hal_bt_peerinfo) * MAX_DISCOVERED_PEERS);
+	g_discovered_peers = (struct hal_bt_peerinfo*)platform_malloc_fast(sizeof(struct hal_bt_peerinfo) * HAL_BT_MAX_DISCOVERED_PEERS);
 }
 
 int hal_bt_available() {
@@ -37,7 +35,7 @@ void hal_bt_getmenu(struct cpu* cpu, struct arrobj* arr) {
 		menuitem_action(cpu, arr, -1, "Back");
 		menuitem_text(cpu, arr, "Bonded devices");
 		// TODO: Sorting
-		int bonded_count = g_bt_callbacks.get_bonded_devices(g_discovered_peers, MAX_DISCOVERED_PEERS);
+		int bonded_count = g_bt_callbacks.get_bonded_devices(g_discovered_peers, HAL_BT_MAX_DISCOVERED_PEERS);
 		for (int i = 0; i < bonded_count; i++) {
 			struct hal_bt_peerinfo* peer = &g_discovered_peers[i];
 			if (peer->name[0])
@@ -69,6 +67,8 @@ void hal_bt_getmenu(struct cpu* cpu, struct arrobj* arr) {
 }
 
 int hal_bt_menuop(struct cpu* cpu, int sp, int nargs) {
+	if (nargs != 1)
+		return 1;
 	value_t id_value = ARG(0);
 	if (!value_is_num(id_value))
 		return 1;
@@ -81,6 +81,10 @@ int hal_bt_menuop(struct cpu* cpu, int sp, int nargs) {
 			g_bt_callbacks.start_discovery();
 			g_discovered_peer_count = 0;
 			g_bt_menustate = bt_menu_discover;
+		}
+		else {
+			struct hal_bt_addr addr = g_discovered_peers[id].addr;
+			g_bt_callbacks.remove_bonded_device(&addr);
 		}
 	}
 	case bt_menu_discover: {
@@ -150,7 +154,7 @@ void hal_bt_discover_peer(const struct hal_bt_peerinfo* peer) {
 			return;
 		}
 	}
-	if (g_discovered_peer_count + 1 < MAX_DISCOVERED_PEERS) {
+	if (g_discovered_peer_count + 1 < HAL_BT_MAX_DISCOVERED_PEERS) {
 		g_discovered_peers[g_discovered_peer_count] = *peer;
 		g_discovered_peer_count++;
 	}

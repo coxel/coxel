@@ -3,6 +3,7 @@
 
 #include "../cpu.h"
 
+#define HAL_BT_MAX_DISCOVERED_PEERS		32
 #define HAL_BT_ADDR_LEN		6
 #define HAL_BT_MAXNAME		31
 struct hal_bt_addr {
